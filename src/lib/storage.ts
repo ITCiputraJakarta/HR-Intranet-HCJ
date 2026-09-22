@@ -179,6 +179,25 @@ export function registerUser(newUser: User): void {
   }
 }
 
+export function createUserByAdmin(newUser: User, actor: User): void {
+  const users = getUsers();
+  const exists = users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase());
+  if (!exists) {
+    const updated = [...users, newUser];
+    saveUsers(updated);
+    firestoreSaveUser(newUser);
+
+    addAccessLog({
+      user: actor,
+      actionCategory: 'USER_MGMT',
+      action: 'Tambah Akun Pengguna Baru',
+      target: `${newUser.nama} (${newUser.email})`,
+      status: 'SUCCESS',
+      details: `Dibuat oleh Super Admin ${actor.nama}. Role: ${newUser.role}, Dept: ${newUser.departemen}, Status: ${newUser.status}`,
+    });
+  }
+}
+
 // ----------------- DOCUMENTS (WITH GOOGLE DRIVE STORAGE) -----------------
 export function getDocuments(): IntranetDocument[] {
   return getStored<IntranetDocument[]>(STORAGE_KEYS.DOCUMENTS, INITIAL_DOCUMENTS);

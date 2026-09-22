@@ -5,7 +5,6 @@ import {
   ChevronDown,
   LogOut,
   User as UserIcon,
-  Sparkles,
   ShieldCheck,
   CheckCircle2,
   ExternalLink,
@@ -51,9 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
-  const handleSwitch = onRoleSwitch || onSwitchUser || (() => {});
   const handleClear = onClearNotifications || onRefreshNotifications || (() => {});
   const handleConfig = onOpenConfig || (() => onNavigate?.('spreadsheet'));
 
@@ -151,36 +148,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Google Sheets & Drive Document Storage
               </p>
             </div>
-          </div>
-
-          {/* Center: Quick Role Switcher (Tester Helper) */}
-          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-slate-600 font-medium mr-1">Simulasi Role:</span>
-            {safeAllUsers
-              .filter((u) => u.status === 'Approved')
-              .slice(0, 4)
-              .map((userOption) => (
-                <button
-                  key={userOption.id}
-                  id={`role-switch-${userOption.role}`}
-                  onClick={() => handleSwitch(userOption)}
-                  className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
-                    currentUser.id === userOption.id
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
-                  title={`${userOption.nama} (${userOption.departemen})`}
-                >
-                  {userOption.role === 'admin'
-                    ? 'Admin'
-                    : userOption.role === 'manager'
-                    ? 'Manager'
-                    : userOption.role === 'spv'
-                    ? 'SPV'
-                    : 'Staff'}
-                </button>
-              ))}
           </div>
 
           {/* Right Action Items */}

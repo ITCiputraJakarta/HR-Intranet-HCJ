@@ -25,13 +25,16 @@ function getGenAI(): GoogleGenAI | null {
   return genAIClient;
 }
 
+// API Router for endpoints
+const apiRouter = express.Router();
+
 // Health check endpoint
-app.get("/api/health", (_req, res) => {
+apiRouter.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // AI Announcement drafter endpoint
-app.post("/api/ai/draft-announcement", async (req, res) => {
+apiRouter.post("/ai/draft-announcement", async (req, res) => {
   try {
     const { title, department } = req.body;
     if (!title) {
@@ -64,7 +67,7 @@ app.post("/api/ai/draft-announcement", async (req, res) => {
 });
 
 // AI Performance Appraisal Feedback endpoint
-app.post("/api/ai/performance-feedback", async (req, res) => {
+apiRouter.post("/ai/performance-feedback", async (req, res) => {
   try {
     const { employeeName, role, department, kpiScore, grandTotal, grade, bestAchievement, challenge } = req.body;
 
@@ -103,7 +106,7 @@ Instruksi: Tulis dalam 1 paragraf (3-4 kalimat singkat), menyapa langsung dengan
 });
 
 // Ping and test connection to Google Apps Script Web App
-app.post("/api/gas/ping", async (req, res) => {
+apiRouter.post("/gas/ping", async (req, res) => {
   try {
     const { webAppUrl } = req.body;
     if (!webAppUrl || typeof webAppUrl !== "string" || !webAppUrl.startsWith("https://script.google.com/macros/s/")) {
@@ -209,7 +212,7 @@ app.post("/api/gas/ping", async (req, res) => {
 });
 
 // Proxy to user's Google Apps Script web app if configured (bypasses CORS in browser)
-app.post("/api/proxy-gas", async (req, res) => {
+apiRouter.post("/proxy-gas", async (req, res) => {
   try {
     const { gasUrl, payload } = req.body;
     if (!gasUrl || !gasUrl.startsWith("https://script.google.com/macros/s/")) {
@@ -247,6 +250,10 @@ app.post("/api/proxy-gas", async (req, res) => {
     return res.status(500).json({ error: error?.message || "Gagal menghubungi Google Apps Script." });
   }
 });
+
+// Mount the API router on /api and root (supports both standalone and Vercel serverless rewrites)
+app.use("/api", apiRouter);
+app.use(apiRouter);
 
 // Vite middleware in dev or static files in production
 async function startServer() {
@@ -300,7 +307,13 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error("Critical server startup failure:", err);
-  process.exit(1);
-});
+// Only start standalone HTTP server if not running in a serverless environment (e.g. Vercel)
+if (!process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error("Critical server startup failure:", err);
+    process.exit(1);
+  });
+}
+
+export default app;
+export { app };

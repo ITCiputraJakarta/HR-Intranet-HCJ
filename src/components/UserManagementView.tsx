@@ -17,10 +17,9 @@ import { User, UserRole, UserStatus } from '../types';
 import {
   updateUserStatus,
   updateUserRole,
-  saveUsers,
+  createUserByAdmin,
   getUsers,
   deleteUser,
-  addAccessLog,
   getDepartments,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
@@ -122,16 +121,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    saveUsers([...all, newUser]);
-
-    addAccessLog({
-      user: currentUser,
-      actionCategory: 'USER_MGMT',
-      action: 'Tambah Akun Pengguna Baru',
-      target: `${newUser.nama} (${newUser.email})`,
-      status: 'SUCCESS',
-      details: `Dibuat oleh Super Admin. Role: ${newUser.role}, Dept: ${newUser.departemen}, Status: ${newUser.status}`,
-    });
+    createUserByAdmin(newUser, currentUser);
 
     setShowAddModal(false);
     setNewName('');

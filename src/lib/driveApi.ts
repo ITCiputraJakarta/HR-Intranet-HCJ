@@ -87,8 +87,8 @@ export async function uploadFileToGoogleDrive(params: {
     }
   }
 
-  // Standalone client fallback (stores as local blob preview URL and simulated Drive ID)
-  const localUrl = URL.createObjectURL(params.file);
+  // Standalone client fallback: For files under 400KB, use permanent data URL so documents remain viewable across reloads
+  const localUrl = params.file.size < 400 * 1024 ? `data:${mimeType};base64,${base64Data}` : URL.createObjectURL(params.file);
   const fallbackDriveId = `1Drv-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
   return {
     success: true,
@@ -96,7 +96,7 @@ export async function uploadFileToGoogleDrive(params: {
     fileUrl: localUrl,
     previewUrl: localUrl,
     downloadUrl: localUrl,
-    thumbUrl: localUrl,
+    thumbUrl: mimeType.startsWith('image/') ? localUrl : undefined,
     driveFileId: fallbackDriveId,
     fileName: params.file.name,
     fileSize: fileSizeMB,

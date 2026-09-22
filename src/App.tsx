@@ -40,6 +40,7 @@ import { DepartmentsMasterView } from './components/DepartmentsMasterView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { GASConfigModal } from './components/GASConfigModal';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
+import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import {
   seedInitialFirestoreData,
   subscribeToUsers,
@@ -58,6 +59,12 @@ export default function App() {
   const [currentUser, setUserState] = useState<User | null>(() => getCurrentUser());
   const [activeTab, setActiveTab] = useState<string>('announcements');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [currentLang, setCurrentLang] = useState<Language>(() => getSavedLanguage());
+
+  const handleLanguageChange = (lang: Language) => {
+    setCurrentLang(lang);
+    saveLanguage(lang);
+  };
 
   // Connection State
   const [firebaseState, setFirebaseState] = useState<FirebaseConnectionState>('checking');
@@ -273,6 +280,8 @@ export default function App() {
         unreadCount={unreadNotifsCount}
         allUsers={users}
         notifications={notifications}
+        currentLang={currentLang}
+        onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
         onOpenConfig={() => {
           setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
@@ -316,6 +325,7 @@ export default function App() {
         <Sidebar
           activeTab={activeTab}
           currentTab={activeTab}
+          currentLang={currentLang}
           onNavigate={handleNavigate}
           onSelectTab={setActiveTab}
           currentUser={currentUser}
@@ -403,6 +413,7 @@ export default function App() {
             <UserManagementView
               users={users}
               currentUser={currentUser}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}

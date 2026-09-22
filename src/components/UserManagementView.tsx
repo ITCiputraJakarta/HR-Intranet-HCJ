@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Pencil,
   CheckCircle2,
   Clock,
   Building2,
@@ -23,6 +24,7 @@ import {
   updateUserStatus,
   updateUserRole,
   createUserByAdmin,
+  updateUserByAdmin,
   getUsers,
   deleteUser,
   getDepartments,
@@ -30,16 +32,19 @@ import {
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface UserManagementViewProps {
   users: User[];
   currentUser: User;
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
   users = [],
   currentUser,
+  currentLang = 'id',
   onRefresh,
 }) => {
   const departments = getDepartments();
@@ -53,6 +58,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [key: string]: boolean }>({});
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Edit modal states
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editDept, setEditDept] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('staff');
+  const [editStatus, setEditStatus] = useState<UserStatus>('Approved');
+  const [editPassword, setEditPassword] = useState('');
+  const [editFormError, setEditFormError] = useState('');
+  const [editSuccessMsg, setEditSuccessMsg] = useState<string | null>(null);
 
   // Delete modal states
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -142,6 +158,49 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setNewPassword('password123');
     setFormError('');
     onRefresh();
+  };
+
+  const handleOpenEditModal = (user: User) => {
+    setUserToEdit(user);
+    setEditName(user.nama);
+    setEditEmail(user.email);
+    setEditDept(user.departemen);
+    setEditRole(user.role);
+    setEditStatus(user.status);
+    setEditPassword('');
+    setEditFormError('');
+  };
+
+  const handleEditUserSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEdit) return;
+
+    if (!editName.trim() || !editEmail.trim()) {
+      setEditFormError('Nama lengkap dan email tidak boleh kosong.');
+      return;
+    }
+
+    const res = updateUserByAdmin(
+      userToEdit.id,
+      {
+        nama: editName,
+        email: editEmail,
+        departemen: editDept,
+        role: editRole,
+        status: editStatus,
+        password: editPassword.trim() ? editPassword.trim() : undefined,
+      },
+      currentUser
+    );
+
+    if (res.success) {
+      setEditSuccessMsg(res.message);
+      setUserToEdit(null);
+      onRefresh();
+      setTimeout(() => setEditSuccessMsg(null), 5000);
+    } else {
+      setEditFormError(res.message);
+    }
   };
 
   const safeUsers = users || [];
@@ -242,6 +301,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       </div>
 
       {/* Notifications */}
+      {editSuccessMsg && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{editSuccessMsg}</span>
+          </div>
+          <button
+            onClick={() => setEditSuccessMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800 text-xs font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {deleteSuccessMsg && (
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
           <div className="flex items-center gap-2">
@@ -545,26 +619,38 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </td>
 
                       <td className="py-4 px-5 text-right">
-                        <button
-                          type="button"
-                          id={`btn-delete-user-${user.id}`}
-                          onClick={() => {
-                            if (user.id === currentUser.id) {
-                              setSelfDeleteNotice(true);
-                              return;
-                            }
-                            setUserToDelete(user);
-                          }}
-                          disabled={user.id === currentUser.id}
-                          className={`p-2 rounded-xl transition-all ${
-                            user.id === currentUser.id
-                              ? 'text-slate-300 cursor-not-allowed opacity-50'
-                              : 'text-rose-500 hover:bg-rose-50 hover:text-rose-700 active:scale-95'
-                          }`}
-                          title={user.id === currentUser.id ? 'Tidak dapat menghapus akun Anda sendiri' : `Hapus ${user.nama}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            id={`btn-edit-user-${user.id}`}
+                            onClick={() => handleOpenEditModal(user)}
+                            className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 transition-all active:scale-95"
+                            title={`Edit Data ${user.nama}`}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            id={`btn-delete-user-${user.id}`}
+                            onClick={() => {
+                              if (user.id === currentUser.id) {
+                                setSelfDeleteNotice(true);
+                                return;
+                              }
+                              setUserToDelete(user);
+                            }}
+                            disabled={user.id === currentUser.id}
+                            className={`p-2 rounded-xl transition-all ${
+                              user.id === currentUser.id
+                                ? 'text-slate-300 cursor-not-allowed opacity-50'
+                                : 'text-rose-500 hover:bg-rose-50 hover:text-rose-700 active:scale-95'
+                            }`}
+                            title={user.id === currentUser.id ? 'Tidak dapat menghapus akun Anda sendiri' : `Hapus ${user.nama}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -813,6 +899,152 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   className="px-5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
                 >
                   Simpan Akun
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {userToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Edit Data Pengguna</h3>
+                  <p className="text-[11px] text-slate-500">Perbarui informasi akun, hak akses peran, dan departemen</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUserToEdit(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-lg hover:bg-slate-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editFormError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditUserSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Lengkap *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Contoh: Jessica Natalie"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Alamat Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="user@ciputra.com"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Departemen
+                  </label>
+                  <select
+                    value={editDept}
+                    onChange={(e) => setEditDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  >
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Peran Akses (Role)
+                  </label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as UserRole)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                  >
+                    <option value="staff">Staff</option>
+                    <option value="spv">Supervisor</option>
+                    <option value="manager">Manager</option>
+                    <option value="hod">Head of Dept</option>
+                    <option value="admin">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Status Akun
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as UserStatus)}
+                    className={`w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-bold ${
+                      editStatus === 'Approved' ? 'text-emerald-700' : 'text-amber-700'
+                    }`}
+                  >
+                    <option value="Approved">Approved</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Reset Sandi (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="Kosongkan jika tak ubah"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToEdit(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-edit-user"
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 transition-colors"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </form>

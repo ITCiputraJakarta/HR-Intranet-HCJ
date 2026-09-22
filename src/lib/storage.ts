@@ -1,5 +1,7 @@
 import {
   User,
+  UserRole,
+  UserStatus,
   IntranetDocument,
   AccessLog,
   CategoryMaster,
@@ -211,6 +213,64 @@ export function createUserByAdmin(newUser: User, actor: User): void {
       details: `Dibuat oleh Super Admin ${actor.nama}. Role: ${newUser.role}, Dept: ${newUser.departemen}, Status: ${newUser.status}`,
     });
   }
+}
+
+export function updateUserByAdmin(
+  userId: string,
+  data: {
+    nama: string;
+    email: string;
+    departemen: string;
+    role: UserRole;
+    status: UserStatus;
+    password?: string;
+  },
+  actor: User
+): { success: boolean; message: string; user?: User } {
+  const users = getUsers();
+  const index = users.findIndex((u) => u.id === userId);
+  if (index === -1) {
+    return { success: false, message: 'Pengguna tidak ditemukan dalam database.' };
+  }
+
+  const cleanEmail = data.email.trim().toLowerCase();
+  const cleanName = data.nama.trim();
+
+  if (!cleanName || !cleanEmail) {
+    return { success: false, message: 'Nama dan Email tidak boleh kosong.' };
+  }
+
+  const emailTaken = users.some((u) => u.id !== userId && u.email.toLowerCase() === cleanEmail);
+  if (emailTaken) {
+    return { success: false, message: `Email "${cleanEmail}" sudah digunakan oleh akun lain.` };
+  }
+
+  const existing = users[index];
+  const updatedUser: User = {
+    ...existing,
+    nama: cleanName,
+    email: cleanEmail,
+    departemen: data.departemen,
+    role: data.role,
+    status: data.status,
+    password: data.password && data.password.trim() ? data.password.trim() : existing.password,
+  };
+
+  const updatedUsers = [...users];
+  updatedUsers[index] = updatedUser;
+  saveUsers(updatedUsers);
+  firestoreSaveUser(updatedUser);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'USER_MGMT',
+    action: 'Edit Data Akun Pengguna',
+    target: `${updatedUser.nama} (${updatedUser.email})`,
+    status: 'SUCCESS',
+    details: `Data akun diperbarui oleh Super Admin ${actor.nama}. Role: ${updatedUser.role}, Dept: ${updatedUser.departemen}, Status: ${updatedUser.status}`,
+  });
+
+  return { success: true, message: 'Data pengguna berhasil diperbarui!', user: updatedUser };
 }
 
 // ----------------- DOCUMENTS (WITH GOOGLE DRIVE STORAGE) -----------------
@@ -581,6 +641,15 @@ export function addKPIMasterItem(item: KPIMasterItem, actor: User): void {
     status: 'SUCCESS',
     details: `Bobot: ${item.weight}%, Target: ${item.target}. Disimpan di Firestore.`,
   });
+
+  // Notifikasi KPI baru untuk SPV & Departemen terkait
+  sendPushNotification({
+    title: `Indikator KPI Baru: ${item.departemen}`,
+    message: `Master KPI baru ditambahkan oleh ${actor.nama} untuk ${item.departemen} (${item.target_role.toUpperCase()}): "${item.pillar} - ${item.objective}". Target: ${item.target} (Bobot ${item.weight}%).`,
+    category: 'KPI',
+    targetDepartment: item.departemen,
+    targetRole: 'spv',
+  });
 }
 
 export function updateKPIMasterItem(item: KPIMasterItem, actor: User): void {
@@ -594,6 +663,14 @@ export function updateKPIMasterItem(item: KPIMasterItem, actor: User): void {
     action: 'Ubah Indikator KPI',
     target: item.pillar,
     status: 'SUCCESS',
+  });
+
+  sendPushNotification({
+    title: `Pembaruan KPI: ${item.departemen}`,
+    message: `Indikator KPI "${item.pillar}" (${item.departemen} - ${item.target_role.toUpperCase()}) telah diperbarui oleh ${actor.nama}.`,
+    category: 'KPI',
+    targetDepartment: item.departemen,
+    targetRole: 'spv',
   });
 }
 
@@ -634,6 +711,13 @@ export function deployKPI(dept: string, year: number | string, tipe: string, rol
     status: 'SUCCESS',
     details: 'Status seluruh draf indikator diubah menjadi Active di Firebase Firestore.',
   });
+
+  sendPushNotification({
+    title: `KPI Aktif Dideploy: ${dept}`,
+    message: `Indikator penilaian kinerja aktif periode ${year} (${tipe}) untuk ${role.toUpperCase()} departemen ${dept} telah resmi dideploy.`,
+    category: 'KPI',
+    targetDepartment: dept,
+  });
 }
 
 // ----------------- PERFORMANCE APPRAISAL -----------------
@@ -671,6 +755,26 @@ export function savePerformanceItem(perf: PerformanceAppraisal, actor: User): vo
     status: 'SUCCESS',
     details: `Skor Akhir: ${perf.finalGrandTotal.toFixed(2)} (${perf.finalGrade}). Status: ${perf.status}`,
   });
+
+  // Notifikasi otomatis ke SPV, HOD, & Admin saat submit atau disetujui
+  if (perf.status === 'Submitted') {
+    sendPushNotification({
+      title: `Submit KPI Baru: ${perf.nama}`,
+      message: `Formulir penilaian kinerja ${perf.periode} (${perf.tipe}) dari ${perf.nama} (${perf.departemen}) telah disubmit dan menunggu evaluasi SPV / HOD.`,
+      category: 'KPI',
+      targetDepartment: perf.departemen,
+      targetRole: 'spv',
+      documentId: perf.id,
+    });
+  } else if (perf.status === 'Approved') {
+    sendPushNotification({
+      title: `KPI Disetujui: ${perf.nama}`,
+      message: `Evaluasi kinerja ${perf.periode} (${perf.tipe}) untuk ${perf.nama} telah disetujui (Skor: ${perf.finalGrandTotal.toFixed(2)}, Grade: ${perf.finalGrade}).`,
+      category: 'KPI',
+      targetDepartment: perf.departemen,
+      documentId: perf.id,
+    });
+  }
 }
 
 // ----------------- ANNOUNCEMENTS -----------------
@@ -678,9 +782,25 @@ export function getAnnouncements(): IntranetDocument[] {
   return (getDocuments() || []).filter((d) => d.category === 'Pengumuman');
 }
 
-// ----------------- NOTIFICATIONS -----------------
+// ----------------- NOTIFICATIONS (3-DAY RETENTION) -----------------
+export const NOTIFICATION_RETENTION_MS = 3 * 24 * 60 * 60 * 1000; // 3 hari
+
+export function cleanExpiredNotifications(): PushNotification[] {
+  const all = getStored<PushNotification[]>(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
+  const now = Date.now();
+  const valid = all.filter((n) => {
+    const time = new Date(n.createdAt).getTime();
+    return !isNaN(time) && now - time <= NOTIFICATION_RETENTION_MS;
+  });
+
+  if (valid.length !== all.length) {
+    setStored(STORAGE_KEYS.NOTIFICATIONS, valid);
+  }
+  return valid;
+}
+
 export function getNotifications(): PushNotification[] {
-  return getStored<PushNotification[]>(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
+  return cleanExpiredNotifications();
 }
 
 export function saveNotifications(notifs: PushNotification[]): void {
@@ -692,15 +812,17 @@ export function sendPushNotification(params: {
   message: string;
   category: string;
   targetDepartment: string;
+  targetRole?: string;
   documentId?: string;
 }): void {
   const notifs = getNotifications();
   const newNotif: PushNotification = {
-    id: `notif-${Date.now()}`,
+    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     title: params.title,
     message: params.message,
     category: params.category,
     targetDepartment: params.targetDepartment,
+    targetRole: params.targetRole,
     documentId: params.documentId,
     createdAt: new Date().toISOString(),
     read: false,

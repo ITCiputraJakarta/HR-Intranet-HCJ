@@ -20,12 +20,14 @@ import {
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { Language, t } from '../lib/i18n';
 
 interface SidebarProps {
   activeTab?: string;
   currentTab?: string;
   activeCategory?: string;
   currentUser: User;
+  currentLang?: Language;
   onNavigate?: (tab: string, category?: string) => void;
   onSelectTab?: (tab: string) => void;
   onLogout?: () => void;
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   activeCategory,
   currentUser,
+  currentLang = 'id',
   onNavigate,
   onSelectTab,
   onLogout = () => {},
@@ -82,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const renderContent = (isMobile = false) => (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full select-none">
       {/* Mobile Drawer Top Header */}
       {isMobile && (
         <div className="flex items-center justify-between p-4 border-b border-slate-800 shrink-0">
@@ -91,8 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               HC
             </div>
             <div>
-              <span className="font-bold text-white text-sm block leading-tight">Hotel Ciputra</span>
-              <span className="text-[10px] text-slate-400">Intranet Portal</span>
+              <span className="font-bold text-white text-sm block leading-tight">{t('hotelName', currentLang)}</span>
+              <span className="text-[10px] text-slate-400">{t('intranetPortal', currentLang)}</span>
             </div>
           </div>
           <button
@@ -110,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-              Departemen Anda
+              {t('yourDepartment', currentLang)}
             </span>
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
@@ -121,20 +124,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <FolderLock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span className="truncate">
               {isAdmin || role === 'manager'
-                ? 'Akses Semua Berkas & Upload'
-                : 'Filter Terproteksi Departemen'}
+                ? t('allFilesAccess', currentLang)
+                : t('deptProtectedFilter', currentLang)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Navigation Links */}
+      {/* Navigation Links with custom scrollbar */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         
         {/* Utama (Intranet & Berkas) */}
         <div>
-          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Arsip & Berkas
+          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            {t('archivesAndFiles', currentLang)}
           </div>
           <nav className="space-y-1">
             <button
@@ -147,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <Megaphone className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span className="flex-1 text-left">Pengumuman</span>
+              <span className="flex-1 text-left">{t('menuAnnouncements', currentLang)}</span>
             </button>
 
             <button
@@ -160,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <FileCheck2 className="w-4 h-4 text-blue-400 shrink-0" />
-              <span className="flex-1 text-left">File SOP</span>
+              <span className="flex-1 text-left">{t('menuSOP', currentLang)}</span>
             </button>
 
             <button
@@ -173,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="flex-1 text-left">Formulir Kerja</span>
+              <span className="flex-1 text-left">{t('menuForms', currentLang)}</span>
             </button>
 
             <button
@@ -186,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <Award className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="flex-1 text-left">Review Kinerja (Appraisal)</span>
+              <span className="flex-1 text-left">{t('menuPerformance', currentLang)}</span>
             </button>
           </nav>
         </div>
@@ -194,8 +197,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Master Data (SPV, Manager, Admin) */}
         {isPrivileged && (
           <div>
-            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Master & Konfigurasi
+            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {t('masterAndConfig', currentLang)}
             </div>
             <nav className="space-y-1">
               <button
@@ -208,7 +211,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="flex-1 text-left">Master Departemen</span>
+                <span className="flex-1 text-left">{t('menuDepartments', currentLang)}</span>
               </button>
 
               <button
@@ -221,7 +224,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <Tags className="w-4 h-4 text-pink-400 shrink-0" />
-                <span className="flex-1 text-left">Master Kategori</span>
+                <span className="flex-1 text-left">{t('menuCategories', currentLang)}</span>
               </button>
 
               <button
@@ -234,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span className="flex-1 text-left">Master Data KPI</span>
+                <span className="flex-1 text-left">{t('menuKPIMaster', currentLang)}</span>
               </button>
             </nav>
           </div>
@@ -244,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAdmin && (
           <div>
             <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-rose-400">
-              Super Admin Control
+              {t('superAdminControl', currentLang)}
             </div>
             <nav className="space-y-1">
               <button
@@ -257,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <Users className="w-4 h-4 text-purple-400 shrink-0" />
-                <span className="flex-1 text-left">Manajemen User</span>
+                <span className="flex-1 text-left">{t('menuUserManagement', currentLang)}</span>
                 {pendingUsersCount > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">
                     {pendingUsersCount}
@@ -275,7 +278,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="flex-1 text-left">Sistem Log Akses</span>
+                <span className="flex-1 text-left">{t('menuAccessLogs', currentLang)}</span>
               </button>
 
               <button
@@ -288,7 +291,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 <Flame className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-                <span className="flex-1 text-left">Firebase & Drive Cloud</span>
+                <span className="flex-1 text-left">{t('menuCloudSync', currentLang)}</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
               </button>
             </nav>
@@ -308,7 +311,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 rounded-xl transition-colors"
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          <span>Keluar Sesi</span>
+          <span>{t('logoutSession', currentLang)}</span>
         </button>
       </div>
     </div>
@@ -316,8 +319,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-slate-800/80 shadow-xs min-h-[calc(100vh-8rem)]">
+      {/* Desktop Persistent Sticky Sidebar */}
+      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-slate-800/80 shadow-lg sticky top-20 h-[calc(100vh-6rem)] self-start">
         {renderContent(false)}
       </aside>
 
@@ -336,3 +339,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+

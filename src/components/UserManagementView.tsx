@@ -11,7 +11,12 @@ import {
   Building2,
   Shield,
   KeyRound,
-  AlertCircle
+  AlertCircle,
+  Filter,
+  SlidersHorizontal,
+  ArrowDownAZ,
+  ArrowUpZA,
+  X,
 } from 'lucide-react';
 import { User, UserRole, UserStatus } from '../types';
 import {
@@ -23,6 +28,8 @@ import {
   getDepartments,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 interface UserManagementViewProps {
   users: User[];
@@ -38,6 +45,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const departments = getDepartments();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('All');
+  const [filterRole, setFilterRole] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [sortField, setSortField] = useState<string>('nama');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [key: string]: boolean }>({});
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -138,12 +151,59 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   if (filterDept !== 'All') {
     filtered = filtered.filter((u) => u.departemen === filterDept);
   }
+  if (filterRole !== 'All') {
+    filtered = filtered.filter((u) => u.role === filterRole);
+  }
+  if (filterStatus !== 'All') {
+    filtered = filtered.filter((u) => u.status === filterStatus);
+  }
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(
       (u) => u.nama.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     );
   }
+
+  filtered.sort((a, b) => {
+    let comp = 0;
+    if (sortField === 'nama') {
+      comp = a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'departemen') {
+      comp = a.departemen.localeCompare(b.departemen, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'role') {
+      comp = a.role.localeCompare(b.role, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'status') {
+      comp = a.status.localeCompare(b.status, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'createdAt') {
+      comp = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    }
+    return sortDirection === 'asc' ? comp : -comp;
+  });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const toggleSortAZ = () => {
+    if (sortField === 'nama' && sortDirection === 'asc') {
+      setSortDirection('desc');
+    } else {
+      setSortField('nama');
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedUsers = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const pendingCount = safeUsers.filter((u) => u.status === 'Pending').length;
 
@@ -212,37 +272,143 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         </div>
       )}
 
-      {/* Filter and Search */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            id="search-users"
-            type="text"
-            placeholder="Cari nama atau email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
-          />
+      {/* Filter and Search Bar */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+          <div className="relative w-full lg:w-72">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              id="search-users"
+              type="text"
+              placeholder="Cari nama atau email..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
+            {/* Quick 1-Click A-Z / Z-A Toggle Button */}
+            <button
+              id="btn-toggle-sort-users-az"
+              onClick={toggleSortAZ}
+              className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
+                sortField === 'nama'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+              title="Urutkan Nama A-Z atau Z-A"
+            >
+              {sortField === 'nama' && sortDirection === 'desc' ? (
+                <>
+                  <ArrowUpZA className="w-4 h-4 text-indigo-600" />
+                  <span>Z → A</span>
+                </>
+              ) : (
+                <>
+                  <ArrowDownAZ className="w-4 h-4 text-indigo-600" />
+                  <span>A → Z</span>
+                </>
+              )}
+            </button>
+
+            {/* Department Filter */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
+              <Building2 className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+              <select
+                id="filter-user-dept"
+                value={filterDept}
+                onChange={(e) => {
+                  setFilterDept(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer max-w-[150px] truncate"
+              >
+                <option value="All">Semua Dept ({safeUsers.length})</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>
+                    {d} ({safeUsers.filter((u) => u.departemen === d).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Role Filter */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
+              <Shield className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+              <select
+                id="filter-user-role"
+                value={filterRole}
+                onChange={(e) => {
+                  setFilterRole(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer"
+              >
+                <option value="All">Semua Role</option>
+                <option value="staff">Staff</option>
+                <option value="spv">Supervisor</option>
+                <option value="manager">Manager</option>
+                <option value="hod">HOD</option>
+                <option value="admin">Super Admin</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+              <select
+                id="filter-user-status"
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer"
+              >
+                <option value="All">Semua Status</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <span className="text-xs font-semibold text-slate-500 hidden sm:inline">
-            Departemen:
-          </span>
-          <select
-            id="filter-user-dept"
-            value={filterDept}
-            onChange={(e) => setFilterDept(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
-          >
-            <option value="All">Semua Departemen ({safeUsers.length})</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>
-                {d} ({safeUsers.filter((u) => u.departemen === d).length})
-              </option>
-            ))}
-          </select>
+        {/* Results summary and reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div>
+            Menampilkan <strong>{filtered.length}</strong> dari <strong>{safeUsers.length}</strong> pengguna
+          </div>
+
+          {(searchQuery || filterDept !== 'All' || filterRole !== 'All' || filterStatus !== 'All') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterDept('All');
+                setFilterRole('All');
+                setFilterStatus('All');
+                setCurrentPage(1);
+              }}
+              className="text-indigo-600 hover:text-indigo-800 font-bold text-xs inline-flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -252,10 +418,42 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
               <tr>
-                <th className="py-3.5 px-5">Info Karyawan</th>
-                <th className="py-3.5 px-4">Departemen</th>
-                <th className="py-3.5 px-4">Peran Akses (Role)</th>
-                <th className="py-3.5 px-4 text-center">Status Persetujuan</th>
+                <SortableHeader
+                  field="nama"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-5"
+                >
+                  Info Karyawan
+                </SortableHeader>
+                <SortableHeader
+                  field="departemen"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Departemen
+                </SortableHeader>
+                <SortableHeader
+                  field="role"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Peran Akses (Role)
+                </SortableHeader>
+                <SortableHeader
+                  field="status"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4 text-center"
+                >
+                  Status Persetujuan
+                </SortableHeader>
                 <th className="py-3.5 px-4">Kata Sandi</th>
                 <th className="py-3.5 px-5 text-right">Aksi</th>
               </tr>
@@ -268,7 +466,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filtered.map((user) => {
+                paginatedUsers.map((user) => {
                   const isPwRevealed = revealedPasswords[user.id];
                   return (
                     <tr
@@ -375,6 +573,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          itemsPerPage={itemsPerPage}
+          itemsPerPageOptions={[5, 10, 20, 50]}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(newCount) => {
+            setItemsPerPage(newCount);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       {/* Delete Confirmation Modal */}

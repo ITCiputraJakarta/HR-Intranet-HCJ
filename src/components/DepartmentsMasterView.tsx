@@ -12,11 +12,15 @@ import {
   Lock,
   X,
   Layers,
-  Info
+  Info,
+  ArrowDownAZ,
+  ArrowUpZA,
 } from 'lucide-react';
 import { DepartmentMaster, User, IntranetDocument } from '../types';
 import { getDepartmentMasters, addDepartment, updateDepartment } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 interface DepartmentsMasterViewProps {
   currentUser: User;
@@ -33,6 +37,10 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 }) => {
   const [departments, setDepartments] = useState<DepartmentMaster[]>(() => getDepartmentMasters());
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,6 +91,42 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
     ).length;
     return { userCount, docCount };
   };
+
+  // Sorting
+  const sortedDepartments = [...filteredDepartments].sort((a, b) => {
+    let comp = 0;
+    if (sortField === 'name') {
+      comp = a.name.localeCompare(b.name, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'code') {
+      comp = a.code.localeCompare(b.code, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'description') {
+      comp = (a.description || '').localeCompare(b.description || '', 'id', { sensitivity: 'base' });
+    } else if (sortField === 'userCount') {
+      const aStats = getDeptStats(a.name);
+      const bStats = getDeptStats(b.name);
+      comp = aStats.userCount - bStats.userCount;
+    } else if (sortField === 'docCount') {
+      const aStats = getDeptStats(a.name);
+      const bStats = getDeptStats(b.name);
+      comp = aStats.docCount - bStats.docCount;
+    }
+    return sortDirection === 'asc' ? comp : -comp;
+  });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedDepartments = sortedDepartments.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleOpenAdd = () => {
     setFormData({ name: '', code: '', description: '' });
@@ -295,21 +339,74 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 
       {/* Main List & Controls */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
-        {/* Search Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-96">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              id="search-departments"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama departemen, kode, atau deskripsi..."
-              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-            />
+        {/* Search & Actions Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                id="search-departments"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Cari nama departemen, kode, atau deskripsi..."
+                className="w-full pl-10 pr-9 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                if (sortField === 'name' && sortDirection === 'asc') {
+                  setSortDirection('desc');
+                } else {
+                  setSortField('name');
+                  setSortDirection('asc');
+                }
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                sortField === 'name'
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Urutkan A-Z"
+            >
+              {sortField === 'name' && sortDirection === 'desc' ? (
+                <ArrowUpZA className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowDownAZ className="w-3.5 h-3.5" />
+              )}
+              <span>Sort A-Z</span>
+            </button>
+
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-dashed border-slate-300"
+              >
+                Reset
+              </button>
+            )}
           </div>
 
-          <span className="text-xs text-slate-500 font-medium">
+          <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
             Menampilkan <strong>{filteredDepartments.length}</strong> dari {departments.length} departemen
           </span>
         </div>
@@ -326,106 +423,161 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="px-4 py-3.5 w-14">No</th>
-                  <th className="px-4 py-3.5 w-24">Kode</th>
-                  <th className="px-4 py-3.5">Nama Departemen</th>
-                  <th className="px-4 py-3.5 hidden md:table-cell">Deskripsi Operasional</th>
-                  <th className="px-4 py-3.5 text-center w-28">Karyawan</th>
-                  <th className="px-4 py-3.5 text-center w-28">Dokumen</th>
-                  <th className="px-4 py-3.5 text-center w-40">Status Proteksi & Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredDepartments.map((dept, index) => {
-                  const stats = getDeptStats(dept.name);
-                  return (
-                    <tr
-                      key={dept.id}
-                      className="hover:bg-slate-50/70 transition-colors group"
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="px-4 py-3.5 w-14 text-center">No</th>
+                    <SortableHeader
+                      field="code"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="px-4 py-3.5 w-24"
                     >
-                      <td className="px-4 py-3.5 font-medium text-slate-400 text-center">
-                        {index + 1}
-                      </td>
+                      Kode
+                    </SortableHeader>
+                    <SortableHeader
+                      field="name"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="px-4 py-3.5"
+                    >
+                      Nama Departemen
+                    </SortableHeader>
+                    <SortableHeader
+                      field="description"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="px-4 py-3.5 hidden md:table-cell"
+                    >
+                      Deskripsi Operasional
+                    </SortableHeader>
+                    <SortableHeader
+                      field="userCount"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="px-4 py-3.5 text-center w-28"
+                    >
+                      Karyawan
+                    </SortableHeader>
+                    <SortableHeader
+                      field="docCount"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="px-4 py-3.5 text-center w-28"
+                    >
+                      Dokumen
+                    </SortableHeader>
+                    <th className="px-4 py-3.5 text-center w-40">Status Proteksi & Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedDepartments.map((dept, index) => {
+                    const stats = getDeptStats(dept.name);
+                    const rowNumber = (currentPage - 1) * itemsPerPage + index + 1;
+                    return (
+                      <tr
+                        key={dept.id}
+                        className="hover:bg-slate-50/70 transition-colors group"
+                      >
+                        <td className="px-4 py-3.5 font-medium text-slate-400 text-center">
+                          {rowNumber}
+                        </td>
 
-                      {/* Code Badge */}
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black border tracking-wider ${getCodeBadgeStyle(
-                            dept.code
-                          )}`}
-                        >
-                          {dept.code}
-                        </span>
-                      </td>
-
-                      {/* Name & Subtitle */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <DepartmentBadge department={dept.name} size="sm" />
-                          <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-                            ({dept.code})
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-slate-400 block md:hidden mt-1">
-                          {dept.description || 'Tidak ada catatan deskripsi.'}
-                        </span>
-                      </td>
-
-                      {/* Description */}
-                      <td className="px-4 py-3.5 hidden md:table-cell text-slate-600 text-[11px] leading-relaxed max-w-xs">
-                        {dept.description || '-'}
-                      </td>
-
-                      {/* Users Count */}
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
-                          <Users className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{stats.userCount}</span>
-                        </span>
-                      </td>
-
-                      {/* Document Count */}
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
-                          <FileText className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{stats.docCount}</span>
-                        </span>
-                      </td>
-
-                      {/* Action & Protection status */}
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {isPrivileged && (
-                            <button
-                              id={`btn-edit-dept-${dept.code}`}
-                              onClick={() => handleOpenEdit(dept)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-all border border-indigo-200/60 shadow-2xs"
-                              title="Edit nama atau kode departemen"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                              <span>Edit</span>
-                            </button>
-                          )}
-
-                          {/* Anti-delete visual badge */}
+                        {/* Code Badge */}
+                        <td className="px-4 py-3.5">
                           <span
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-semibold border border-slate-200/60 cursor-help"
-                            title="Departemen dilindungi dari penghapusan demi mencegah error relasional"
+                            className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black border tracking-wider ${getCodeBadgeStyle(
+                              dept.code
+                            )}`}
                           >
-                            <Lock className="w-3 h-3 text-slate-400" />
-                            <span>Terkunci</span>
+                            {dept.code}
                           </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+
+                        {/* Name & Subtitle */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <DepartmentBadge department={dept.name} size="sm" />
+                            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                              ({dept.code})
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400 block md:hidden mt-1">
+                            {dept.description || 'Tidak ada catatan deskripsi.'}
+                          </span>
+                        </td>
+
+                        {/* Description */}
+                        <td className="px-4 py-3.5 hidden md:table-cell text-slate-600 text-[11px] leading-relaxed max-w-xs">
+                          {dept.description || '-'}
+                        </td>
+
+                        {/* Users Count */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
+                            <Users className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{stats.userCount}</span>
+                          </span>
+                        </td>
+
+                        {/* Document Count */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs">
+                            <FileText className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{stats.docCount}</span>
+                          </span>
+                        </td>
+
+                        {/* Action & Protection status */}
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isPrivileged && (
+                              <button
+                                id={`btn-edit-dept-${dept.code}`}
+                                onClick={() => handleOpenEdit(dept)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-all border border-indigo-200/60 shadow-2xs"
+                                title="Edit nama atau kode departemen"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                            )}
+
+                            {/* Anti-delete visual badge */}
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-semibold border border-slate-200/60 cursor-help"
+                              title="Departemen dilindungi dari penghapusan demi mencegah error relasional"
+                            >
+                              <Lock className="w-3 h-3 text-slate-400" />
+                              <span>Terkunci</span>
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <TablePagination
+              currentPage={currentPage}
+              totalItems={filteredDepartments.length}
+              itemsPerPage={itemsPerPage}
+              itemsPerPageOptions={[5, 10, 20]}
+              onPageChange={(page) => setCurrentPage(page)}
+              onItemsPerPageChange={(newCount) => {
+                setItemsPerPage(newCount);
+                setCurrentPage(1);
+              }}
+            />
           </div>
         )}
       </div>

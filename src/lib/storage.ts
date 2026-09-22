@@ -97,6 +97,21 @@ export function setCurrentUser(user: User | null): void {
   }
 }
 
+/**
+ * Hapus seluruh cache dan data tersimpan di browser saat pengguna logout.
+ * Memastikan sesi benar-benar bersih tanpa jejak data role sebelumnya.
+ */
+export function clearAllSessionCache(): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      sessionStorage.clear();
+    }
+  } catch (e) {
+    console.warn('Error clearing all session cache:', e);
+  }
+}
+
 export function updateUserStatus(userId: string, status: 'Approved' | 'Pending', actor: User): User[] {
   const users = getUsers();
   const target = users.find((u) => u.id === userId);

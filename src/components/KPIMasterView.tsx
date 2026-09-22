@@ -10,7 +10,11 @@ import {
   Building2,
   Calendar,
   Layers,
-  Sparkles
+  Sparkles,
+  Search,
+  X,
+  ArrowDownAZ,
+  ArrowUpZA,
 } from 'lucide-react';
 import { KPIMasterItem, User, UserRole } from '../types';
 import {
@@ -21,6 +25,8 @@ import {
   getDepartments,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 interface KPIMasterViewProps {
   kpiMaster: KPIMasterItem[];
@@ -52,6 +58,13 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
   const [showDeployConfirm, setShowDeployConfirm] = useState(false);
   const [kpiToDelete, setKpiToDelete] = useState<KPIMasterItem | null>(null);
 
+  // Table search, sort and pagination states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<string>('pillar');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+
   const safeKpiMaster = kpiMaster || [];
 
   // Filtered indicators
@@ -61,6 +74,46 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
       String(k.tahun) === filterYear &&
       k.tipe === filterType &&
       k.target_role === filterRole
+  );
+
+  let filteredKPIs = [...scopedKPIs];
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase();
+    filteredKPIs = filteredKPIs.filter(
+      (k) =>
+        k.pillar.toLowerCase().includes(q) ||
+        k.objective.toLowerCase().includes(q) ||
+        k.target.toLowerCase().includes(q)
+    );
+  }
+
+  filteredKPIs.sort((a, b) => {
+    let comp = 0;
+    if (sortField === 'pillar') {
+      comp = a.pillar.localeCompare(b.pillar, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'weight') {
+      comp = Number(a.weight || 0) - Number(b.weight || 0);
+    } else if (sortField === 'target') {
+      comp = a.target.localeCompare(b.target, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'status') {
+      comp = a.status.localeCompare(b.status, 'id', { sensitivity: 'base' });
+    }
+    return sortDirection === 'asc' ? comp : -comp;
+  });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedKPIs = filteredKPIs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const totalWeight = scopedKPIs.reduce((sum, item) => sum + Number(item.weight || 0), 0);
@@ -193,7 +246,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
           <select
             value={filterDept}
             disabled={currentUser.role !== 'admin'}
-            onChange={(e) => setFilterDept(e.target.value)}
+            onChange={(e) => {
+              setFilterDept(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-bold focus:ring-2 focus:ring-indigo-600"
           >
             {departments.map((d) => (
@@ -210,7 +266,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
           </label>
           <select
             value={filterYear}
-            onChange={(e) => setFilterYear(e.target.value)}
+            onChange={(e) => {
+              setFilterYear(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-bold focus:ring-2 focus:ring-indigo-600"
           >
             <option value="2026">2026</option>
@@ -224,7 +283,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
           </label>
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as any)}
+            onChange={(e) => {
+              setFilterType(e.target.value as any);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-bold focus:ring-2 focus:ring-indigo-600"
           >
             <option value="Mid-Year">Mid-Year</option>
@@ -238,7 +300,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
           </label>
           <select
             value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value as UserRole)}
+            onChange={(e) => {
+              setFilterRole(e.target.value as UserRole);
+              setCurrentPage(1);
+            }}
             className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-300 bg-indigo-50/50 text-indigo-900 font-bold focus:ring-2 focus:ring-indigo-600"
           >
             <option value="staff">Staff (Pelaksana)</option>
@@ -393,90 +458,170 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
         </div>
 
         {/* Right: Table of Indicators */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Daftar Indikator:
-              </h3>
-              <DepartmentBadge department={filterDept} size="sm" />
-              <span className="text-xs font-bold text-slate-600">
-                • {filterRole.toUpperCase()} ({filterYear} {filterType})
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Daftar Indikator:
+                </h3>
+                <DepartmentBadge department={filterDept} size="sm" />
+                <span className="text-xs font-bold text-slate-600">
+                  • {filterRole.toUpperCase()} ({filterYear} {filterType})
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                {scopedKPIs.length} Pilar Indikator
               </span>
             </div>
-            <span className="text-xs font-semibold text-slate-500">
-              {scopedKPIs.length} Pilar Indikator
-            </span>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
-                <tr>
-                  <th className="py-3 px-5">Pilar & Objektif</th>
-                  <th className="py-3 px-4 text-center">Bobot</th>
-                  <th className="py-3 px-4">Target Standar</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {scopedKPIs.length === 0 ? (
+            {/* Indicator Search and Filter Bar */}
+            <div className="p-3 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari pilar, objektif, target..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="text-xs text-slate-500">
+                Menampilkan <strong>{filteredKPIs.length}</strong> data
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
-                      Belum ada indikator KPI yang dibuat untuk kombinasi filter ini.
-                    </td>
+                    <SortableHeader
+                      field="pillar"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="py-3 px-5"
+                    >
+                      Pilar & Objektif
+                    </SortableHeader>
+                    <SortableHeader
+                      field="weight"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="py-3 px-4 text-center"
+                    >
+                      Bobot
+                    </SortableHeader>
+                    <SortableHeader
+                      field="target"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="py-3 px-4"
+                    >
+                      Target Standar
+                    </SortableHeader>
+                    <SortableHeader
+                      field="status"
+                      currentSortField={sortField}
+                      currentSortDirection={sortDirection}
+                      onSort={handleSort}
+                      className="py-3 px-4 text-center"
+                    >
+                      Status
+                    </SortableHeader>
+                    <th className="py-3 px-5 text-right">Aksi</th>
                   </tr>
-                ) : (
-                  scopedKPIs.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-5">
-                        <strong className="text-slate-900 block">{item.pillar}</strong>
-                        <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
-                          {item.objective}
-                        </p>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <span className="font-black text-indigo-700 text-sm">
-                          {item.weight}%
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-slate-700 font-medium max-w-xs">
-                        {item.target}
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                            item.status === 'Active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-5 text-right space-x-1 whitespace-nowrap">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredKPIs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        {searchQuery
+                          ? 'Tidak ada indikator KPI yang sesuai dengan pencarian.'
+                          : 'Belum ada indikator KPI yang dibuat untuk kombinasi filter ini.'}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedKPIs.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-5">
+                          <strong className="text-slate-900 block">{item.pillar}</strong>
+                          <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
+                            {item.objective}
+                          </p>
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className="font-black text-indigo-700 text-sm">
+                            {item.weight}%
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-slate-700 font-medium max-w-xs">
+                          {item.target}
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                              item.status === 'Active'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-5 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={filteredKPIs.length}
+            itemsPerPage={itemsPerPage}
+            itemsPerPageOptions={[5, 10, 20]}
+            onPageChange={(page) => setCurrentPage(page)}
+            onItemsPerPageChange={(newCount) => {
+              setItemsPerPage(newCount);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
       </div>

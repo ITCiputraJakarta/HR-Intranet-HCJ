@@ -15,11 +15,17 @@ import {
   User as UserIcon,
   ShieldCheck,
   RefreshCw,
-  Eye
+  Eye,
+  SlidersHorizontal,
+  X,
+  ArrowDownAZ,
+  ArrowUpZA,
 } from 'lucide-react';
 import { AccessLog, User, ActionCategory, LogStatus } from '../types';
 import { DEPARTMENTS } from '../data/initialData';
 import { clearAccessLogs } from '../lib/storage';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 interface AccessLogsViewProps {
   logs: AccessLog[];
@@ -36,6 +42,10 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterDept, setFilterDept] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [sortField, setSortField] = useState<string>('timestamp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -67,6 +77,37 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
         (l.details && l.details.toLowerCase().includes(q))
     );
   }
+
+  filtered.sort((a, b) => {
+    let comp = 0;
+    if (sortField === 'timestamp') {
+      comp = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    } else if (sortField === 'userName') {
+      comp = a.userName.localeCompare(b.userName, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'actionCategory') {
+      comp = a.actionCategory.localeCompare(b.actionCategory, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'target') {
+      comp = a.target.localeCompare(b.target, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'status') {
+      comp = a.status.localeCompare(b.status, 'id', { sensitivity: 'base' });
+    }
+    return sortDirection === 'asc' ? comp : -comp;
+  });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedLogs = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Statistics
   const totalCount = safeLogs.length;
@@ -263,63 +304,110 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        
-        {/* Search */}
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            id="search-logs"
-            type="text"
-            placeholder="Cari user, email, aksi, sasaran..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
-          />
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+          {/* Search */}
+          <div className="relative w-full lg:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              id="search-logs"
+              type="text"
+              placeholder="Cari user, email, aksi, sasaran..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Dropdowns */}
+          <div className="flex items-center gap-2 w-full lg:w-auto flex-wrap justify-end">
+            <select
+              id="filter-log-category"
+              value={filterCategory}
+              onChange={(e) => {
+                setFilterCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value="All">Semua Kategori</option>
+              <option value="AUTH">AUTH (Autentikasi)</option>
+              <option value="DOCUMENT">DOCUMENT (Berkas Drive)</option>
+              <option value="USER_MGMT">USER_MGMT (Kelola User)</option>
+              <option value="APPRAISAL">APPRAISAL (Evaluasi Kinerja)</option>
+              <option value="KPI_CONFIG">KPI_CONFIG (Konfigurasi KPI)</option>
+              <option value="SYSTEM">SYSTEM (Sistem & Master)</option>
+            </select>
+
+            <select
+              id="filter-log-dept"
+              value={filterDept}
+              onChange={(e) => {
+                setFilterDept(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value="All">Semua Departemen</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+
+            <select
+              id="filter-log-status"
+              value={filterStatus}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value="All">Semua Status</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="WARNING">WARNING</option>
+              <option value="FAILED">FAILED</option>
+            </select>
+          </div>
         </div>
 
-        {/* Dropdowns */}
-        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
-          <select
-            id="filter-log-category"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
-          >
-            <option value="All">Semua Kategori</option>
-            <option value="AUTH">AUTH (Autentikasi)</option>
-            <option value="DOCUMENT">DOCUMENT (Berkas Drive)</option>
-            <option value="USER_MGMT">USER_MGMT (Kelola User)</option>
-            <option value="APPRAISAL">APPRAISAL (Evaluasi Kinerja)</option>
-            <option value="KPI_CONFIG">KPI_CONFIG (Konfigurasi KPI)</option>
-            <option value="SYSTEM">SYSTEM (Sistem & Master)</option>
-          </select>
+        {/* Results summary and reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div>
+            Menampilkan <strong>{filtered.length}</strong> dari <strong>{safeLogs.length}</strong> catatan log
+          </div>
 
-          <select
-            id="filter-log-dept"
-            value={filterDept}
-            onChange={(e) => setFilterDept(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
-          >
-            <option value="All">Semua Departemen</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-
-          <select
-            id="filter-log-status"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
-          >
-            <option value="All">Semua Status</option>
-            <option value="SUCCESS">SUCCESS</option>
-            <option value="WARNING">WARNING</option>
-            <option value="FAILED">FAILED</option>
-          </select>
+          {(searchQuery || filterCategory !== 'All' || filterDept !== 'All' || filterStatus !== 'All') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setFilterCategory('All');
+                setFilterDept('All');
+                setFilterStatus('All');
+                setCurrentPage(1);
+              }}
+              className="text-indigo-600 hover:text-indigo-800 font-bold text-xs inline-flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -329,11 +417,51 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
               <tr>
-                <th className="py-3.5 px-5">Waktu (Timestamp)</th>
-                <th className="py-3.5 px-4">Pengguna / Operator</th>
-                <th className="py-3.5 px-4">Kategori & Aksi</th>
-                <th className="py-3.5 px-4">Target / Berkas</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
+                <SortableHeader
+                  field="timestamp"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-5"
+                >
+                  Waktu (Timestamp)
+                </SortableHeader>
+                <SortableHeader
+                  field="userName"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Pengguna / Operator
+                </SortableHeader>
+                <SortableHeader
+                  field="actionCategory"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Kategori & Aksi
+                </SortableHeader>
+                <SortableHeader
+                  field="target"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Target / Berkas
+                </SortableHeader>
+                <SortableHeader
+                  field="status"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4 text-center"
+                >
+                  Status
+                </SortableHeader>
                 <th className="py-3.5 px-5 text-right">Detail</th>
               </tr>
             </thead>
@@ -345,7 +473,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filtered.map((log) => (
+                paginatedLogs.map((log) => (
                   <tr
                     key={log.id}
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
@@ -432,6 +560,18 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          itemsPerPage={itemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(newCount) => {
+            setItemsPerPage(newCount);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       {/* Log Detail Inspector Modal */}

@@ -24,6 +24,7 @@ import {
   getSpreadsheetConfig,
   markNotificationsAsRead,
   addAccessLog,
+  clearAllSessionCache,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -157,8 +158,32 @@ export default function App() {
     };
   }, []);
 
+  const isSuperAdmin = currentUser?.role === 'admin';
+  const isPrivileged =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'manager' ||
+    currentUser?.role === 'spv' ||
+    currentUser?.role === 'hod';
+
+  // Strict role guard: redirect to announcements if user does not have permission to view current tab
+  useEffect(() => {
+    if (!currentUser) return;
+    const role = currentUser.role || 'staff';
+    const hasAdminAccess = role === 'admin';
+    const hasPrivilegedAccess = role === 'admin' || role === 'manager' || role === 'spv' || role === 'hod';
+
+    if (!hasAdminAccess && (activeTab === 'users' || activeTab === 'logs' || activeTab === 'access-logs')) {
+      setActiveTab('announcements');
+    } else if (!hasPrivilegedAccess && (activeTab === 'departments' || activeTab === 'categories' || activeTab === 'kpi-master' || activeTab === 'kpi')) {
+      setActiveTab('announcements');
+    }
+  }, [currentUser, activeTab]);
+
   const handleLoginSuccess = (user: User) => {
     setUserState(user);
+    // Always start at announcements on login so staff never sees previous admin tab
+    setActiveTab('announcements');
+    setIsMobileMenuOpen(false);
     refreshAllData();
   };
 
@@ -173,8 +198,22 @@ export default function App() {
         details: 'Sesi portal intranet berakhir secara normal.',
       });
     }
+
+    // Clear all storage, local cache, and session data completely
+    clearAllSessionCache();
     setCurrentUser(null);
     setUserState(null);
+    setActiveTab('announcements');
+    setIsMobileMenuOpen(false);
+    setPreviewDoc(null);
+    setShowGASModal(false);
+
+    // Reset data states in memory to prevent lingering data across sessions
+    setDocuments(getDocuments());
+    setAnnouncements(getAnnouncements());
+    setUsers(getUsers());
+    setLogs([]);
+    setNotifications([]);
   };
 
   const handleRoleSwitch = (newUser: User) => {
@@ -335,7 +374,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'departments' && (
+          {activeTab === 'departments' && isPrivileged && (
             <DepartmentsMasterView
               currentUser={currentUser}
               users={users}
@@ -344,7 +383,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'categories' && (
+          {activeTab === 'categories' && isPrivileged && (
             <CategoriesMasterView
               categories={categories}
               currentUser={currentUser}
@@ -352,7 +391,7 @@ export default function App() {
             />
           )}
 
-          {(activeTab === 'kpi-master' || activeTab === 'kpi') && (
+          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isPrivileged && (
             <KPIMasterView
               kpiMaster={kpiMaster}
               currentUser={currentUser}
@@ -360,7 +399,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'users' && (
+          {activeTab === 'users' && isSuperAdmin && (
             <UserManagementView
               users={users}
               currentUser={currentUser}
@@ -368,7 +407,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'logs' && (
+          {(activeTab === 'logs' || activeTab === 'access-logs') && isSuperAdmin && (
             <AccessLogsView
               logs={logs}
               currentUser={currentUser}

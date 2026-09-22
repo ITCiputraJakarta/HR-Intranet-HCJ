@@ -14,12 +14,16 @@ import {
   Clock,
   FileCheck2,
   Save,
-  Eye
+  Eye,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import { PerformanceAppraisal, User, KPIRowItem, KPIMasterItem } from '../types';
 import { savePerformanceItem, getDepartments } from '../lib/storage';
 import { AppraisalPrintModal } from './AppraisalPrintModal';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 interface PerformanceViewProps {
   performances: PerformanceAppraisal[];
@@ -42,6 +46,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   const [filterDept, setFilterDept] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [sortField, setSortField] = useState<string>('periode');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const isStaff = currentUser.role === 'staff' || currentUser.role === 'spv';
   const isHod = currentUser.role === 'hod';
@@ -73,6 +81,64 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     const q = searchName.toLowerCase();
     list = list.filter((p) => p.nama.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
   }
+
+  // Sorting
+  const sortedList = [...list].sort((a, b) => {
+    let comp = 0;
+    if (sortField === 'periode') {
+      if (a.periode !== b.periode) {
+        comp = a.periode - b.periode;
+      } else {
+        comp = a.tipe.localeCompare(b.tipe);
+      }
+    } else if (sortField === 'nama') {
+      comp = a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'departemen') {
+      comp = a.departemen.localeCompare(b.departemen, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'kpiTotalScore') {
+      comp = a.kpiTotalScore - b.kpiTotalScore;
+    } else if (sortField === 'finalGrandTotal') {
+      comp = a.finalGrandTotal - b.finalGrandTotal;
+    } else if (sortField === 'status') {
+      comp = a.status.localeCompare(b.status);
+    }
+    return sortDirection === 'asc' ? comp : -comp;
+  });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection(
+        field === 'periode' || field === 'kpiTotalScore' || field === 'finalGrandTotal'
+          ? 'desc'
+          : 'asc'
+      );
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedList = sortedList.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const hasActiveFilters =
+    searchName.trim() !== '' ||
+    filterYear !== 'All' ||
+    filterDept !== 'All' ||
+    filterType !== 'All' ||
+    filterStatus !== 'All';
+
+  const handleResetFilters = () => {
+    setSearchName('');
+    setFilterYear('All');
+    setFilterDept('All');
+    setFilterType('All');
+    setFilterStatus('All');
+    setCurrentPage(1);
+  };
 
   // Create new Form
   const handleOpenNewForm = () => {
@@ -742,23 +808,53 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            id="search-perf-emp"
-            type="text"
-            placeholder="Cari karyawan..."
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
-          />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              id="search-perf-emp"
+              type="text"
+              placeholder="Cari nama karyawan atau email..."
+              value={searchName}
+              onChange={(e) => {
+                setSearchName(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 focus:bg-white transition-all"
+            />
+            {searchName && (
+              <button
+                onClick={() => {
+                  setSearchName('');
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-dashed border-slate-300"
+              title="Reset semua filter pencarian"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
           <select
             value={filterYear}
-            onChange={(e) => setFilterYear(e.target.value)}
+            onChange={(e) => {
+              setFilterYear(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium"
           >
             <option value="All">Semua Tahun</option>
@@ -768,7 +864,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            onChange={(e) => {
+              setFilterType(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium"
           >
             <option value="All">Semua Tipe</option>
@@ -778,7 +877,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            onChange={(e) => {
+              setFilterStatus(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium"
           >
             <option value="All">Semua Status</option>
@@ -791,7 +893,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
           {!isStaff && (
             <select
               value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
+              onChange={(e) => {
+                setFilterDept(e.target.value);
+                setCurrentPage(1);
+              }}
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium"
             >
               <option value="All">Semua Departemen</option>
@@ -811,24 +916,72 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
               <tr>
-                <th className="py-3.5 px-5">Periode</th>
-                <th className="py-3.5 px-4">Karyawan</th>
-                <th className="py-3.5 px-4">Departemen</th>
-                <th className="py-3.5 px-4 text-center">Capaian KPI</th>
-                <th className="py-3.5 px-4 text-center">Skor Akhir</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
+                <SortableHeader
+                  field="periode"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-5"
+                >
+                  Periode & Tipe
+                </SortableHeader>
+                <SortableHeader
+                  field="nama"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Karyawan
+                </SortableHeader>
+                <SortableHeader
+                  field="departemen"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4"
+                >
+                  Departemen
+                </SortableHeader>
+                <SortableHeader
+                  field="kpiTotalScore"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4 text-center"
+                >
+                  Capaian KPI
+                </SortableHeader>
+                <SortableHeader
+                  field="finalGrandTotal"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4 text-center"
+                >
+                  Skor Akhir
+                </SortableHeader>
+                <SortableHeader
+                  field="status"
+                  currentSortField={sortField}
+                  currentSortDirection={sortDirection}
+                  onSort={handleSort}
+                  className="py-3.5 px-4 text-center"
+                >
+                  Status
+                </SortableHeader>
                 <th className="py-3.5 px-5 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.length === 0 ? (
+              {paginatedList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    Belum ada formulir appraisal yang sesuai.
+                    Belum ada formulir appraisal yang sesuai kriteria pencarian.
                   </td>
                 </tr>
               ) : (
-                list.map((item) => (
+                paginatedList.map((item) => (
                   <tr
                     key={item.id}
                     className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
@@ -901,6 +1054,18 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={sortedList.length}
+          itemsPerPage={itemsPerPage}
+          itemsPerPageOptions={[5, 10, 20, 50]}
+          onPageChange={(page) => setCurrentPage(page)}
+          onItemsPerPageChange={(newCount) => {
+            setItemsPerPage(newCount);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       {/* Print Preview Modal for List View */}

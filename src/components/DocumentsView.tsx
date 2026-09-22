@@ -26,6 +26,8 @@ import { addDocument, addAccessLog, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { uploadFileToGoogleDrive } from '../lib/driveApi';
 import { Flame } from 'lucide-react';
+import { TablePagination } from './TablePagination';
+import { SortableHeader } from './SortableHeader';
 
 export type DocumentSortOption = 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc' | 'dept-asc';
 
@@ -50,7 +52,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [selectedSubcat, setSelectedSubcat] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('All');
+  const [sortField, setSortField] = useState<string>('title');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [sortBy, setSortBy] = useState<DocumentSortOption>('title-asc');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [showUploadModal, setShowUploadModal] = useState(false);
 
@@ -102,31 +108,47 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   // Sorting
   catDocs.sort((a, b) => {
-    if (sortBy === 'title-asc') {
-      return a.title.localeCompare(b.title, 'id', { sensitivity: 'base' });
+    let comparison = 0;
+    if (sortField === 'title') {
+      comparison = a.title.localeCompare(b.title, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'sub_kategori') {
+      comparison = (a.sub_kategori || '').localeCompare(b.sub_kategori || '', 'id', { sensitivity: 'base' });
+    } else if (sortField === 'akses_dept') {
+      comparison = a.akses_dept.localeCompare(b.akses_dept, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'uploadedBy') {
+      comparison = a.uploadedBy.localeCompare(b.uploadedBy, 'id', { sensitivity: 'base' });
+    } else if (sortField === 'uploadedAt') {
+      comparison = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
+    } else if (sortField === 'fileSize') {
+      comparison = (a.fileSize || '').localeCompare(b.fileSize || '', 'id', { numeric: true });
     }
-    if (sortBy === 'title-desc') {
-      return b.title.localeCompare(a.title, 'id', { sensitivity: 'base' });
-    }
-    if (sortBy === 'date-desc') {
-      return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-    }
-    if (sortBy === 'date-asc') {
-      return new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
-    }
-    if (sortBy === 'dept-asc') {
-      return a.akses_dept.localeCompare(b.akses_dept, 'id', { sensitivity: 'base' });
-    }
-    return 0;
+    return sortDirection === 'asc' ? comparison : -comparison;
   });
 
-  const toggleSortAZ = () => {
-    if (sortBy === 'title-asc') {
-      setSortBy('title-desc');
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
-      setSortBy('title-asc');
+      setSortField(field);
+      setSortDirection('asc');
     }
+    setCurrentPage(1);
   };
+
+  const toggleSortAZ = () => {
+    if (sortField === 'title' && sortDirection === 'asc') {
+      setSortDirection('desc');
+    } else {
+      setSortField('title');
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const paginatedDocs = catDocs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Subcategories available for this category and user's department
   const relevantCategories = (categories || []).filter((c) =>
@@ -307,12 +329,18 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               type="text"
               placeholder={`Cari nama, file, atau isi ${category}...`}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                 title="Hapus pencarian"
               >
@@ -329,13 +357,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               id="btn-toggle-sort-az"
               onClick={toggleSortAZ}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                sortBy === 'title-asc' || sortBy === 'title-desc'
+                sortField === 'title'
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs'
                   : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
               title="Klik untuk beralih antara A-Z dan Z-A"
             >
-              {sortBy === 'title-desc' ? (
+              {sortField === 'title' && sortDirection === 'desc' ? (
                 <>
                   <ArrowUpZA className="w-4 h-4 text-indigo-600" />
                   <span>Z → A</span>
@@ -354,7 +382,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               <select
                 id="select-sort-documents"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as DocumentSortOption)}
+                onChange={(e) => {
+                  const val = e.target.value as DocumentSortOption;
+                  setSortBy(val);
+                  if (val === 'title-asc') { setSortField('title'); setSortDirection('asc'); }
+                  else if (val === 'title-desc') { setSortField('title'); setSortDirection('desc'); }
+                  else if (val === 'date-desc') { setSortField('uploadedAt'); setSortDirection('desc'); }
+                  else if (val === 'date-asc') { setSortField('uploadedAt'); setSortDirection('asc'); }
+                  else if (val === 'dept-asc') { setSortField('akses_dept'); setSortDirection('asc'); }
+                  setCurrentPage(1);
+                }}
                 className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer"
               >
                 <option value="title-asc">Judul: A → Z</option>
@@ -372,7 +409,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <select
                   id="select-filter-dept"
                   value={filterDept}
-                  onChange={(e) => setFilterDept(e.target.value)}
+                  onChange={(e) => {
+                    setFilterDept(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer max-w-[150px] sm:max-w-[190px] truncate"
                 >
                   <option value="All">Semua Departemen</option>
@@ -472,97 +512,157 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {catDocs.map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold text-[10px]">
-                      {doc.sub_kategori || 'Umum'}
-                    </span>
-                    <DepartmentBadge department={doc.akses_dept} size="xs" />
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`p-2.5 rounded-xl shrink-0 ${
-                        category === 'SOP'
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'bg-amber-50 text-amber-600'
-                      }`}
-                    >
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
-                        {doc.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">
-                        {doc.fileName}
-                      </p>
-                    </div>
-                  </div>
-
-                  {doc.keterangan && (
-                    <p className="text-xs text-slate-500 mt-2.5 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-100">
-                      {doc.keterangan}
-                    </p>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span>{doc.uploadedBy}</span>
-                    <div className="flex items-center gap-2 font-mono">
-                      <span>{doc.fileSize || '1.5 MB'}</span>
-                      <span>•</span>
-                      <span>
-                        {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {paginatedDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold text-[10px]">
+                        {doc.sub_kategori || 'Umum'}
                       </span>
+                      <DepartmentBadge department={doc.akses_dept} size="xs" />
                     </div>
+
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`p-2.5 rounded-xl shrink-0 ${
+                          category === 'SOP'
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'bg-amber-50 text-amber-600'
+                        }`}
+                      >
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+                          {doc.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">
+                          {doc.fileName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {doc.keterangan && (
+                      <p className="text-xs text-slate-500 mt-2.5 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        {doc.keterangan}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => onOpenPreview(doc)}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Detail</span>
-                    </button>
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Unduh</span>
-                    </button>
+                  <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{doc.uploadedBy}</span>
+                      <div className="flex items-center gap-2 font-mono">
+                        <span>{doc.fileSize || '1.5 MB'}</span>
+                        <span>•</span>
+                        <span>
+                          {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => onOpenPreview(doc)}
+                        className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Detail</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownload(doc)}
+                        className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Unduh</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <TablePagination
+              currentPage={currentPage}
+              totalItems={catDocs.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[6, 12, 24, 48]}
+              itemLabel={`dokumen ${category}`}
+            />
           </div>
         )
       ) : (
-        /* Table View with responsive horizontal scroll & DepartmentBadge */
+        /* Table View with responsive horizontal scroll, Sortable Headers & Pagination */
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[700px]">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-5">Nama Berkas & Judul</th>
-                  <th className="py-3.5 px-4">Sub-Kategori</th>
-                  <th className="py-3.5 px-4">Target Distribusi</th>
-                  <th className="py-3.5 px-4">Pengunggah & Tanggal</th>
-                  <th className="py-3.5 px-4 text-center">Ukuran</th>
-                  <th className="py-3.5 px-5 text-right">Aksi</th>
+                  <SortableHeader
+                    field="title"
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
+                    onSort={handleSort}
+                    className="py-3.5 px-5"
+                  >
+                    Nama Berkas & Judul
+                  </SortableHeader>
+
+                  <SortableHeader
+                    field="sub_kategori"
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
+                    onSort={handleSort}
+                    className="py-3.5 px-4"
+                  >
+                    Sub-Kategori
+                  </SortableHeader>
+
+                  <SortableHeader
+                    field="akses_dept"
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
+                    onSort={handleSort}
+                    className="py-3.5 px-4"
+                  >
+                    Target Distribusi
+                  </SortableHeader>
+
+                  <SortableHeader
+                    field="uploadedAt"
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
+                    onSort={handleSort}
+                    className="py-3.5 px-4"
+                  >
+                    Pengunggah & Tanggal
+                  </SortableHeader>
+
+                  <SortableHeader
+                    field="fileSize"
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
+                    onSort={handleSort}
+                    align="center"
+                    className="py-3.5 px-4"
+                  >
+                    Ukuran
+                  </SortableHeader>
+
+                  <th className="py-3.5 px-5 text-right font-bold uppercase tracking-wider text-[11px] text-slate-600">
+                    Aksi
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -573,7 +673,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  catDocs.map((doc) => (
+                  paginatedDocs.map((doc) => (
                     <tr
                       key={doc.id}
                       className="hover:bg-slate-50/80 transition-colors group"
@@ -649,6 +749,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={catDocs.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            itemsPerPageOptions={[5, 10, 25, 50]}
+            itemLabel={`dokumen ${category}`}
+          />
         </div>
       )}
 

@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Portal user documents
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Intranet archive documents (SOPs, Forms, Announcements with Google Drive storage)
+    match /documents/{docId} {
+      allow read, write: if true;
+    }
+
+    // Structured Audit Access Logs
+    match /accessLogs/{logId} {
+      allow read, create: if true;
+      allow update, delete: if true;
+    }
+
+    // Category and subcategory master
+    match /categories/{catId} {
+      allow read, write: if true;
+    }
+
+    // Department master records
+    match /departments/{deptId} {
+      allow read, write: if true;
+    }
+
+    // KPI indicators master
+    match /kpiMaster/{kpiId} {
+      allow read, write: if true;
+    }
+
+    // Performance appraisals
+    match /performances/{perfId} {
+      allow read, write: if true;
+    }
+
+    // Push notifications
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+
+    // System configuration (Google Drive upload parameters)
+    match /systemConfig/{configId} {
+      allow read, write: if true;
+    }
+  }
+}

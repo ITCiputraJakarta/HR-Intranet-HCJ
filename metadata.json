@@ -1,0 +1,8 @@
+{
+  "name": "Portal Intranet & Arsip Digital Hotel CIputra jakarta",
+  "description": "Portal intranet terintegrasi Firebase Firestore & Google Drive dengan autentikasi multi-role, log akses terstruktur, manajemen dokumen per departemen, notifikasi, dan evaluasi kinerja.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

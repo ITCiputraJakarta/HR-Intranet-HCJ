@@ -722,7 +722,16 @@ export function deployKPI(dept: string, year: number | string, tipe: string, rol
 
 // ----------------- PERFORMANCE APPRAISAL -----------------
 export function getPerformances(): PerformanceAppraisal[] {
-  return getStored<PerformanceAppraisal[]>(STORAGE_KEYS.PERFORMANCES, INITIAL_PERFORMANCES);
+  const list = getStored<PerformanceAppraisal[]>(STORAGE_KEYS.PERFORMANCES, INITIAL_PERFORMANCES);
+  if (!list || list.length === 0) return INITIAL_PERFORMANCES;
+  const existingIds = new Set(list.map((p) => p.id));
+  const missingInitials = INITIAL_PERFORMANCES.filter((p) => !existingIds.has(p.id));
+  if (missingInitials.length > 0) {
+    const merged = [...list, ...missingInitials];
+    setStored(STORAGE_KEYS.PERFORMANCES, merged);
+    return merged;
+  }
+  return list;
 }
 
 export function savePerformances(perfs: PerformanceAppraisal[]): void {

@@ -542,10 +542,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
             {paginatedAnnouncements.map((doc) => (
               <div
                 key={doc.id}
-                className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group"
+                onClick={() => onOpenPreview(doc)}
+                className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer hover:border-indigo-300"
               >
                 {/* Card Image Banner */}
-                <div className="relative h-48 bg-slate-900 overflow-hidden">
+                <div className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer">
                   <img
                     src={doc.thumbUrl}
                     alt={doc.title}
@@ -591,7 +592,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </span>
                     <button
                       id={`btn-view-${doc.id}`}
-                      onClick={() => onOpenPreview(doc)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenPreview(doc);
+                      }}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -619,9 +623,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden w-full">
+          <div className="overflow-x-auto w-full scrollbar-thin">
+            <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
                   <SortableHeader
@@ -665,9 +669,15 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedAnnouncements.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-50/70 transition-colors">
+                  <tr
+                    key={doc.id}
+                    onClick={() => onOpenPreview(doc)}
+                    className="hover:bg-indigo-50/40 transition-colors cursor-pointer group"
+                  >
                     <td className="pl-6 py-4">
-                      <div className="font-bold text-slate-900">{doc.title}</div>
+                      <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        {doc.title}
+                      </div>
                       {doc.keterangan && (
                         <div className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
                           {doc.keterangan}
@@ -689,7 +699,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </td>
                     <td className="py-4 pr-6 text-right">
                       <button
-                        onClick={() => onOpenPreview(doc)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenPreview(doc);
+                        }}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
                       >
                         <Eye className="w-3.5 h-3.5" />

@@ -268,36 +268,100 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards - Clickable Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase text-slate-400">
-            Total Aktivitas
-          </span>
+        <div
+          onClick={() => {
+            setFilterStatus('All');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+            filterStatus === 'All'
+              ? 'bg-indigo-50/60 border-indigo-400 ring-2 ring-indigo-500/20 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-indigo-200'
+          }`}
+          title="Klik untuk melihat semua aktivitas"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-500">
+              Total Aktivitas
+            </span>
+            {filterStatus === 'All' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">Aktif</span>
+            )}
+          </div>
           <p className="text-2xl font-black text-slate-900 mt-1">{totalCount}</p>
           <span className="text-[11px] text-slate-500 mt-1 block">Seluruh Sesi & Aksi</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase text-emerald-600">
-            Berhasil (Success)
-          </span>
+        <div
+          onClick={() => {
+            setFilterStatus(filterStatus === 'SUCCESS' ? 'All' : 'SUCCESS');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+            filterStatus === 'SUCCESS'
+              ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-emerald-200'
+          }`}
+          title="Klik untuk filter status Berhasil (SUCCESS)"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-emerald-600">
+              Berhasil (Success)
+            </span>
+            {filterStatus === 'SUCCESS' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Aktif</span>
+            )}
+          </div>
           <p className="text-2xl font-black text-emerald-600 mt-1">{successCount}</p>
           <span className="text-[11px] text-slate-500 mt-1 block">Tingkat Keberhasilan {successRate}%</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase text-amber-600">
-            Peringatan (Warning)
-          </span>
+        <div
+          onClick={() => {
+            setFilterStatus(filterStatus === 'WARNING' ? 'All' : 'WARNING');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+            filterStatus === 'WARNING'
+              ? 'bg-amber-50/70 border-amber-400 ring-2 ring-amber-500/20 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-amber-200'
+          }`}
+          title="Klik untuk filter status Peringatan (WARNING)"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-amber-600">
+              Peringatan (Warning)
+            </span>
+            {filterStatus === 'WARNING' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Aktif</span>
+            )}
+          </div>
           <p className="text-2xl font-black text-amber-600 mt-1">{warningCount}</p>
           <span className="text-[11px] text-slate-500 mt-1 block">Sesi Dibatasi / Pending</span>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold uppercase text-rose-600">
-            Gagal / Ditolak
-          </span>
+        <div
+          onClick={() => {
+            setFilterStatus(filterStatus === 'FAILED' ? 'All' : 'FAILED');
+            setCurrentPage(1);
+          }}
+          className={`p-4 rounded-2xl border shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${
+            filterStatus === 'FAILED'
+              ? 'bg-rose-50/70 border-rose-400 ring-2 ring-rose-500/20 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-rose-200'
+          }`}
+          title="Klik untuk filter status Gagal / Ditolak (FAILED)"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-rose-600">
+              Gagal / Ditolak
+            </span>
+            {filterStatus === 'FAILED' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">Aktif</span>
+            )}
+          </div>
           <p className="text-2xl font-black text-rose-600 mt-1">{failedCount}</p>
           <span className="text-[11px] text-slate-500 mt-1 block">Kredensial Tidak Sah</span>
         </div>
@@ -538,7 +602,15 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                    <td
+                      className="py-3.5 px-4 text-center whitespace-nowrap cursor-pointer hover:opacity-80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFilterStatus(log.status);
+                        setCurrentPage(1);
+                      }}
+                      title={`Klik untuk filter status ${log.status}`}
+                    >
                       {getStatusBadge(log.status)}
                     </td>
 
@@ -576,8 +648,16 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
 
       {/* Log Detail Inspector Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedLog(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-indigo-600" />
@@ -587,7 +667,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-lg hover:bg-slate-100"
               >
                 ✕
               </button>
@@ -675,8 +755,16 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
 
       {/* Clear Logs Confirmation Modal */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowClearConfirm(false);
+          }}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 cursor-default"
+          >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />

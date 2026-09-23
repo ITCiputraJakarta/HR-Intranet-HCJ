@@ -527,7 +527,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                       <DepartmentBadge department={doc.akses_dept} size="xs" />
                     </div>
 
-                    <div className="flex items-start gap-3">
+                    <div
+                      onClick={() => onOpenPreview(doc)}
+                      className="flex items-start gap-3 cursor-pointer group-hover:text-indigo-600"
+                    >
                       <div
                         className={`p-2.5 rounded-xl shrink-0 ${
                           category === 'SOP'
@@ -541,7 +544,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                         <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
                           {doc.title}
                         </h4>
-                        <p className="text-[11px] text-slate-400 font-mono mt-1 truncate">
+                        <p className="text-[11px] text-slate-400 font-mono mt-1 truncate hover:text-indigo-500">
                           {doc.fileName}
                         </p>
                       </div>
@@ -678,7 +681,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                       key={doc.id}
                       className="hover:bg-slate-50/80 transition-colors group"
                     >
-                      <td className="py-4 px-5">
+                      <td
+                        className="py-4 px-5 cursor-pointer"
+                        onClick={() => onOpenPreview(doc)}
+                        title="Klik untuk melihat detail berkas"
+                      >
                         <div className="flex items-start gap-3">
                           <div
                             className={`p-2 rounded-xl mt-0.5 shrink-0 ${
@@ -693,7 +700,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                             <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">
                               {doc.title}
                             </p>
-                            <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+                            <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate group-hover:text-indigo-500">
                               {doc.fileName}
                             </p>
                           </div>

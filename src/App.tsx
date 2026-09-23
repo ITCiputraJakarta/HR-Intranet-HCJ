@@ -166,23 +166,42 @@ export default function App() {
   }, []);
 
   const isSuperAdmin = currentUser?.role === 'admin';
-  const isPrivileged =
+  const isManagerOrAdmin =
     currentUser?.role === 'admin' ||
     currentUser?.role === 'manager' ||
-    currentUser?.role === 'spv' ||
     currentUser?.role === 'hod';
 
   // Strict role guard: redirect to announcements if user does not have permission to view current tab
   useEffect(() => {
     if (!currentUser) return;
     const role = currentUser.role || 'staff';
+    const isStaffOrSpv = role === 'staff' || role === 'spv';
     const hasAdminAccess = role === 'admin';
-    const hasPrivilegedAccess = role === 'admin' || role === 'manager' || role === 'spv' || role === 'hod';
+    const hasManagerAccess = role === 'admin' || role === 'manager' || role === 'hod';
 
-    if (!hasAdminAccess && (activeTab === 'users' || activeTab === 'logs' || activeTab === 'access-logs')) {
-      setActiveTab('announcements');
-    } else if (!hasPrivilegedAccess && (activeTab === 'departments' || activeTab === 'categories' || activeTab === 'kpi-master' || activeTab === 'kpi')) {
-      setActiveTab('announcements');
+    if (isStaffOrSpv) {
+      // Staff & SPV are strictly restricted to archives & files only
+      if (
+        activeTab !== 'announcements' &&
+        activeTab !== 'sop' &&
+        activeTab !== 'forms' &&
+        activeTab !== 'documents'
+      ) {
+        setActiveTab('announcements');
+      }
+    } else {
+      if (!hasAdminAccess && (activeTab === 'users' || activeTab === 'logs' || activeTab === 'access-logs')) {
+        setActiveTab('announcements');
+      } else if (
+        !hasManagerAccess &&
+        (activeTab === 'departments' ||
+          activeTab === 'categories' ||
+          activeTab === 'kpi-master' ||
+          activeTab === 'kpi' ||
+          activeTab === 'performance')
+      ) {
+        setActiveTab('announcements');
+      }
     }
   }, [currentUser, activeTab]);
 
@@ -256,8 +275,10 @@ export default function App() {
     if (tab === 'profile') {
       if (currentUser?.role === 'admin') {
         setActiveTab('users');
-      } else {
+      } else if (currentUser?.role === 'manager' || currentUser?.role === 'hod') {
         setActiveTab('performance');
+      } else {
+        setActiveTab('announcements');
       }
       return;
     }
@@ -319,7 +340,7 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6">
+      <div className="flex-1 flex max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6 items-start">
         
         {/* Left Sidebar (Desktop + Mobile Drawer) */}
         <Sidebar
@@ -375,7 +396,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'performance' && (
+          {activeTab === 'performance' && isManagerOrAdmin && (
             <PerformanceView
               performances={performances}
               kpiMaster={kpiMaster}
@@ -384,7 +405,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'departments' && isPrivileged && (
+          {activeTab === 'departments' && isManagerOrAdmin && (
             <DepartmentsMasterView
               currentUser={currentUser}
               users={users}
@@ -393,7 +414,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'categories' && isPrivileged && (
+          {activeTab === 'categories' && isManagerOrAdmin && (
             <CategoriesMasterView
               categories={categories}
               currentUser={currentUser}
@@ -401,7 +422,7 @@ export default function App() {
             />
           )}
 
-          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isPrivileged && (
+          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isManagerOrAdmin && (
             <KPIMasterView
               kpiMaster={kpiMaster}
               currentUser={currentUser}
@@ -543,20 +564,22 @@ export default function App() {
           <span>Formulir</span>
         </button>
 
-        <button
-          onClick={() => {
-            setActiveTab('performance');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeTab === 'performance'
-              ? 'text-indigo-600 font-extrabold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Award className="w-4 h-4 mb-0.5" />
-          <span>Kinerja</span>
-        </button>
+        {isManagerOrAdmin && (
+          <button
+            onClick={() => {
+              setActiveTab('performance');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
+              activeTab === 'performance'
+                ? 'text-indigo-600 font-extrabold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Award className="w-4 h-4 mb-0.5" />
+            <span>Kinerja</span>
+          </button>
+        )}
 
         <button
           onClick={() => setIsMobileMenuOpen(true)}

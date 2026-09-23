@@ -193,7 +193,12 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
       )}
 
       {/* Scrollable Preview Canvas Background */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-6 bg-slate-950/70 flex justify-center items-start print:p-0 print:bg-white print:overflow-visible">
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+        className="flex-1 overflow-y-auto p-2 sm:p-6 bg-slate-950/70 flex justify-center items-start print:p-0 print:bg-white print:overflow-visible cursor-pointer"
+      >
         
         {/* ========================================================================= */}
         {/* A4 PRINTABLE DOCUMENT CONTAINER                                            */}
@@ -202,7 +207,8 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
         {/* ========================================================================= */}
         <div
           id="appraisal-print-document"
-          className={`bg-white text-slate-900 w-full max-w-[794px] p-5 sm:p-7 shadow-2xl rounded-sm border border-slate-300 print:border-none print:shadow-none print:p-0 print:max-w-none print:w-full transition-transform ${getZoomClass()}`}
+          onClick={(e) => e.stopPropagation()}
+          className={`bg-white text-slate-900 w-full max-w-[794px] p-5 sm:p-7 shadow-2xl rounded-sm border border-slate-300 print:border-none print:shadow-none print:p-0 print:max-w-none print:w-full transition-transform ${getZoomClass()} cursor-default`}
           style={{ boxSizing: 'border-box' }}
         >
           {/* 1. KOP SURAT RESMI HOTEL CIPUTRA JAKARTA */}

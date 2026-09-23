@@ -414,7 +414,7 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
         objective: "Mencapai skor kepuasan ulasan check-in tamu minimal 92%.",
         weight: 40,
         target: "Nilai CSAT >= 92%.",
-        actual: "Tercapai 95% kepuasan tamu dengan 0 komplain.",
+        actual: "Tercapai 95% kepuasan tamu dengan 0 komplain tamu.",
         achieved_yn: "Yes",
         achieved_pct: 40
       },
@@ -423,7 +423,7 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
         objective: "Waktu pelayanan rata-rata check-in <= 3 menit.",
         weight: 30,
         target: "Rata-rata check-in <= 180 detik.",
-        actual: "Rata-rata berhasil 165 detik per tamu.",
+        actual: "Rata-rata pelayanan tercatat 165 detik per tamu.",
         achieved_yn: "Yes",
         achieved_pct: 30
       },
@@ -432,7 +432,7 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
         objective: "Melakukan upselling tipe kamar minimal 10 transaksi.",
         weight: 30,
         target: ">= 10 room upselling.",
-        actual: "Tercapai 14 kamar upselling.",
+        actual: "Tercapai 14 kamar upselling selama periode berjalan.",
         achieved_yn: "Yes",
         achieved_pct: 30
       }
@@ -459,6 +459,250 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
     hrNote: "Kandidat berpotensi tinggi untuk program kepemimpinan supervisor tahun depan.",
     createdAt: "2026-03-01T10:00:00Z",
     updatedAt: "2026-03-05T14:30:00Z"
+  },
+  {
+    id: "perf-002",
+    periode: 2026,
+    tipe: "Mid-Year",
+    email: "siti.fo@ciputra.com",
+    nama: "Siti Rahmawati",
+    departemen: "Front Office",
+    role: "staff",
+    status: "Approved",
+    kpis: [
+      {
+        pillar: "Guest Satisfaction",
+        objective: "Mencapai skor kepuasan ulasan check-in tamu minimal 92%.",
+        weight: 40,
+        target: "Nilai CSAT >= 92%.",
+        actual: "Tercapai CSAT 93.5% berdasarkan audit ulasan bulanan.",
+        achieved_yn: "Yes",
+        achieved_pct: 40
+      },
+      {
+        pillar: "Operational Speed",
+        objective: "Waktu pelayanan rata-rata check-in <= 3 menit.",
+        weight: 30,
+        target: "Rata-rata check-in <= 180 detik.",
+        actual: "Rata-rata 175 detik, masih memenuhi batas standar.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      },
+      {
+        pillar: "Up-Selling & Room Revenue",
+        objective: "Melakukan upselling tipe kamar minimal 10 transaksi.",
+        weight: 30,
+        target: ">= 10 room upselling.",
+        actual: "Tercapai 7 transaksi upselling dari target 10.",
+        achieved_yn: "No",
+        achieved_pct: 0
+      }
+    ],
+    kpiTotalScore: 70,
+    kpiTranslatedScore: 3.5,
+    behaviourScores: {
+      "beh-1": 4,
+      "beh-2": 4,
+      "beh-3": 4,
+      "beh-4": 4,
+      "beh-5": 4,
+      "beh-6": 5,
+      "beh-7": 4
+    },
+    avgBehaviour: 4.14,
+    complianceScore: 5.0,
+    finalGrandTotal: 3.86,
+    finalGrade: "G",
+    starBest: "Konsisten ramah dan aktif dalam koordinasi tim antar-shift malam dan pagi.",
+    starChallenge: "Target upselling kamar perlu dorongan keberanian menawarkan fitur kamar superior.",
+    managerFeedback: "Siti menunjukkan dedikasi pelayanan yang baik, tingkatkan teknik komunikasi sales upselling.",
+    hrRecommendation: "Stay in current position",
+    hrNote: "Diberikan pelatihan product knowledge dan upselling technique di Q2.",
+    createdAt: "2026-03-02T11:00:00Z",
+    updatedAt: "2026-03-06T15:00:00Z"
+  },
+  {
+    id: "perf-003",
+    periode: 2026,
+    tipe: "Mid-Year",
+    email: "dewi.hr@ciputra.com",
+    nama: "Dewi Lestari",
+    departemen: "Human Resources",
+    role: "staff",
+    status: "Approved",
+    kpis: [
+      {
+        pillar: "Employee Records & Compliance",
+        objective: "Penyelesaian berkas arsip karyawan & database 100% akurat.",
+        weight: 40,
+        target: "100% kelengkapan arsip digital.",
+        actual: "Seluruh berkas karyawan telah diverifikasi dan masuk Google Drive Cloud.",
+        achieved_yn: "Yes",
+        achieved_pct: 40
+      },
+      {
+        pillar: "Onboarding Quality",
+        objective: "Waktu onboarding karyawan baru maksimal 2 hari kerja.",
+        weight: 30,
+        target: "<= 2 hari orientasi lengkap.",
+        actual: "Rata-rata orientasi terselesaikan dalam 1.5 hari.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      },
+      {
+        pillar: "Training Program Delivery",
+        objective: "Menyelenggarakan minimal 3 sesi internal training departemen.",
+        weight: 30,
+        target: ">= 3 sesi training selesai.",
+        actual: "Telah diselenggarakan 4 sesi training hospitality bintang 5.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      }
+    ],
+    kpiTotalScore: 100,
+    kpiTranslatedScore: 5,
+    behaviourScores: {
+      "beh-1": 5,
+      "beh-2": 5,
+      "beh-3": 4,
+      "beh-4": 5,
+      "beh-5": 4,
+      "beh-6": 5,
+      "beh-7": 5
+    },
+    avgBehaviour: 4.71,
+    complianceScore: 5.0,
+    finalGrandTotal: 4.87,
+    finalGrade: "E",
+    starBest: "Menginisiasi digitalisasi seluruh arsip fisik ke intranet Google Drive dalam tempo 2 minggu.",
+    starChallenge: "Koordinasi jadwal training karyawan operasional shift malam.",
+    managerFeedback: "Sangat proaktif, detail, dan berintegritas tinggi dalam mengelola data sensitif personalia.",
+    hrRecommendation: "Promote",
+    hrNote: "Direkomendasikan untuk promosi jabatan HR Officer / Specialist.",
+    createdAt: "2026-03-03T09:00:00Z",
+    updatedAt: "2026-03-08T10:30:00Z"
+  },
+  {
+    id: "perf-004",
+    periode: 2026,
+    tipe: "Mid-Year",
+    email: "agus.hk@ciputra.com",
+    nama: "Agus Pratama",
+    departemen: "Housekeeping",
+    role: "staff",
+    status: "Approved",
+    kpis: [
+      {
+        pillar: "Room Cleanliness Standard",
+        objective: "Nilai inspeksi kebersihan kamar mencapai minimal 95 poin.",
+        weight: 40,
+        target: "Inspeksi kebersihan >= 95%.",
+        actual: "Rata-rata audit kebersihan supervisor mencapai 96.2%.",
+        achieved_yn: "Yes",
+        achieved_pct: 40
+      },
+      {
+        pillar: "Turnaround Time",
+        objective: "Durasi pembersihan kamar check-out maksimal 25 menit.",
+        weight: 30,
+        target: "<= 25 menit per kamar.",
+        actual: "Rata-rata 23 menit per kamar standar.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      },
+      {
+        pillar: "Linen & Chemical Efficiency",
+        objective: "Pengendalian zero waste pemakaian bahan pembersih kimiawi.",
+        weight: 30,
+        target: "Zero damage linen & audit sesuai takaran.",
+        actual: "Pemakaian bahan kimiawi sesuai takaran standar MSDS.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      }
+    ],
+    kpiTotalScore: 100,
+    kpiTranslatedScore: 5,
+    behaviourScores: {
+      "beh-1": 4,
+      "beh-2": 4,
+      "beh-3": 4,
+      "beh-4": 3,
+      "beh-5": 4,
+      "beh-6": 4,
+      "beh-7": 4
+    },
+    avgBehaviour: 3.86,
+    complianceScore: 5.0,
+    finalGrandTotal: 4.49,
+    finalGrade: "G",
+    starBest: "Konsisten menjaga standar kebersihan kamar lantai VIP tanpa ada komplain kebersihan.",
+    starChallenge: "Tekanan load saat tingkat hunian hotel (occupancy) mencapai 100%.",
+    managerFeedback: "Kinerja solid dan rajin. Komunikasi dengan tim laundry sangat responsif.",
+    hrRecommendation: "Stay in current position",
+    hrNote: "Pertahankan performa yang konsisten.",
+    createdAt: "2026-03-04T13:00:00Z",
+    updatedAt: "2026-03-09T16:00:00Z"
+  },
+  {
+    id: "perf-005",
+    periode: 2026,
+    tipe: "Mid-Year",
+    email: "rian.fb@ciputra.com",
+    nama: "Rian Hidayat",
+    departemen: "Food & Beverage",
+    role: "staff",
+    status: "Approved",
+    kpis: [
+      {
+        pillar: "Food Hygiene & HACCP",
+        objective: "Kepatuhan SOP sanitasi dan hygine makanan 100%.",
+        weight: 40,
+        target: "100% audit HACCP lolos.",
+        actual: "Seluruh checklist sanitasi dapur dan buffet terpenuhi.",
+        achieved_yn: "Yes",
+        achieved_pct: 40
+      },
+      {
+        pillar: "Order Serving Speed",
+        objective: "Waktu saji pesanan a la carte maksimal 15 menit.",
+        weight: 30,
+        target: "<= 15 menit.",
+        actual: "Rata-rata waktu saji tercatat 18 menit saat akhir pekan.",
+        achieved_yn: "No",
+        achieved_pct: 0
+      },
+      {
+        pillar: "Beverage Upselling",
+        objective: "Penjualan menu minuman spesial minimal 20 gelas per shift.",
+        weight: 30,
+        target: ">= 20 gelas minuman.",
+        actual: "Tercapai 22 gelas minuman spesial per shift.",
+        achieved_yn: "Yes",
+        achieved_pct: 30
+      }
+    ],
+    kpiTotalScore: 70,
+    kpiTranslatedScore: 3.5,
+    behaviourScores: {
+      "beh-1": 3,
+      "beh-2": 3,
+      "beh-3": 4,
+      "beh-4": 3,
+      "beh-5": 3,
+      "beh-6": 4,
+      "beh-7": 3
+    },
+    avgBehaviour: 3.29,
+    complianceScore: 5.0,
+    finalGrandTotal: 3.48,
+    finalGrade: "M",
+    starBest: "Berhasil melayani buffet banquet pernikahan 500 pax dengan lancar.",
+    starChallenge: "Kecepatan plating makanan pada saat jam sarapan (breakfast rush).",
+    managerFeedback: "Perlu meningkatkan koordinasi dengan tim kitchen agar order a la carte tepat waktu.",
+    hrRecommendation: "Need Training",
+    hrNote: "Diikutkan dalam refreshment training speed-service F&B service.",
+    createdAt: "2026-03-05T14:00:00Z",
+    updatedAt: "2026-03-10T09:00:00Z"
   }
 ];
 

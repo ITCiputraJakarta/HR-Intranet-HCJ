@@ -56,7 +56,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile = () => {},
 }) => {
   const role = currentUser?.role || 'staff';
-  const isPrivileged = role === 'admin' || role === 'manager' || role === 'spv' || role === 'hod';
+  const isStaffOrSpv = role === 'staff' || role === 'spv';
+  const isManagerOrAdmin = role === 'admin' || role === 'manager' || role === 'hod';
   const isAdmin = role === 'admin';
 
   const activeTab = propActiveTab || currentTab || 'announcements';
@@ -178,24 +179,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <FileText className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="flex-1 text-left">{t('menuForms', currentLang)}</span>
             </button>
-
-            <button
-              id="menu-performance"
-              onClick={() => handleNav('performance')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === 'performance'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-              }`}
-            >
-              <Award className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="flex-1 text-left">{t('menuPerformance', currentLang)}</span>
-            </button>
           </nav>
         </div>
 
-        {/* Master Data (SPV, Manager, Admin) */}
-        {isPrivileged && (
+        {/* Evaluasi Kinerja (Manager & Admin Khusus - Staff & SPV hanya melihat arsip & berkas) */}
+        {isManagerOrAdmin && (
+          <div>
+            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Evaluasi & Kinerja
+            </div>
+            <nav className="space-y-1">
+              <button
+                id="menu-performance"
+                onClick={() => handleNav('performance')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'performance'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <Award className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="flex-1 text-left">{t('menuPerformance', currentLang)}</span>
+              </button>
+            </nav>
+          </div>
+        )}
+
+        {/* Master Data (Manager, HOD & Super Admin Khusus) */}
+        {isManagerOrAdmin && (
           <div>
             <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               {t('masterAndConfig', currentLang)}
@@ -320,7 +331,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sticky Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-slate-800/80 shadow-lg sticky top-20 h-[calc(100vh-6rem)] self-start">
+      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-slate-800/80 shadow-lg sticky top-24 h-[calc(100vh-7rem)] self-start z-20">
         {renderContent(false)}
       </aside>
 

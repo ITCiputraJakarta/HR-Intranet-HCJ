@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Megaphone,
   FileCheck2,
@@ -21,6 +21,7 @@ import {
 import { User, UserRole } from '../types';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
+import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
 
 interface SidebarProps {
   activeTab?: string;
@@ -55,6 +56,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile = () => {},
 }) => {
+  const [branding, setBranding] = useState<AppBranding>(getAppBranding());
+
+  useEffect(() => {
+    const unsub = subscribeToAppBranding(setBranding);
+    return () => unsub();
+  }, []);
+
   const role = currentUser?.role || 'staff';
   const isStaffOrSpv = role === 'staff' || role === 'spv';
   const isManagerOrAdmin = role === 'admin' || role === 'manager' || role === 'hod';
@@ -311,8 +319,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       </div>
 
-      {/* Footer User Logout */}
-      <div className="p-3 border-t border-slate-800 shrink-0">
+      {/* Footer User Logout & Creator Signature */}
+      <div className="p-3 border-t border-slate-800 shrink-0 space-y-2">
         <button
           id="btn-sidebar-logout"
           onClick={() => {
@@ -324,6 +332,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <LogOut className="w-4 h-4 shrink-0" />
           <span>{t('logoutSession', currentLang)}</span>
         </button>
+
+        <div className="pt-1 px-1 text-center">
+          <p className="text-[10px] text-slate-500 font-medium">
+            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed with excellence @2026'}
+          </p>
+        </div>
       </div>
     </div>
   );

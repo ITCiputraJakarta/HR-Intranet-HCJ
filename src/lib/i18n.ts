@@ -3,11 +3,32 @@ export type Language = 'id' | 'en';
 export const translations = {
   id: {
     // Brand & Header
-    hotelName: 'Hotel Ciputra Jakarta',
-    intranetPortal: 'Intranet Portal',
-    portalSubtitle: 'Penyimpanan Dokumen & Cloud Architecture',
-    googleSheetStudio: 'Google Sheet Studio',
+    hotelName: 'Intranet HCJ',
+    hotelFullName: 'Hotel Ciputra Jakarta',
+    intranetPortal: 'Intranet HCJ',
+    portalSubtitle: 'Portal Dokumen & Evaluasi Kinerja',
+    googleSheetStudio: 'Studio Basis Data',
     
+    // Page Headers Translations
+    headerAnnouncementsTitle: 'Pengumuman & Berita Perusahaan',
+    headerAnnouncementsSubtitle: 'Informasi resmi, buletin manajemen, dan kegiatan internal hotel',
+    headerSOPTitle: 'Standar Operasional Prosedur (SOP)',
+    headerSOPSubtitle: 'Panduan kerja resmi departemen dan standarisasi operasional hotel',
+    headerFormsTitle: 'Formulir Kerja Departemen',
+    headerFormsSubtitle: 'Format template permohonan kerja, checklist, dan arsip formulir operasional',
+    headerPerformanceTitle: 'Evaluasi Kinerja & Capaian KPI',
+    headerPerformanceSubtitle: 'Penilaian mandiri, evaluasi perilaku atasan, dan persetujuan KPI terkunci',
+    headerDepartmentsTitle: 'Master Departemen Operasional',
+    headerDepartmentsSubtitle: 'Struktur organisasi dan kode singkatan divisi Hotel Ciputra Jakarta',
+    headerCategoriesTitle: 'Master Kategori Dokumen',
+    headerCategoriesSubtitle: 'Klasifikasi pengarsipan dan subkategori arsip digital Firestore',
+    headerKPIMasterTitle: 'Master Indikator Kinerja Utama (KPI)',
+    headerKPIMasterSubtitle: 'Standar bobot, target, dan kriteria penilaian tiap posisi departemen',
+    headerUsersTitle: 'Manajemen Pengguna & Otoritas Akun',
+    headerUsersSubtitle: 'Persetujuan akun baru, penetapan hak akses role, dan kelola sandi',
+    headerLogsTitle: 'Sistem Log Audit Aktivitas',
+    headerLogsSubtitle: 'Rekam jejak terstruktur autentikasi, dokumen, dan perubahan data (Kebijakan Retensi 7 Hari)',
+
     // Sidebar Headings
     archivesAndFiles: 'Arsip & Berkas',
     masterAndConfig: 'Master & Konfigurasi',
@@ -27,7 +48,7 @@ export const translations = {
     menuKPIMaster: 'Master Data KPI',
     menuUserManagement: 'Manajemen User',
     menuAccessLogs: 'Sistem Log Akses',
-    menuCloudSync: 'Firebase & Drive Cloud',
+    menuCloudSync: 'Konfigurasi Cloud & Logo',
     
     // Notifications
     notificationsTitle: 'Notifikasi Masuk',
@@ -73,7 +94,7 @@ export const translations = {
     registerTab: 'Daftar Akun Baru',
     emailLabel: 'Alamat Email Karyawan',
     passwordLabel: 'Kata Sandi',
-    loginSubmitBtn: 'Masuk ke Portal Intranet',
+    loginSubmitBtn: 'Masuk ke Intranet HCJ',
     fullNameLabel: 'Nama Lengkap',
     deptLabel: 'Departemen',
     roleLabel: 'Jabatan / Peran',
@@ -96,15 +117,39 @@ export const translations = {
     errAccountPending: 'Akun Anda masih berstatus Tertunda (Pending). Harap menunggu persetujuan dari Super Admin / HR.',
     errFillAllFields: 'Harap lengkapi semua kolom pendaftaran.',
     errEmailTaken: 'Email tersebut sudah terdaftar di sistem.',
+    errCaptchaInvalid: 'Kode captcha tidak cocok atau belum diisi. Silakan coba lagi.',
     successRegistered: 'Pendaftaran berhasil! Akun Anda telah dicatat dengan status Pending dan menunggu persetujuan Super Admin.',
+    customLogoLabel: 'Logo Portal Khusus',
+    creatorSignatureText: '© 2026 Intranet HCJ | Developed with excellence @2026',
   },
   en: {
     // Brand & Header
-    hotelName: 'Hotel Ciputra Jakarta',
-    intranetPortal: 'Intranet Portal',
-    portalSubtitle: 'Document Storage & Cloud Architecture',
-    googleSheetStudio: 'Google Sheet Studio',
+    hotelName: 'Intranet HCJ',
+    hotelFullName: 'Hotel Ciputra Jakarta',
+    intranetPortal: 'Intranet HCJ',
+    portalSubtitle: 'Document Portal & Performance Appraisal',
+    googleSheetStudio: 'Database Studio',
     
+    // Page Headers Translations
+    headerAnnouncementsTitle: 'Company Announcements & News',
+    headerAnnouncementsSubtitle: 'Official notices, management bulletins, and internal hotel activities',
+    headerSOPTitle: 'Standard Operating Procedures (SOP)',
+    headerSOPSubtitle: 'Official departmental guidelines and hotel operational standardization',
+    headerFormsTitle: 'Departmental Work Forms',
+    headerFormsSubtitle: 'Request templates, operational checklists, and departmental form archives',
+    headerPerformanceTitle: 'Performance Appraisal & KPI Achievement',
+    headerPerformanceSubtitle: 'Self-appraisal, manager behavioral scoring, and locked KPI approvals',
+    headerDepartmentsTitle: 'Operational Departments Master',
+    headerDepartmentsSubtitle: 'Organizational hierarchy and division abbreviation codes of HCJ',
+    headerCategoriesTitle: 'Document Categories Master',
+    headerCategoriesSubtitle: 'Archival classifications and Firestore digital archive subcategories',
+    headerKPIMasterTitle: 'Key Performance Indicators (KPI) Master',
+    headerKPIMasterSubtitle: 'Weight standards, targets, and evaluation criteria per job role',
+    headerUsersTitle: 'User Management & Authorization',
+    headerUsersSubtitle: 'Account approvals, multi-role permissions, and credential management',
+    headerLogsTitle: 'System Activity Audit Logs',
+    headerLogsSubtitle: 'Structured audit trail of authentication, documents, and data changes (7-Day Policy)',
+
     // Sidebar Headings
     archivesAndFiles: 'Archives & Documents',
     masterAndConfig: 'Master & Configuration',
@@ -124,7 +169,7 @@ export const translations = {
     menuKPIMaster: 'KPI Master Data',
     menuUserManagement: 'User Management',
     menuAccessLogs: 'Access Audit Logs',
-    menuCloudSync: 'Firebase & Cloud Drive',
+    menuCloudSync: 'Cloud & Logo Config',
     
     // Notifications
     notificationsTitle: 'Incoming Notifications',
@@ -170,7 +215,7 @@ export const translations = {
     registerTab: 'Register New Account',
     emailLabel: 'Employee Email Address',
     passwordLabel: 'Password',
-    loginSubmitBtn: 'Sign In to Intranet Portal',
+    loginSubmitBtn: 'Sign In to Intranet HCJ',
     fullNameLabel: 'Full Name',
     deptLabel: 'Department',
     roleLabel: 'Position / Role',
@@ -193,7 +238,10 @@ export const translations = {
     errAccountPending: 'Your account is currently Pending approval by Super Admin / HR.',
     errFillAllFields: 'Please complete all required fields.',
     errEmailTaken: 'This email address is already registered in the system.',
+    errCaptchaInvalid: 'Captcha code does not match or is missing. Please try again.',
     successRegistered: 'Registration successful! Your account is now Pending approval by Super Admin.',
+    customLogoLabel: 'Custom Portal Logo',
+    creatorSignatureText: '© 2026 Intranet HCJ | Developed with excellence @2026',
   }
 };
 

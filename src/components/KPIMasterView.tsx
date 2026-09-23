@@ -27,16 +27,19 @@ import {
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface KPIMasterViewProps {
   kpiMaster: KPIMasterItem[];
   currentUser: User;
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
 export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
   kpiMaster = [],
   currentUser,
+  currentLang = 'id',
   onRefresh,
 }) => {
   const departments = getDepartments();
@@ -218,9 +221,9 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
             <Sliders className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Master Data Indikator KPI</h1>
+            <h1 className="text-xl font-bold text-slate-900">{t('headerKPIMasterTitle', currentLang)}</h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Atur pilar target dan bobot evaluasi kerja karyawan per departemen dan jabatan
+              {t('headerKPIMasterSubtitle', currentLang)}
             </p>
           </div>
         </div>

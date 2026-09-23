@@ -37,16 +37,22 @@ import {
   getDriveStorageConfig
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { uploadFileToDriveStorage, getDriveFolderPath } from '../lib/driveApi';
+import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
+import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 
 type AnnouncementSortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc' | 'dept-asc';
 
+const getFirestoreStoragePath = (category: string, dept: string, fileName: string) => {
+  return `Cloud Firestore > ${category} > ${dept} > ${fileName}`;
+};
+
 interface AnnouncementsViewProps {
   documents: IntranetDocument[];
   currentUser: User;
   categories: CategoryMaster[];
+  currentLang?: Language;
   onOpenPreview: (doc: IntranetDocument) => void;
   onRefresh: () => void;
 }
@@ -55,6 +61,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   documents = [],
   currentUser,
   categories = [],
+  currentLang = 'id',
   onOpenPreview,
   onRefresh,
 }) => {
@@ -265,26 +272,16 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       };
 
       if (editFileInput) {
-        const uploadResult = await uploadFileToDriveStorage({
-          file: editFileInput,
-          title: editTitle.trim(),
-          category: 'Pengumuman',
-          departemen: editDept,
-          uploadedBy: currentUser.nama,
-          uploadedByEmail: currentUser.email,
-        });
-
+        const compressed = await processFileForFirestore(editFileInput);
         updatedDoc = {
           ...updatedDoc,
-          fileUrl: uploadResult.fileUrl,
-          previewUrl: uploadResult.previewUrl,
-          downloadUrl: uploadResult.downloadUrl,
-          thumbUrl: uploadResult.thumbUrl || uploadResult.fileUrl,
-          fileName: uploadResult.fileName,
-          fileType: uploadResult.fileType,
-          fileSize: uploadResult.fileSize,
-          driveFolderPath: uploadResult.driveFolderPath,
-          driveFileId: uploadResult.driveFileId,
+          fileUrl: compressed.dataUrl,
+          previewUrl: compressed.dataUrl,
+          downloadUrl: compressed.dataUrl,
+          thumbUrl: compressed.dataUrl,
+          fileName: compressed.fileName,
+          fileType: compressed.mimeType,
+          fileSize: formatBytes(compressed.compressedSizeBytes),
         };
       }
 
@@ -305,7 +302,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     onRefresh();
   };
 
-  // Upload handler with Centralized Photo/Media Google Drive folder
+  // Upload handler with compressed Firestore image
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!upTitle.trim()) {
@@ -321,27 +318,15 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       let thumbUrl = fileUrl;
       let fileName = 'Pengumuman-' + Date.now() + '.jpg';
       let fileType = 'image/jpeg';
-      let fileSize = '1.20 MB';
-      let driveFolderPath = getDriveFolderPath('Pengumuman', upDept, fileName);
-      let driveFileId = `1Drv-${Date.now().toString(36)}`;
+      let fileSize = '35 KB';
 
       if (fileInput) {
-        const driveResult = await uploadFileToDriveStorage({
-          file: fileInput,
-          title: upTitle.trim(),
-          category: 'Pengumuman',
-          departemen: upDept,
-          uploadedBy: currentUser.nama,
-          uploadedByEmail: currentUser.email,
-        });
-
-        fileUrl = driveResult.fileUrl;
-        thumbUrl = driveResult.thumbUrl || driveResult.fileUrl;
-        fileName = driveResult.fileName;
-        fileType = driveResult.fileType;
-        fileSize = driveResult.fileSize;
-        driveFolderPath = driveResult.driveFolderPath;
-        driveFileId = driveResult.driveFileId;
+        const compressed = await processFileForFirestore(fileInput);
+        fileUrl = compressed.dataUrl;
+        thumbUrl = compressed.dataUrl;
+        fileName = compressed.fileName;
+        fileType = compressed.mimeType;
+        fileSize = formatBytes(compressed.compressedSizeBytes);
       }
 
       const newDoc: IntranetDocument = {
@@ -363,21 +348,17 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         uploadedAt: new Date().toISOString(),
         effectiveDate: upEffectiveDate,
         expiryDate: upExpiryDate,
-        driveFileId,
-        driveFolderPath,
       };
 
       addDocument(newDoc, currentUser);
-      setIsUploading(false);
       setShowUploadForm(false);
       setUpTitle('');
       setUpKet('');
-      setUpEffectiveDate(todayStr);
-      setUpExpiryDate(todayStr);
       setFileInput(null);
       onRefresh();
     } catch (err: any) {
-      setUploadError(err?.message || 'Gagal menyimpan pengumuman.');
+      setUploadError(err?.message || 'Gagal mengunggah pengumuman ke penyimpanan.');
+    } finally {
       setIsUploading(false);
     }
   };
@@ -389,14 +370,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold mb-3">
             <Megaphone className="w-3.5 h-3.5" />
-            <span>Pusat Informasi & Pengumuman Internal</span>
+            <span>{currentLang === 'id' ? 'Pusat Informasi & Pengumuman Internal' : 'Internal Notices & Announcements'}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
-            Papan Pengumuman Digital
+            {t('headerAnnouncementsTitle', currentLang)}
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
-            Foto & banner disimpan terpusat di folder <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong>.
-            Pengumuman memiliki masa retensi <strong>7 hari</strong> sebelum otomatis dibersihkan agar penyimpanan Vercel & Firebase tetap optimal.
+            {t('headerAnnouncementsSubtitle', currentLang)}
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-4 pt-2">
@@ -738,7 +718,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedAnnouncements.map((doc) => {
               const expInfo = getExpirationInfo(doc);
-              const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
+              const folderPath = doc.driveFolderPath || getFirestoreStoragePath('Pengumuman', doc.akses_dept, doc.fileName);
 
               return (
                 <div
@@ -905,7 +885,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {paginatedAnnouncements.map((doc) => {
                   const expInfo = getExpirationInfo(doc);
-                  const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
+                  const folderPath = doc.driveFolderPath || getFirestoreStoragePath('Pengumuman', doc.akses_dept, doc.fileName);
 
                   return (
                     <tr

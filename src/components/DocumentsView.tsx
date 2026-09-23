@@ -31,17 +31,23 @@ import {
 import { IntranetDocument, User, CategoryMaster, DocumentCategory } from '../types';
 import { addDocument, updateDocument, deleteDocument, addAccessLog, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { uploadFileToDriveStorage, getDriveFolderPath } from '../lib/driveApi';
+import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
+import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 
 export type DocumentSortOption = 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc' | 'dept-asc';
+
+const getFirestoreStoragePath = (category: string, dept: string, fileName?: string) => {
+  return `Cloud Firestore > ${category} > ${dept} > ${fileName || 'Nama Berkas'}`;
+};
 
 interface DocumentsViewProps {
   category: DocumentCategory; // 'SOP' | 'Form'
   documents: IntranetDocument[];
   currentUser: User;
   categories: CategoryMaster[];
+  currentLang?: Language;
   onOpenPreview: (doc: IntranetDocument) => void;
   onRefresh: () => void;
 }
@@ -51,6 +57,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   documents = [],
   currentUser,
   categories = [],
+  currentLang = 'id',
   onOpenPreview,
   onRefresh,
 }) => {
@@ -187,10 +194,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     addAccessLog({
       user: currentUser,
       actionCategory: 'DOCUMENT',
-      action: 'Unduh Dokumen Google Drive',
+      action: 'Unduh Dokumen Cloud Firestore',
       target: doc.title,
       status: 'SUCCESS',
-      details: `File ID ${doc.id} (${doc.fileName}) diunduh. Jalur: ${doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName)}`,
+      details: `File ID ${doc.id} (${doc.fileName}) diunduh dari cloud Firestore. Jalur: ${doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName)}`,
     });
 
     const link = document.createElement('a');
@@ -237,30 +244,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       // If user uploaded a replacement file ("ganti file")
       if (editFileInput) {
-        const uploadResult = await uploadFileToDriveStorage({
-          file: editFileInput,
-          title: editTitle.trim(),
-          category: editDoc.category,
-          departemen: editDept,
-          uploadedBy: currentUser.nama,
-          uploadedByEmail: currentUser.email,
-        });
-
+        const compressed = await processFileForFirestore(editFileInput);
         updatedDoc = {
           ...updatedDoc,
-          fileUrl: uploadResult.fileUrl,
-          previewUrl: uploadResult.previewUrl,
-          downloadUrl: uploadResult.downloadUrl,
-          thumbUrl: uploadResult.thumbUrl,
-          fileName: uploadResult.fileName,
-          fileType: uploadResult.fileType,
-          fileSize: uploadResult.fileSize,
-          driveFolderPath: uploadResult.driveFolderPath,
-          driveFileId: uploadResult.driveFileId,
+          fileUrl: compressed.dataUrl,
+          previewUrl: compressed.dataUrl,
+          downloadUrl: compressed.dataUrl,
+          thumbUrl: compressed.mimeType.startsWith('image/') ? compressed.dataUrl : '',
+          fileName: compressed.fileName,
+          fileType: compressed.mimeType,
+          fileSize: formatBytes(compressed.compressedSizeBytes),
         };
-      } else {
-        // Recalculate folder path in case department changed
-        updatedDoc.driveFolderPath = getDriveFolderPath(editDoc.category, editDept, editDoc.fileName);
       }
 
       updateDocument(updatedDoc, currentUser);
@@ -296,31 +290,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       let previewUrl = fileUrl;
       let downloadUrl = fileUrl;
       let thumbUrl = '';
-      let driveFileId = `1Drv-${Date.now().toString(36)}`;
       let fileName = `${category}-${upTitle.trim().replace(/\s+/g, '_')}.pdf`;
       let fileType = 'application/pdf';
-      let fileSize = '1.20 MB';
-      let driveFolderPath = getDriveFolderPath(category, upDept, fileName);
+      let fileSize = '45 KB';
 
       if (fileInput) {
-        const driveResult = await uploadFileToDriveStorage({
-          file: fileInput,
-          title: upTitle.trim(),
-          category,
-          departemen: upDept,
-          uploadedBy: currentUser.nama,
-          uploadedByEmail: currentUser.email,
-        });
-
-        fileUrl = driveResult.fileUrl;
-        previewUrl = driveResult.previewUrl;
-        downloadUrl = driveResult.downloadUrl;
-        thumbUrl = driveResult.thumbUrl;
-        driveFileId = driveResult.driveFileId;
-        fileName = driveResult.fileName;
-        fileType = driveResult.fileType;
-        fileSize = driveResult.fileSize;
-        driveFolderPath = driveResult.driveFolderPath;
+        const compressed = await processFileForFirestore(fileInput);
+        fileUrl = compressed.dataUrl;
+        previewUrl = compressed.dataUrl;
+        downloadUrl = compressed.dataUrl;
+        thumbUrl = compressed.mimeType.startsWith('image/') ? compressed.dataUrl : '';
+        fileName = compressed.fileName;
+        fileType = compressed.mimeType;
+        fileSize = formatBytes(compressed.compressedSizeBytes);
       }
 
       const newDoc: IntranetDocument = {
@@ -340,8 +322,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         uploadedBy: currentUser.nama,
         uploadedByEmail: currentUser.email,
         uploadedAt: new Date().toISOString(),
-        driveFileId,
-        driveFolderPath,
       };
 
       addDocument(newDoc, currentUser);
@@ -377,10 +357,14 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">
-              {category === 'SOP' ? 'Standard Operating Procedures (SOP)' : 'Formulir Kerja Standar'}
+              {category === 'SOP'
+                ? t('headerSOPTitle', currentLang)
+                : t('headerFormsTitle', currentLang)}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Penyimpanan terstruktur Google Drive: <strong>Drive Utama &gt; {category} &gt; Departemen (FO, HK, ACCT, dll.)</strong>
+              {category === 'SOP'
+                ? t('headerSOPSubtitle', currentLang)
+                : t('headerFormsSubtitle', currentLang)}
             </p>
           </div>
         </div>
@@ -596,7 +580,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {paginatedDocs.map((doc) => {
-                const folderPath = doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName);
+                const folderPath = doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
                 return (
                   <div
                     key={doc.id}
@@ -777,7 +761,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   </tr>
                 ) : (
                   paginatedDocs.map((doc) => {
-                    const folderPath = doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName);
+                    const folderPath = doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
                     return (
                       <tr
                         key={doc.id}
@@ -1023,7 +1007,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
 
                 <p className="text-[10px] text-amber-800">
-                  Folder tujuan di Google Drive: <strong>{getDriveFolderPath(editDoc.category, editDept, editFileInput ? editFileInput.name : editDoc.fileName)}</strong>
+                  Penyimpanan Cloud Firestore: <strong>{getFirestoreStoragePath(editDoc.category, editDept, editFileInput ? editFileInput.name : editDoc.fileName)}</strong> (Kompresi otomatis ultra-ringan)
                 </p>
               </div>
 
@@ -1171,7 +1155,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Lokasi Google Drive: <strong>{getDriveFolderPath(category, upDept, fileInput ? fileInput.name : undefined)}</strong>
+                  Penyimpanan Cloud Firestore: <strong>{getFirestoreStoragePath(category, upDept, fileInput ? fileInput.name : undefined)}</strong> (Kompresi otomatis dokumen & arsip)
                 </p>
               </div>
 

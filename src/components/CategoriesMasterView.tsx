@@ -18,16 +18,19 @@ import { addCategory, deleteCategory, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface CategoriesMasterViewProps {
   categories: CategoryMaster[];
   currentUser: User;
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
 export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
   categories = [],
   currentUser,
+  currentLang = 'id',
   onRefresh,
 }) => {
   const departments = getDepartments();
@@ -165,14 +168,14 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                Master Kategori & Sub-Klasifikasi Berkas
+                {t('headerCategoriesTitle', currentLang)}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-700">
                 {safeCategories.length} Kategori
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Standarisasi label pengelompokan dokumen SOP, formulir kerja, dan arsip pengumuman.
+              {t('headerCategoriesSubtitle', currentLang)}
             </p>
           </div>
         </div>

@@ -43,11 +43,13 @@ import { AppraisalPrintModal } from './AppraisalPrintModal';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface PerformanceViewProps {
   performances: PerformanceAppraisal[];
   kpiMaster: KPIMasterItem[];
   currentUser: User;
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
@@ -55,6 +57,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   performances = [],
   kpiMaster = [],
   currentUser,
+  currentLang = 'id',
   onRefresh,
 }) => {
   const departments = getDepartments();
@@ -1000,7 +1003,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-slate-900">
-                Evaluasi Kinerja & Capaian KPI Karyawan
+                {t('headerPerformanceTitle', currentLang)}
               </h1>
               {isSuperAdmin ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 uppercase">

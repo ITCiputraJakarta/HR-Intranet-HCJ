@@ -8,21 +8,21 @@ import {
   ShieldCheck,
   CheckCircle2,
   ExternalLink,
-  FileSpreadsheet,
   X,
   Volume2,
   Menu,
   Globe,
   Clock,
   Sparkles,
-  HardDrive,
+  Sliders,
+  Flame,
   Check
 } from 'lucide-react';
 import { User, PushNotification } from '../types';
 import { markNotificationAsRead, markAllNotificationsAsRead, addAccessLog } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
-import { connectGoogleDrive, getGoogleAccessToken, getConnectedGoogleUser } from '../lib/authGoogle';
+import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
 
 interface NavbarProps {
   currentUser: User;
@@ -37,6 +37,7 @@ interface NavbarProps {
   onRefreshNotifications?: () => void;
   onClearNotifications?: () => void;
   onOpenConfig?: () => void;
+  onOpenBranding?: () => void;
   onNavigate?: (tab: string, category?: string) => void;
   onToggleMobileMenu?: () => void;
   isMobileMenuOpen?: boolean;
@@ -55,36 +56,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefreshNotifications,
   onClearNotifications,
   onOpenConfig,
+  onOpenBranding,
   onNavigate,
   onToggleMobileMenu,
   isMobileMenuOpen,
 }) => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [driveConnected, setDriveConnected] = useState(false);
-  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
-  const [driveError, setDriveError] = useState<string | null>(null);
+  const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
   useEffect(() => {
-    getGoogleAccessToken().then((tok) => {
-      setDriveConnected(Boolean(tok));
-    });
+    const unsub = subscribeToAppBranding((b) => setBranding(b));
+    return () => unsub();
   }, []);
 
-  const handleConnectGoogleDrive = async () => {
-    setIsConnectingDrive(true);
-    setDriveError(null);
-    try {
-      await connectGoogleDrive();
-      setDriveConnected(true);
-    } catch (err: any) {
-      console.warn('Connect drive error:', err);
-      setDriveError(err?.message || 'Gagal menghubungkan Google Drive.');
-    } finally {
-      setIsConnectingDrive(false);
-    }
-  };
-
+  const isSuperAdmin = currentUser.role === 'admin';
   const handleClear = onClearNotifications || onRefreshNotifications || (() => {});
   const handleConfig = onOpenConfig || (() => onNavigate?.('spreadsheet'));
 
@@ -118,103 +104,132 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const requestPushPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        new Notification(t('notificationsTitle', currentLang), {
-          body: `Halo ${currentUser.nama}, notifikasi intranet Hotel Ciputra aktif untuk departemen ${currentUser.departemen}.`,
-          icon: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100&auto=format&fit=crop',
-        });
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          new Notification('Notifikasi Intranet HCJ Aktif', {
+            body: 'Anda akan menerima pemberitahuan langsung saat ada pengumuman atau tugas baru.',
+            icon: '/favicon.ico',
+          });
+        }
+      } catch (e) {
+        console.warn('Notification permission error:', e);
       }
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'manager':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'spv':
-      case 'hod':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
+  const handleNotificationClick = (notif: PushNotification) => {
+    markNotificationAsRead(notif.id);
+    setShowNotifDropdown(false);
+    handleClear();
+
+    if (notif.category === 'PENGUMUMAN' || notif.category === 'ANNOUNCEMENT') {
+      onNavigate?.('announcements');
+    } else if (notif.category === 'KPI' || notif.category === 'APPRAISAL') {
+      onNavigate?.('performance');
+    } else if (notif.category === 'DOCUMENT' || notif.category === 'SOP') {
+      onNavigate?.('sop');
+    } else if (notif.category === 'FORM') {
+      onNavigate?.('forms');
+    } else if (notif.category === 'USER_MGMT') {
+      onNavigate?.('users');
     }
   };
 
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return t('roleAdmin', currentLang);
-      case 'manager':
-        return t('roleManager', currentLang);
-      case 'spv':
-        return t('roleSpv', currentLang);
-      case 'hod':
-        return t('roleHod', currentLang);
-      default:
-        return t('roleStaff', currentLang);
+  const handleMarkAllRead = () => {
+    markAllNotificationsAsRead();
+    handleClear();
+  };
+
+  const formatRelativeTime = (isoString: string) => {
+    try {
+      const diffMs = Date.now() - new Date(isoString).getTime();
+      const diffMins = Math.floor(diffMs / (60 * 1000));
+      const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+      const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+      if (diffMins < 1) return t('justNow', currentLang);
+      if (diffMins < 60) return `${diffMins} ${t('minutesUnit', currentLang)}`;
+      if (diffHours < 24) return `${diffHours} ${t('hoursUnit', currentLang)}`;
+      return `${diffDays} ${t('daysUnit', currentLang)}`;
+    } catch {
+      return '';
     }
   };
 
-  const formatTimeAndExpiry = (dateStr: string) => {
-    const created = new Date(dateStr).getTime();
-    if (isNaN(created)) return { timeAgo: '', remainingText: '' };
-    const now = Date.now();
-    const diffMs = now - created;
-    const diffMins = Math.floor(diffMs / (60 * 1000));
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    let timeAgo = '';
-    if (diffMins < 1) {
-      timeAgo = t('justNow', currentLang);
-    } else if (diffMins < 60) {
-      timeAgo = `${diffMins} ${t('minutesUnit', currentLang)}`;
-    } else if (diffHours < 24) {
-      timeAgo = `${diffHours} ${t('hoursUnit', currentLang)}`;
-    } else {
-      timeAgo = `${diffDays} ${t('daysUnit', currentLang)}`;
+  const getDaysRemaining = (createdAt: string) => {
+    try {
+      const expiryDays = 3;
+      const createdTime = new Date(createdAt).getTime();
+      const expiryTime = createdTime + expiryDays * 24 * 60 * 60 * 1000;
+      const remainingMs = expiryTime - Date.now();
+      const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+      return Math.max(0, remainingDays);
+    } catch {
+      return 0;
     }
-
-    const remainingMs = 3 * 24 * 60 * 60 * 1000 - diffMs;
-    const remainingDays = Math.max(1, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
-    const remainingText = `${t('expiresInDays', currentLang)} ${remainingDays} ${t('daysUnit', currentLang)}`;
-
-    return { timeAgo, remainingText };
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
-          {/* Brand Logo & Title with Mobile Hamburger */}
-          <div className="flex items-center gap-3">
+          {/* Left Brand with Custom Logo Support */}
+          <div className="flex items-center gap-3 select-none">
             {onToggleMobileMenu && (
               <button
-                id="btn-mobile-menu-toggle"
+                type="button"
                 onClick={onToggleMobileMenu}
-                className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors focus:outline-none"
+                className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
                 aria-label="Buka Menu Navigasi"
               >
                 <Menu className="w-5 h-5" />
               </button>
             )}
-            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white shadow-md shadow-indigo-500/20 shrink-0">
-              <Building2 className="w-5 h-5" />
-            </div>
+
+            {/* Custom Logo or Default Brand Icon */}
+            {branding.customLogoUrl ? (
+              <div
+                onClick={() => {
+                  if (isSuperAdmin && onOpenBranding) onOpenBranding();
+                }}
+                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white border border-slate-200 shadow-sm shrink-0 overflow-hidden p-1 ${
+                  isSuperAdmin ? 'cursor-pointer hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 transition-all' : ''
+                }`}
+                title={isSuperAdmin ? 'Klik untuk mengganti logo portal' : branding.appName}
+              >
+                <img
+                  src={branding.customLogoUrl}
+                  alt={branding.appName}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => {
+                  if (isSuperAdmin && onOpenBranding) onOpenBranding();
+                }}
+                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white shadow-md shadow-indigo-500/20 shrink-0 ${
+                  isSuperAdmin ? 'cursor-pointer hover:scale-105 transition-transform' : ''
+                }`}
+                title={isSuperAdmin ? 'Klik untuk upload logo portal kustom' : branding.appName}
+              >
+                <Building2 className="w-5 h-5" />
+              </div>
+            )}
+
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 text-sm sm:text-base tracking-tight leading-none whitespace-nowrap">
-                  {t('hotelName', currentLang)}
+                <span className="font-black text-slate-900 text-sm sm:text-base tracking-tight leading-none whitespace-nowrap">
+                  {branding.appName || 'Intranet HCJ'}
                 </span>
-                <span className="hidden md:inline-flex px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/60 uppercase tracking-wider">
-                  {t('intranetPortal', currentLang)}
+                <span className="hidden md:inline-flex px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/60 uppercase tracking-wider">
+                  HOTEL CIPUTRA
                 </span>
               </div>
-              <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5">
-                {t('portalSubtitle', currentLang)}
+              <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5 font-medium">
+                {branding.subTitle || t('portalSubtitle', currentLang)}
               </p>
             </div>
           </div>
@@ -222,28 +237,31 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Action Items */}
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Google Drive Direct Connection Pill */}
-            {driveConnected ? (
-              <div
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold"
-                title="Google Drive terhubung langsung untuk upload file otomatis"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <HardDrive className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden xl:inline">Drive Terhubung</span>
-                <Check className="w-3 h-3 text-emerald-600" />
+            {/* Super Admin ONLY: Cloud & Logo Settings Button */}
+            {isSuperAdmin && (
+              <div className="flex items-center gap-1.5">
+                {onOpenBranding && (
+                  <button
+                    id="btn-nav-custom-logo"
+                    onClick={onOpenBranding}
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs active:scale-95"
+                    title="Upload atau ganti logo portal Intranet HCJ"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="hidden xl:inline">Ganti Logo</span>
+                  </button>
+                )}
+
+                <button
+                  id="btn-nav-cloud-config"
+                  onClick={handleConfig}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 hover:border-emerald-400 bg-emerald-50 text-emerald-700 text-xs font-bold transition-all shadow-2xs active:scale-95"
+                  title="Panel Konfigurasi Cloud Firestore & Sistem (Super Admin Only)"
+                >
+                  <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                  <span>Cloud & Rules</span>
+                </button>
               </div>
-            ) : (
-              <button
-                id="btn-nav-connect-drive"
-                onClick={handleConnectGoogleDrive}
-                disabled={isConnectingDrive}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-indigo-400 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50"
-                title="Hubungkan akun Google Drive untuk menyimpan file langsung ke Google Drive"
-              >
-                <HardDrive className={`w-3.5 h-3.5 text-indigo-600 ${isConnectingDrive ? 'animate-bounce' : ''}`} />
-                <span>{isConnectingDrive ? 'Menghubungkan...' : 'Hubungkan Drive'}</span>
-              </button>
             )}
 
             {/* Language Switcher Pill */}
@@ -268,17 +286,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </button>
 
-            {/* Spreadsheet Integration Shortcut */}
-            <button
-              id="btn-nav-spreadsheet"
-              onClick={handleConfig}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 transition-colors"
-              title="Konfigurasi Google Spreadsheet & Drive"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>{t('googleSheetStudio', currentLang)}</span>
-            </button>
-
             {/* Notification Bell with Dropdown */}
             <div className="relative">
               <button
@@ -289,110 +296,104 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-rose-600 rounded-full ring-2 ring-white animate-pulse">
-                    {unreadCount}
+                  <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-extrabold text-white bg-rose-600 rounded-full ring-2 ring-white animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>
 
-              {/* Notification Popover */}
+              {/* Notification Dropdown Panel */}
               {showNotifDropdown && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex items-center justify-between px-4 pb-2 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+                    <div>
                       <h4 className="font-bold text-slate-900 text-sm">
                         {t('notificationsTitle', currentLang)}
                       </h4>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold">
-                        {relevantNotifs.length} {t('totalCountLabel', currentLang)}
-                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {unreadCount} {t('unreadCountLabel', currentLang)} • {relevantNotifs.length}{' '}
+                        {t('totalCountLabel', currentLang)}
+                      </p>
                     </div>
                     {unreadCount > 0 && (
                       <button
-                        onClick={() => {
-                          markAllNotificationsAsRead();
-                          if (onRefreshNotifications) onRefreshNotifications();
-                        }}
-                        className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+                        onClick={handleMarkAllRead}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
                       >
                         {t('markAllRead', currentLang)}
                       </button>
                     )}
                   </div>
 
-                  {/* Browser Push Permission Request Prompt */}
-                  <div className="mx-3 my-2 p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center justify-between text-xs text-indigo-900">
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span className="text-[11px]">{t('enablePushNotice', currentLang)}</span>
+                  {/* Browser Push Permission Banner */}
+                  <div className="px-4 py-2 bg-indigo-50/60 border-b border-indigo-100/80 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] text-indigo-900 font-medium">
+                      <Volume2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>{t('enablePushNotice', currentLang)}</span>
                     </div>
                     <button
                       onClick={requestPushPermission}
-                      className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold text-[11px] shrink-0 transition-colors"
+                      className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 rounded-md shadow-2xs hover:bg-indigo-50 transition-colors"
                     >
                       {t('allowPushBtn', currentLang)}
                     </button>
                   </div>
 
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                  {/* Notification List */}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                     {relevantNotifs.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400 text-xs px-4">
-                        {t('noActiveNotifications', currentLang)}
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        <Bell className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                        <p>{t('noActiveNotifications', currentLang)}</p>
                       </div>
                     ) : (
-                      relevantNotifs.map((item) => {
-                        const { timeAgo, remainingText } = formatTimeAndExpiry(item.createdAt);
+                      relevantNotifs.map((n) => {
+                        const daysLeft = getDaysRemaining(n.createdAt);
                         return (
                           <div
-                            key={item.id}
-                            onClick={() => {
-                              markNotificationAsRead(item.id);
-                              if (typeof onRefreshNotifications === 'function') {
-                                onRefreshNotifications();
-                              }
-                              if (typeof onNavigate === 'function') {
-                                if (item.category === 'Pengumuman') {
-                                  onNavigate('announcements');
-                                } else if (item.category === 'KPI') {
-                                  onNavigate('performance');
-                                } else {
-                                  onNavigate('documents', item.category);
-                                }
-                              }
-                              setShowNotifDropdown(false);
-                            }}
-                            className={`p-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${
-                              !item.read ? 'bg-indigo-50/40' : ''
+                            key={n.id}
+                            onClick={() => handleNotificationClick(n)}
+                            className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 ${
+                              !n.read ? 'bg-indigo-50/30' : ''
                             }`}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 uppercase">
-                                  {item.category}
-                                </span>
-                                <span className="text-xs font-bold text-slate-900 leading-tight">
-                                  {item.title}
-                                </span>
-                              </div>
-                              {!item.read && (
-                                <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0 mt-1" />
-                              )}
+                            <div className="mt-0.5 shrink-0">
+                              <span
+                                className={`w-2 h-2 rounded-full block ${
+                                  !n.read ? 'bg-indigo-600' : 'bg-transparent'
+                                }`}
+                              />
                             </div>
-                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                              {item.message}
-                            </p>
-                            <div className="flex items-center justify-between mt-2 text-[10px] text-slate-400">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-indigo-600">
-                                  {item.targetDepartment}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1 mb-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  {n.category}
                                 </span>
-                                <span>•</span>
-                                <span>{timeAgo}</span>
+                                <span className="text-[10px] text-slate-400">
+                                  {formatRelativeTime(n.createdAt)}
+                                </span>
                               </div>
-                              <span className="flex items-center gap-1 text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded">
-                                <Clock className="w-3 h-3" />
-                                {remainingText}
-                              </span>
+                              <p
+                                className={`text-xs ${
+                                  !n.read ? 'font-bold text-slate-900' : 'text-slate-700'
+                                }`}
+                              >
+                                {n.title}
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                {n.message}
+                              </p>
+
+                              <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                                <span className="flex items-center gap-1 font-medium text-indigo-600">
+                                  {n.targetDepartment}
+                                </span>
+                                <span className="flex items-center gap-1 font-mono text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {t('expiresInDays', currentLang)} {daysLeft}{' '}
+                                  {t('daysUnit', currentLang)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -400,106 +401,109 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </div>
 
-                  {/* 3-day retention disclaimer footer */}
-                  <div className="px-4 pt-2.5 pb-1 border-t border-slate-100 text-[10px] text-slate-400 text-center">
-                    {t('autoExpireNotice', currentLang)}
+                  <div className="p-2 border-t border-slate-100 text-center bg-slate-50/50">
+                    <span className="text-[10px] text-slate-400">
+                      {t('autoExpireNotice', currentLang)}
+                    </span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Current User Card & Dropdown */}
+            {/* User Profile Pill */}
             <div className="relative">
               <button
-                id="btn-user-profile-menu"
+                id="btn-user-profile-toggle"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center gap-2 p-1.5 pl-2 hover:bg-slate-100/80 rounded-xl transition-all border border-transparent hover:border-slate-200"
+                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all focus:outline-none"
               >
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold text-sm flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
                   {currentUser.nama.charAt(0).toUpperCase()}
                 </div>
-                <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-xs font-bold text-slate-900 leading-none">
+                <div className="hidden md:block text-left">
+                  <div className="text-xs font-bold text-slate-800 leading-tight">
                     {currentUser.nama}
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    {currentUser.departemen}
-                  </span>
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    {currentUser.role} • {currentUser.departemen}
+                  </div>
                 </div>
-                <span
-                  className={`hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-md border ${getRoleBadgeColor(
-                    currentUser.role
-                  )}`}
-                >
-                  {getRoleLabel(currentUser.role)}
-                </span>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+                <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
               </button>
 
-              {/* User Dropdown */}
+              {/* User Menu Dropdown */}
               {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in duration-100">
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95">
                   <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       {t('signedInAs', currentLang)}
                     </p>
-                    <p className="text-sm font-bold text-slate-900 mt-0.5 truncate">
-                      {currentUser.nama}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getRoleBadgeColor(
-                          currentUser.role
-                        )}`}
-                      >
-                        {getRoleLabel(currentUser.role)}
-                      </span>
+                    <p className="font-bold text-xs text-slate-900 mt-0.5">{currentUser.nama}</p>
+                    <p className="text-[11px] text-slate-500">{currentUser.email}</p>
+                    <div className="mt-2 flex items-center gap-1.5">
                       <DepartmentBadge department={currentUser.departemen} size="xs" />
+                      <span className="px-2 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-700 rounded-md uppercase">
+                        {currentUser.role}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="py-1">
-                    <button
-                      id="btn-nav-profile"
-                      onClick={() => {
-                        if (typeof onNavigate === 'function') {
-                          onNavigate('profile');
-                        }
-                        setShowUserDropdown(false);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <UserIcon className="w-4 h-4 text-slate-400" />
-                      <span>{t('myProfile', currentLang)}</span>
-                    </button>
-                    {currentUser.role === 'admin' && (
+                  {/* Super Admin Quick Logo Settings */}
+                  {isSuperAdmin && onOpenBranding && (
+                    <div className="p-1 border-b border-slate-100">
                       <button
-                        id="btn-nav-logs"
                         onClick={() => {
-                          if (typeof onNavigate === 'function') {
-                            onNavigate('logs');
-                          }
                           setShowUserDropdown(false);
+                          onOpenBranding();
                         }}
-                        className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors text-left"
                       >
-                        <ShieldCheck className="w-4 h-4 text-indigo-500" />
-                        <span>{t('accessLogsMenu', currentLang)}</span>
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span>Pengaturan Logo Portal</span>
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="border-t border-slate-100 pt-1">
+                  {/* Role Switcher for Testing (Super Admin only) */}
+                  {currentUser.role === 'admin' && onRoleSwitch && safeAllUsers.length > 0 && (
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-2 mb-1.5">
+                        Simulasi Hak Akses Akun:
+                      </span>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {safeAllUsers.slice(0, 5).map((u) => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              onRoleSwitch(u);
+                              setShowUserDropdown(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-1.5 text-xs rounded-xl flex items-center justify-between ${
+                              u.id === currentUser.id
+                                ? 'bg-indigo-100/70 text-indigo-900 font-bold'
+                                : 'hover:bg-slate-200/60 text-slate-700'
+                            }`}
+                          >
+                            <span className="truncate">{u.nama}</span>
+                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-white font-semibold text-slate-600">
+                              {u.role}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-1">
                     <button
-                      id="btn-nav-logout"
+                      id="btn-user-logout"
                       onClick={() => {
                         setShowUserDropdown(false);
                         onLogout();
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left"
                     >
-                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <LogOut className="w-4 h-4" />
                       <span>{t('signOut', currentLang)}</span>
                     </button>
                   </div>

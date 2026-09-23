@@ -21,11 +21,13 @@ import { getDepartmentMasters, addDepartment, updateDepartment } from '../lib/st
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface DepartmentsMasterViewProps {
   currentUser: User;
   users?: User[];
   documents?: IntranetDocument[];
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
@@ -33,6 +35,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
   currentUser,
   users = [],
   documents = [],
+  currentLang = 'id',
   onRefresh,
 }) => {
   const [departments, setDepartments] = useState<DepartmentMaster[]>(() => getDepartmentMasters());
@@ -250,14 +253,14 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    Master Data Departemen
+                    {t('headerDepartmentsTitle', currentLang)}
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
                     Hotel Ciputra Jakarta
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                  Kelola struktur departemen resmi. Tambah departemen baru atau perbarui nama & kode tanpa mengganggu relasi arsip.
+                  {t('headerDepartmentsSubtitle', currentLang)}
                 </p>
               </div>
             </div>

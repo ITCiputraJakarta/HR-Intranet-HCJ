@@ -26,16 +26,19 @@ import { DEPARTMENTS } from '../data/initialData';
 import { clearAccessLogs } from '../lib/storage';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { Language, t } from '../lib/i18n';
 
 interface AccessLogsViewProps {
   logs: AccessLog[];
   currentUser: User;
+  currentLang?: Language;
   onRefresh: () => void;
 }
 
 export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
   logs = [],
   currentUser,
+  currentLang = 'id',
   onRefresh,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,10 +233,10 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">
-              Sistem Log Akses Terstruktur (AccessLogs)
+              {t('headerLogsTitle', currentLang)}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Pencatatan real-time seluruh autentikasi, akses berkas Google Drive, dan modifikasi data
+              {t('headerLogsSubtitle', currentLang)}
             </p>
           </div>
         </div>

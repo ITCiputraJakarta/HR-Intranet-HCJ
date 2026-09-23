@@ -39,8 +39,10 @@ import { CategoriesMasterView } from './components/CategoriesMasterView';
 import { DepartmentsMasterView } from './components/DepartmentsMasterView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { GASConfigModal } from './components/GASConfigModal';
+import { BrandingSettingsModal } from './components/BrandingSettingsModal';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
+import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
 import {
   seedInitialFirestoreData,
   subscribeToUsers,
@@ -85,6 +87,8 @@ export default function App() {
   // Modals
   const [previewDoc, setPreviewDoc] = useState<IntranetDocument | null>(null);
   const [showGASModal, setShowGASModal] = useState<boolean>(false);
+  const [showBrandingModal, setShowBrandingModal] = useState<boolean>(false);
+  const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
   // Load all data from storage
   const refreshAllData = () => {
@@ -152,6 +156,10 @@ export default function App() {
       setConfig((prev) => ({ ...prev, ...newConfig }));
     });
 
+    const unsubBranding = subscribeToAppBranding((b) => {
+      setBranding(b);
+    });
+
     return () => {
       unsubState();
       unsubUsers();
@@ -162,6 +170,7 @@ export default function App() {
       unsubPerfs();
       unsubNotifs();
       unsubConfig();
+      unsubBranding();
     };
   }, []);
 
@@ -310,6 +319,7 @@ export default function App() {
         currentLang={currentLang}
         onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
+        onOpenBranding={() => setShowBrandingModal(true)}
         onOpenConfig={() => {
           setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
           setShowGASModal(true);
@@ -375,6 +385,7 @@ export default function App() {
               documents={documents}
               categories={categories}
               currentUser={currentUser}
+              currentLang={currentLang}
               onOpenPreview={setPreviewDoc}
               onRefresh={refreshAllData}
             />
@@ -386,6 +397,7 @@ export default function App() {
               documents={documents}
               currentUser={currentUser}
               categories={categories}
+              currentLang={currentLang}
               onOpenPreview={setPreviewDoc}
               onRefresh={refreshAllData}
             />
@@ -397,6 +409,7 @@ export default function App() {
               documents={documents}
               currentUser={currentUser}
               categories={categories}
+              currentLang={currentLang}
               onOpenPreview={setPreviewDoc}
               onRefresh={refreshAllData}
             />
@@ -407,6 +420,7 @@ export default function App() {
               performances={performances}
               kpiMaster={kpiMaster}
               currentUser={currentUser}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}
@@ -416,6 +430,7 @@ export default function App() {
               currentUser={currentUser}
               users={users}
               documents={documents}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}
@@ -424,6 +439,7 @@ export default function App() {
             <CategoriesMasterView
               categories={categories}
               currentUser={currentUser}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}
@@ -432,6 +448,7 @@ export default function App() {
             <KPIMasterView
               kpiMaster={kpiMaster}
               currentUser={currentUser}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}
@@ -449,6 +466,7 @@ export default function App() {
             <AccessLogsView
               logs={logs}
               currentUser={currentUser}
+              currentLang={currentLang}
               onRefresh={refreshAllData}
             />
           )}
@@ -464,7 +482,7 @@ export default function App() {
         />
       )}
 
-      {/* Google Apps Script & Spreadsheet Connector Modal */}
+      {/* Google Apps Script & Spreadsheet Connector Modal (Super Admin only) */}
       {showGASModal && (
         <GASConfigModal
           currentUser={currentUser}
@@ -477,46 +495,59 @@ export default function App() {
         />
       )}
 
+      {/* Super Admin Branding & Custom Logo Modal */}
+      <BrandingSettingsModal
+        isOpen={showBrandingModal}
+        onClose={() => setShowBrandingModal(false)}
+        currentUser={currentUser}
+        onBrandingSaved={refreshAllData}
+      />
+
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-4 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">Hotel Ciputra Jakarta</span>
+            <span className="font-bold text-slate-800">{branding.appName || 'Intranet HCJ'}</span>
             <span>•</span>
-            <span>Intranet Portal & Cloud Architecture</span>
+            <span>{branding.creatorSignature || '© 2026 Intranet HCJ | Developed with excellence @2026'}</span>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
-                setShowGASModal(true);
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-all ${
-                firebaseState === 'connected'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                  : firebaseState === 'permission_denied'
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
-                  : firebaseState === 'not_found'
-                  ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
-                  : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-              }`}
-              title={firebaseErrorMsg || 'Status Koneksi Firebase & Google Drive'}
-            >
-              <Flame className={`w-3.5 h-3.5 ${
-                firebaseState === 'connected' ? 'text-amber-500 fill-amber-500' : 'text-amber-600'
-              }`} />
-              <span>
-                {firebaseState === 'connected'
-                  ? 'Database: Firebase Firestore (Online)'
-                  : firebaseState === 'permission_denied'
-                  ? 'Firebase: Izin Rules Ditolak (Klik Perbaiki)'
-                  : firebaseState === 'not_found'
-                  ? 'Firebase: Database Belum Dibuat'
-                  : 'Firebase: Mode Offline (Cache Lokal Aktif)'}
-              </span>
-              <span>•</span>
-              <span>Drive: Aktif</span>
-            </button>
+            {isSuperAdmin ? (
+              <button
+                onClick={() => {
+                  setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
+                  setShowGASModal(true);
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-all ${
+                  firebaseState === 'connected'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    : firebaseState === 'permission_denied'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
+                    : firebaseState === 'not_found'
+                    ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
+                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                }`}
+                title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
+              >
+                <Flame className={`w-3.5 h-3.5 ${
+                  firebaseState === 'connected' ? 'text-amber-500 fill-amber-500' : 'text-amber-600'
+                }`} />
+                <span>
+                  {firebaseState === 'connected'
+                    ? 'Database: Firebase Firestore (Online)'
+                    : firebaseState === 'permission_denied'
+                    ? 'Firebase: Izin Rules Ditolak (Klik Perbaiki)'
+                    : firebaseState === 'not_found'
+                    ? 'Firebase: Database Belum Dibuat'
+                    : 'Firebase: Mode Offline'}
+                </span>
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
+                <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                <span>Firestore Cloud: Aktif</span>
+              </div>
+            )}
             <span>•</span>
             <span>Akses: <strong>{currentUser.nama}</strong> ({currentUser.role.toUpperCase()})</span>
           </div>

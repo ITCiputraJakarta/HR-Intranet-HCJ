@@ -952,9 +952,9 @@ export const markNotificationsAsRead = markAllNotificationsAsRead;
 
 // ----------------- GOOGLE DRIVE STORAGE CONFIG (SYSTEM CONFIG) -----------------
 export const DEFAULT_DRIVE_CONFIG: GoogleDriveStorageConfig = {
-  rootFolderId: 'Intranet_Ciputra_Uploads',
+  rootFolderId: '17QOXdBWg1STMYuE7RkYshNM6vSJ1Dq0u',
   rootFolderName: 'Drive Utama Hotel Ciputra',
-  sharedDriveUrl: 'https://drive.google.com/drive/folders/Intranet_Ciputra_Uploads',
+  sharedDriveUrl: 'https://drive.google.com/drive/folders/17QOXdBWg1STMYuE7RkYshNM6vSJ1Dq0u?usp=sharing',
   sopFolder: 'SOP',
   formsFolder: 'Formulir Kerja',
   photosFolder: 'Foto & Media',
@@ -962,6 +962,25 @@ export const DEFAULT_DRIVE_CONFIG: GoogleDriveStorageConfig = {
   autoPruneAnnouncementsDays: 7,
   updatedAt: new Date().toISOString(),
 };
+
+/**
+ * Extracts Google Drive Folder ID from a shared URL or raw folder ID
+ */
+export function extractDriveFolderId(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  // Match https://drive.google.com/drive/folders/{folderId} or /u/0/folders/{folderId}
+  const urlMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (urlMatch && urlMatch[1]) {
+    return urlMatch[1];
+  }
+  // Match id={folderId} parameter
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch && idParamMatch[1]) {
+    return idParamMatch[1];
+  }
+  return trimmed;
+}
 
 export function getDriveStorageConfig(): GoogleDriveStorageConfig {
   const stored = getStored<any>(STORAGE_KEYS.CONFIG, DEFAULT_DRIVE_CONFIG);

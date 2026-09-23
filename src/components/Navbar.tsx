@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   Building2,
@@ -14,12 +14,15 @@ import {
   Menu,
   Globe,
   Clock,
-  Sparkles
+  Sparkles,
+  HardDrive,
+  Check
 } from 'lucide-react';
 import { User, PushNotification } from '../types';
 import { markNotificationAsRead, markAllNotificationsAsRead, addAccessLog } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
+import { connectGoogleDrive, getGoogleAccessToken, getConnectedGoogleUser } from '../lib/authGoogle';
 
 interface NavbarProps {
   currentUser: User;
@@ -58,6 +61,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getGoogleAccessToken().then((tok) => {
+      setDriveConnected(Boolean(tok));
+    });
+  }, []);
+
+  const handleConnectGoogleDrive = async () => {
+    setIsConnectingDrive(true);
+    setDriveError(null);
+    try {
+      await connectGoogleDrive();
+      setDriveConnected(true);
+    } catch (err: any) {
+      console.warn('Connect drive error:', err);
+      setDriveError(err?.message || 'Gagal menghubungkan Google Drive.');
+    } finally {
+      setIsConnectingDrive(false);
+    }
+  };
 
   const handleClear = onClearNotifications || onRefreshNotifications || (() => {});
   const handleConfig = onOpenConfig || (() => onNavigate?.('spreadsheet'));
@@ -196,6 +222,30 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Action Items */}
           <div className="flex items-center gap-2 sm:gap-3">
             
+            {/* Google Drive Direct Connection Pill */}
+            {driveConnected ? (
+              <div
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold"
+                title="Google Drive terhubung langsung untuk upload file otomatis"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <HardDrive className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden xl:inline">Drive Terhubung</span>
+                <Check className="w-3 h-3 text-emerald-600" />
+              </div>
+            ) : (
+              <button
+                id="btn-nav-connect-drive"
+                onClick={handleConnectGoogleDrive}
+                disabled={isConnectingDrive}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-indigo-400 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50"
+                title="Hubungkan akun Google Drive untuk menyimpan file langsung ke Google Drive"
+              >
+                <HardDrive className={`w-3.5 h-3.5 text-indigo-600 ${isConnectingDrive ? 'animate-bounce' : ''}`} />
+                <span>{isConnectingDrive ? 'Menghubungkan...' : 'Hubungkan Drive'}</span>
+              </button>
+            )}
+
             {/* Language Switcher Pill */}
             <button
               id="btn-lang-toggle"

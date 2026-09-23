@@ -8,16 +8,24 @@ import {
   CheckCircle2,
   ArrowRight,
   AlertCircle,
-  Briefcase
+  Briefcase,
+  Globe
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { getUsers, saveUsers, addAccessLog, getDepartments } from '../lib/storage';
+import { Language, t } from '../lib/i18n';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
+  currentLang?: Language;
+  onLanguageChange?: (lang: Language) => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+export const LoginView: React.FC<LoginViewProps> = ({
+  onLoginSuccess,
+  currentLang = 'id',
+  onLanguageChange,
+}) => {
   const departments = getDepartments();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
@@ -42,7 +50,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
 
     if (!found) {
-      setErrorMessage('Alamat email belum terdaftar di sistem.');
+      setErrorMessage(t('errEmailNotRegistered', currentLang));
       addAccessLog({
         user: null,
         actionCategory: 'AUTH',
@@ -55,7 +63,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
 
     if (found.password && found.password !== password) {
-      setErrorMessage('Kata sandi yang Anda masukkan salah.');
+      setErrorMessage(t('errWrongPassword', currentLang));
       addAccessLog({
         user: found,
         actionCategory: 'AUTH',
@@ -68,9 +76,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
 
     if (found.status !== 'Approved') {
-      setErrorMessage(
-        'Akun Anda masih berstatus Tertunda (Pending). Harap menunggu persetujuan dari Super Admin / HR.'
-      );
+      setErrorMessage(t('errAccountPending', currentLang));
       addAccessLog({
         user: found,
         actionCategory: 'AUTH',
@@ -101,14 +107,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setSuccessMessage('');
 
     if (!regName.trim() || !regEmail.trim() || !regPassword.trim()) {
-      setErrorMessage('Harap lengkapi semua kolom pendaftaran.');
+      setErrorMessage(t('errFillAllFields', currentLang));
       return;
     }
 
     const users = getUsers();
     const cleanEmail = regEmail.trim().toLowerCase();
     if (users.some((u) => u.email.toLowerCase() === cleanEmail)) {
-      setErrorMessage('Email tersebut sudah terdaftar di sistem.');
+      setErrorMessage(t('errEmailTaken', currentLang));
       return;
     }
 
@@ -134,16 +140,39 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       details: `Pendaftaran berhasil untuk role ${newUser.role} pada departemen ${newUser.departemen}. Status: Pending.`,
     });
 
-    setSuccessMessage(
-      'Pendaftaran berhasil! Akun Anda telah dicatat dengan status Pending dan menunggu persetujuan Super Admin.'
-    );
+    setSuccessMessage(t('successRegistered', currentLang));
     setIsRegister(false);
     setEmail(cleanEmail);
     setPassword(regPassword);
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      {/* Language Switcher Button in Header/Top Right */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-10">
+        <button
+          type="button"
+          id="btn-login-lang-toggle"
+          onClick={() => {
+            const nextLang: Language = currentLang === 'id' ? 'en' : 'id';
+            if (onLanguageChange) {
+              onLanguageChange(nextLang);
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-300 hover:border-indigo-400 bg-white/90 backdrop-blur-xs text-xs font-bold text-slate-700 shadow-sm hover:shadow transition-all active:scale-95"
+          title={currentLang === 'id' ? 'Switch language to English' : 'Ubah bahasa ke Indonesia'}
+        >
+          <Globe className="w-3.5 h-3.5 text-indigo-600" />
+          <span className={`text-[11px] font-extrabold ${currentLang === 'id' ? 'text-indigo-600 underline decoration-2' : 'text-slate-500'}`}>
+            ID
+          </span>
+          <span className="text-slate-300 font-normal">/</span>
+          <span className={`text-[11px] font-extrabold ${currentLang === 'en' ? 'text-indigo-600 underline decoration-2' : 'text-slate-500'}`}>
+            EN
+          </span>
+        </button>
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         
         {/* Brand Header */}
@@ -152,10 +181,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <Building2 className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Hotel Ciputra Jakarta
+            {t('hotelName', currentLang)}
           </h2>
           <p className="text-sm text-slate-600 font-medium mt-1">
-            Portal Intranet & Manajemen Berkas Google Drive
+            {t('portalSubtitle', currentLang)}
           </p>
         </div>
 
@@ -177,7 +206,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Masuk Sistem
+              {t('loginTab', currentLang)}
             </button>
             <button
               type="button"
@@ -192,7 +221,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              Daftar Akun Baru
+              {t('registerTab', currentLang)}
             </button>
           </div>
 
@@ -216,7 +245,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Alamat Email Karyawan
+                  {t('emailLabel', currentLang)}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -228,7 +257,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nama@ciputra.com"
+                    placeholder={t('emailPlaceholder', currentLang)}
                     className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-colors"
                   />
                 </div>
@@ -236,7 +265,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Kata Sandi
+                  {t('passwordLabel', currentLang)}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -248,7 +277,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={t('passwordPlaceholder', currentLang)}
                     className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-colors"
                   />
                 </div>
@@ -259,7 +288,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 id="btn-login-submit"
                 className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 shadow-md shadow-indigo-600/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
               >
-                <span>Masuk ke Portal Intranet</span>
+                <span>{t('loginSubmitBtn', currentLang)}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -268,7 +297,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Lengkap
+                  {t('fullNameLabel', currentLang)}
                 </label>
                 <input
                   id="reg-input-name"
@@ -276,14 +305,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   required
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="Contoh: Sarah Oktaviana"
+                  placeholder={t('namePlaceholder', currentLang)}
                   className="block w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Departemen
+                  {t('deptLabel', currentLang)}
                 </label>
                 <select
                   id="reg-input-dept"
@@ -301,7 +330,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Jabatan / Peran
+                  {t('roleLabel', currentLang)}
                 </label>
                 <select
                   id="reg-input-role"
@@ -309,17 +338,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setRegRole(e.target.value as UserRole)}
                   className="block w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 bg-white font-medium"
                 >
-                  <option value="staff">Staff (Pelaksana Operasional)</option>
-                  <option value="spv">Supervisor (SPV)</option>
-                  <option value="manager">Manager Departemen</option>
-                  <option value="hod">Head of Dept (HOD)</option>
-                  <option value="admin">Super Admin</option>
+                  <option value="staff">{t('roleStaffDesc', currentLang)}</option>
+                  <option value="spv">{t('roleSpvDesc', currentLang)}</option>
+                  <option value="manager">{t('roleManagerDesc', currentLang)}</option>
+                  <option value="hod">{t('roleHodDesc', currentLang)}</option>
+                  <option value="admin">{t('roleAdminDesc', currentLang)}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Email Kantor
+                  {t('workEmailLabel', currentLang)}
                 </label>
                 <input
                   id="reg-input-email"
@@ -327,14 +356,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   required
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="nama@ciputra.com"
+                  placeholder={t('emailPlaceholder', currentLang)}
                   className="block w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Buat Kata Sandi
+                  {t('createPasswordLabel', currentLang)}
                 </label>
                 <input
                   id="reg-input-password"
@@ -342,7 +371,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   required
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
+                  placeholder={t('passwordMinChars', currentLang)}
                   className="block w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
                 />
               </div>
@@ -352,7 +381,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 id="btn-register-submit"
                 className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600 shadow-md shadow-emerald-600/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
               >
-                <span>Kirim Pendaftaran Akun</span>
+                <span>{t('registerSubmitBtn', currentLang)}</span>
               </button>
             </form>
           )}
@@ -362,7 +391,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         {/* Security & Cloud Badge */}
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Autentikasi Terverifikasi & Log Akses Terstruktur</span>
+          <span>{t('authSecurityNotice', currentLang)}</span>
         </div>
 
       </div>

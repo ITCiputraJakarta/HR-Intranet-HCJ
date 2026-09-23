@@ -37,10 +37,12 @@ import {
   firestoreSaveKPI,
   firestoreDeleteKPI,
   firestoreSavePerformance,
+  firestoreDeletePerformance,
   firestoreSaveNotification,
   firestoreMarkNotificationRead,
   firestoreSaveConfig,
 } from './firestoreService';
+import { deleteDriveFile } from './driveApi';
 
 const STORAGE_KEYS = {
   USERS: 'ciputra_intra_users_v1',
@@ -320,14 +322,21 @@ export function deleteDocument(docId: string, actor: User): void {
   // Delete from Firestore
   firestoreDeleteDocument(docId);
 
+  // Also delete from Google Drive if driveFileId exists
+  if (target?.driveFileId) {
+    deleteDriveFile(target.driveFileId).catch((err) => {
+      console.warn('Failed to delete file from Google Drive:', err);
+    });
+  }
+
   if (target) {
     addAccessLog({
       user: actor,
       actionCategory: 'DOCUMENT',
-      action: 'Hapus Dokumen Arsip',
+      action: 'Hapus Dokumen Arsip & File Drive',
       target: target.title,
       status: 'SUCCESS',
-      details: `Dokumen ID ${docId} dihapus dari database Firebase Firestore.`,
+      details: `Dokumen ID ${docId} dihapus dari Firestore dan Google Drive.${target.driveFileId ? ` (Drive File ID: ${target.driveFileId})` : ''}`,
     });
   }
 }
@@ -362,7 +371,8 @@ export function updateDocument(updatedDoc: IntranetDocument, actor: User): void 
 }
 
 /**
- * Otomatis membersihkan pengumuman yang sudah lewat batas hari (default: 7 hari / 1 minggu)
+ * Otomatis membersihkan pengumuman yang sudah mencapai tanggal kedaluwarsa (expiryDate)
+ * atau lewat batas hari (default: 7 hari / 1 minggu).
  * Menghapus dokumen pengumuman beserta file dan fotonya agar penyimpanan Firestore & browser tidak menumpuk.
  */
 export function pruneExpiredAnnouncements(
@@ -378,8 +388,24 @@ export function pruneExpiredAnnouncements(
 
   for (const doc of docs) {
     if (doc.category === 'Pengumuman') {
-      const uploadTime = new Date(doc.uploadedAt).getTime();
-      if (!isNaN(uploadTime) && now - uploadTime > maxAgeMs) {
+      let isExpired = false;
+
+      // 1. Prioritaskan pengecekan tanggal kedaluwarsa eksplisit (expiryDate)
+      if (doc.expiryDate) {
+        // Kedaluwarsa berlaku hingga detik terakhir di hari tersebut (23:59:59.999)
+        const expiryTimestamp = new Date(`${doc.expiryDate}T23:59:59.999`).getTime();
+        if (!isNaN(expiryTimestamp) && now > expiryTimestamp) {
+          isExpired = true;
+        }
+      } else {
+        // 2. Fallback untuk pengumuman lawas tanpa expiryDate: gunakan batas maxDays dari uploadedAt
+        const uploadTime = new Date(doc.uploadedAt).getTime();
+        if (!isNaN(uploadTime) && now - uploadTime > maxAgeMs) {
+          isExpired = true;
+        }
+      }
+
+      if (isExpired) {
         expiredDocs.push(doc);
         continue;
       }
@@ -392,15 +418,20 @@ export function pruneExpiredAnnouncements(
     // Delete expired announcements from Firestore to avoid accumulating data
     expiredDocs.forEach((d) => {
       firestoreDeleteDocument(d.id);
+      if (d.driveFileId) {
+        deleteDriveFile(d.driveFileId).catch((err) => {
+          console.warn('Failed to delete expired announcement file from Google Drive:', err);
+        });
+      }
     });
 
     addAccessLog({
       user: actor || null,
       actionCategory: 'DOCUMENT',
-      action: 'Pembersihan Otomatis Pengumuman (> 7 Hari)',
+      action: 'Pembersihan Otomatis Pengumuman Kedaluwarsa',
       target: `${expiredDocs.length} pengumuman kedaluwarsa`,
       status: 'SUCCESS',
-      details: `Sistem membersihkan ${expiredDocs.length} pengumuman & foto yang telah terbit lebih dari ${maxDays} hari agar penyimpanan tetap efisien: ${expiredDocs.map(e => e.title).slice(0, 3).join(', ')}${expiredDocs.length > 3 ? '...' : ''}`,
+      details: `Sistem membersihkan ${expiredDocs.length} pengumuman & foto yang telah mencapai batas tanggal kedaluwarsa: ${expiredDocs.map((e) => e.title).slice(0, 3).join(', ')}${expiredDocs.length > 3 ? '...' : ''}`,
     });
   }
 
@@ -411,13 +442,38 @@ export function pruneExpiredAnnouncements(
   };
 }
 
-// ----------------- STRUCTURED ACCESS LOGS -----------------
+// ----------------- STRUCTURED ACCESS LOGS (1-WEEK RETENTION) -----------------
+export const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari (1 minggu)
+
+/**
+ * Otomatis membersihkan log yang berumur lebih dari 1 minggu (7 hari ke belakang dari saat ini).
+ * Log hanya bertahan selama 1 minggu agar penyimpanan tidak penuh.
+ */
+export function pruneExpiredAccessLogs(): AccessLog[] {
+  const all = getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
+  const now = Date.now();
+  const valid = all.filter((log) => {
+    const time = new Date(log.timestamp).getTime();
+    return !isNaN(time) && now - time <= LOG_RETENTION_MS;
+  });
+
+  if (valid.length !== all.length) {
+    setStored(STORAGE_KEYS.ACCESS_LOGS, valid);
+  }
+  return valid;
+}
+
 export function getAccessLogs(): AccessLog[] {
-  return getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
+  return pruneExpiredAccessLogs();
 }
 
 export function saveAccessLogs(logs: AccessLog[]): void {
-  setStored(STORAGE_KEYS.ACCESS_LOGS, logs);
+  const now = Date.now();
+  const valid = logs.filter((log) => {
+    const time = new Date(log.timestamp).getTime();
+    return !isNaN(time) && now - time <= LOG_RETENTION_MS;
+  });
+  setStored(STORAGE_KEYS.ACCESS_LOGS, valid);
 }
 
 export function addAccessLog(params: {
@@ -448,7 +504,6 @@ export function addAccessLog(params: {
   };
 
   const updated = [newLog, ...logs];
-  if (updated.length > 500) updated.length = 500;
   saveAccessLogs(updated);
 
   // Persist log to Firestore
@@ -846,24 +901,187 @@ export function savePerformanceItem(perf: PerformanceAppraisal, actor: User): vo
   });
 
   // Notifikasi otomatis ke SPV, HOD, & Admin saat submit atau disetujui
-  if (perf.status === 'Submitted') {
+  if (perf.status === 'Submitted' || perf.status === 'On Review') {
     sendPushNotification({
       title: `Submit KPI Baru: ${perf.nama}`,
-      message: `Formulir penilaian kinerja ${perf.periode} (${perf.tipe}) dari ${perf.nama} (${perf.departemen}) telah disubmit dan menunggu evaluasi SPV / HOD.`,
+      message: `Formulir penilaian kinerja ${perf.periode} (${perf.tipe}) dari ${perf.nama} (${perf.departemen}) telah disubmit dan menunggu review Manajer.`,
       category: 'KPI',
       targetDepartment: perf.departemen,
-      targetRole: 'spv',
+      targetRole: 'manager',
       documentId: perf.id,
     });
   } else if (perf.status === 'Approved') {
     sendPushNotification({
       title: `KPI Disetujui: ${perf.nama}`,
-      message: `Evaluasi kinerja ${perf.periode} (${perf.tipe}) untuk ${perf.nama} telah disetujui (Skor: ${perf.finalGrandTotal.toFixed(2)}, Grade: ${perf.finalGrade}).`,
+      message: `Evaluasi kinerja ${perf.periode} (${perf.tipe}) untuk ${perf.nama} telah disetujui (Skor: ${perf.finalGrandTotal.toFixed(2)}, Grade: ${perf.finalGrade}). Dokumen terkunci.`,
       category: 'KPI',
       targetDepartment: perf.departemen,
       documentId: perf.id,
     });
   }
+}
+
+/**
+ * Submit form KPI oleh Staff / SPV: status beralih menjadi 'On Review'
+ * dan notifikasi dikirimkan ke Manajer Departemen untuk segera diperiksa.
+ */
+export function submitPerformanceForReview(perf: PerformanceAppraisal, actor: User): PerformanceAppraisal {
+  const updatedPerf: PerformanceAppraisal = {
+    ...perf,
+    status: 'On Review',
+    isLocked: false,
+    updatedAt: new Date().toISOString(),
+  };
+
+  savePerformanceItem(updatedPerf, actor);
+
+  sendPushNotification({
+    title: `Perlu Dicek: Form KPI ${perf.nama}`,
+    message: `Karyawan ${perf.nama} (${perf.role.toUpperCase()}) mengajukan form KPI periode ${perf.periode} (${perf.tipe}) ke Manajer Departemen ${perf.departemen} untuk diperiksa dan dinilai.`,
+    category: 'KPI',
+    targetDepartment: perf.departemen,
+    targetRole: 'manager',
+    documentId: perf.id,
+  });
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'APPRAISAL',
+    action: 'Pengajuan Form KPI ke Manajer (On Review)',
+    target: `${perf.nama} (${perf.departemen}) - Periode ${perf.periode} (${perf.tipe})`,
+    status: 'SUCCESS',
+    details: `Karyawan mengajukan evaluasi KPI. Status berubah menjadi 'On Review' dan notifikasi review dikirim ke Manajer Departemen.`,
+  });
+
+  return updatedPerf;
+}
+
+/**
+ * Manajer menyetujui KPI (Approve): status menjadi 'Approved' dan dokumen DIKUNCI (isLocked: true).
+ * Setelah disetujui, Staff maupun Manajer tidak dapat mengedit lagi. Hanya Super Admin yang bisa membuka kunci.
+ */
+export function approvePerformanceItem(
+  perf: PerformanceAppraisal,
+  actor: User,
+  extra?: { managerFeedback?: string; hrRecommendation?: string }
+): PerformanceAppraisal {
+  const updatedPerf: PerformanceAppraisal = {
+    ...perf,
+    status: 'Approved',
+    isLocked: true,
+    approvedBy: actor.nama,
+    approvedAt: new Date().toISOString(),
+    managerFeedback: extra?.managerFeedback !== undefined ? extra.managerFeedback : perf.managerFeedback,
+    hrRecommendation: extra?.hrRecommendation !== undefined ? extra.hrRecommendation : perf.hrRecommendation,
+    updatedAt: new Date().toISOString(),
+  };
+
+  savePerformanceItem(updatedPerf, actor);
+
+  // Notifikasi ke karyawan bahwa KPI telah disetujui dan dikunci
+  sendPushNotification({
+    title: `KPI Disetujui & Dikunci: ${perf.nama}`,
+    message: `Form KPI Anda periode ${perf.periode} (${perf.tipe}) telah disetujui oleh Manajer ${actor.nama} dengan predikat ${perf.finalGrade} (Skor: ${perf.finalGrandTotal.toFixed(2)}). Dokumen resmi terkunci.`,
+    category: 'KPI',
+    targetDepartment: perf.departemen,
+    documentId: perf.id,
+  });
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'APPRAISAL',
+    action: 'Persetujuan & Penguncian Form KPI (Approved)',
+    target: `${perf.nama} (${perf.departemen}) - Nilai: ${perf.finalGrandTotal.toFixed(2)} (${perf.finalGrade})`,
+    status: 'SUCCESS',
+    details: `Disetujui oleh Manajer ${actor.nama}. Dokumen dikunci permanen. Hanya Super Admin yang memiliki hak istimewa untuk membukanya kembali.`,
+  });
+
+  return updatedPerf;
+}
+
+/**
+ * Super Admin privilege: Membuka kunci (Unlock) dokumen KPI yang sudah Approved
+ * sehingga dapat diedit kembali oleh Manajer / Staff untuk koreksi data.
+ */
+export function unlockPerformanceItem(
+  perfId: string,
+  actor: User,
+  reason: string = 'Koreksi data evaluasi kinerja'
+): { success: boolean; message: string; performance?: PerformanceAppraisal } {
+  if (actor.role !== 'admin') {
+    return {
+      success: false,
+      message: 'Hanya Super Admin yang berwenang membuka kunci (Unlock) dokumen KPI yang telah disetujui.',
+    };
+  }
+
+  const list = getPerformances();
+  const target = list.find((p) => p.id === perfId);
+  if (!target) {
+    return { success: false, message: 'Dokumen evaluasi kinerja tidak ditemukan.' };
+  }
+
+  const updatedPerf: PerformanceAppraisal = {
+    ...target,
+    status: 'On Review',
+    isLocked: false,
+    unlockedBy: actor.nama,
+    unlockedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatedList = list.map((p) => (p.id === perfId ? updatedPerf : p));
+  savePerformances(updatedList);
+  firestoreSavePerformance(updatedPerf);
+
+  sendPushNotification({
+    title: `Kunci KPI Dibuka: ${target.nama}`,
+    message: `Super Admin ${actor.nama} telah membuka kunci form KPI ${target.nama} (${target.departemen}). Status kini 'On Review' dan dapat disesuaikan kembali. Alasan: ${reason}`,
+    category: 'KPI',
+    targetDepartment: target.departemen,
+    documentId: target.id,
+  });
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'APPRAISAL',
+    action: 'Buka Kunci Form KPI (Unlock)',
+    target: `${target.nama} (${target.departemen})`,
+    status: 'SUCCESS',
+    details: `Kunci dokumen dibuka oleh Super Admin ${actor.nama}. Alasan: ${reason}. Status diubah ke On Review.`,
+  });
+
+  return { success: true, message: 'Kunci formulir KPI berhasil dibuka. Dokumen kini dapat diedit kembali.', performance: updatedPerf };
+}
+
+/**
+ * Hapus dokumen evaluasi kinerja (Super Admin only atau pemilik draf)
+ */
+export function deletePerformanceItem(perfId: string, actor: User): { success: boolean; message: string } {
+  const list = getPerformances();
+  const target = list.find((p) => p.id === perfId);
+  if (!target) {
+    return { success: false, message: 'Dokumen KPI tidak ditemukan.' };
+  }
+
+  if (target.isLocked && actor.role !== 'admin') {
+    return { success: false, message: 'Dokumen KPI terkunci tidak dapat dihapus kecuali oleh Super Admin.' };
+  }
+
+  const updatedList = list.filter((p) => p.id !== perfId);
+  savePerformances(updatedList);
+  firestoreDeletePerformance(perfId);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'APPRAISAL',
+    action: 'Hapus Dokumen Evaluasi Kinerja',
+    target: `${target.nama} - Periode ${target.periode} (${target.tipe})`,
+    status: 'SUCCESS',
+    details: `Dihapus oleh ${actor.nama} (${actor.role.toUpperCase()}).`,
+  });
+
+  return { success: true, message: 'Dokumen KPI berhasil dihapus.' };
 }
 
 // ----------------- ANNOUNCEMENTS -----------------

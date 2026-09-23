@@ -182,28 +182,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* Evaluasi Kinerja (Manager & Admin Khusus - Staff & SPV hanya melihat arsip & berkas) */}
-        {isManagerOrAdmin && (
-          <div>
-            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Evaluasi & Kinerja
-            </div>
-            <nav className="space-y-1">
-              <button
-                id="menu-performance"
-                onClick={() => handleNav('performance')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  activeTab === 'performance'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
-              >
-                <Award className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="flex-1 text-left">{t('menuPerformance', currentLang)}</span>
-              </button>
-            </nav>
+        {/* Evaluasi Kinerja (Staff/SPV mengisi KPI, Manager mereview & approve, Admin mengelola semua) */}
+        <div>
+          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            Evaluasi & Kinerja
           </div>
-        )}
+          <nav className="space-y-1">
+            <button
+              id="menu-performance"
+              onClick={() => handleNav('performance')}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'performance'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              <Award className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="flex-1 text-left">
+                {role === 'staff' || role === 'spv' ? 'Form KPI Saya' : t('menuPerformance', currentLang)}
+              </span>
+            </button>
+          </nav>
+        </div>
 
         {/* Master Data (Manager, HOD & Super Admin Khusus) */}
         {isManagerOrAdmin && (

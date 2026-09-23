@@ -56,30 +56,54 @@ export function getDriveFolderPath(
  * Map department code/name to standardized folder name
  */
 export function formatDepartmentFolderName(dept: string): string {
-  if (!dept || dept === 'All' || dept === 'All Departments') {
-    return 'Semua Departemen (Lintas Hotel)';
+  if (!dept || dept === 'All' || dept === 'All Departments' || dept === 'Semua Departemen (Lintas Hotel)') {
+    return 'All Departments';
   }
   const clean = dept.trim();
   const mapping: { [key: string]: string } = {
-    'Front Office': 'Front Office (FO)',
-    'FO': 'Front Office (FO)',
-    'Housekeeping': 'Housekeeping (HK)',
-    'HK': 'Housekeeping (HK)',
-    'Accounting': 'Accounting & Finance (ACCT)',
-    'ACCT': 'Accounting & Finance (ACCT)',
-    'Human Resources': 'Human Resources (HR)',
-    'HR': 'Human Resources (HR)',
-    'Food & Beverage': 'Food & Beverage (FB)',
-    'FB': 'Food & Beverage (FB)',
-    'Engineering': 'Engineering (ENG)',
-    'ENG': 'Engineering (ENG)',
-    'Sales & Marketing': 'Sales & Marketing (SM)',
-    'SM': 'Sales & Marketing (SM)',
-    'Executive Office': 'Executive Office (GM/HOD)',
-    'Security': 'Security & Safety',
+    'Front Office': 'Front Office',
+    'FO': 'Front Office',
+    'Housekeeping': 'Housekeeping',
+    'HK': 'Housekeeping',
+    'Accounting': 'Accounting',
+    'ACCT': 'Accounting',
+    'Human Resources': 'Human Resources',
+    'HR': 'Human Resources',
+    'Food & Beverage': 'Food & Beverage',
+    'FB': 'Food & Beverage',
+    'Engineering': 'Engineering',
+    'ENG': 'Engineering',
+    'Sales & Marketing': 'Sales & Marketing',
+    'SM': 'Sales & Marketing',
+    'Executive Office': 'Executive Office',
+    'Security': 'Security',
   };
 
   return mapping[clean] || clean;
+}
+
+/**
+ * Deletes a file directly from Google Drive if authenticated with Google Drive OAuth
+ */
+export async function deleteDriveFile(driveFileId: string): Promise<boolean> {
+  if (!driveFileId || driveFileId.startsWith('1Drv-temp-') || driveFileId.startsWith('local-')) {
+    return false;
+  }
+  const accessToken = await getGoogleAccessToken();
+  if (!accessToken) return false;
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${driveFileId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    return res.ok || res.status === 404;
+  } catch (err) {
+    console.warn('Error deleting file from Google Drive:', err);
+    return false;
+  }
 }
 
 /**

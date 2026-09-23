@@ -34,6 +34,8 @@ export interface IntranetDocument {
   uploadedByEmail: string;
   uploadedAt: string;
   updatedAt?: string;
+  effectiveDate?: string; // Tanggal mulai berlaku pengumuman (YYYY-MM-DD, default hari ini saat submit)
+  expiryDate?: string;    // Tanggal kedaluwarsa pengumuman (YYYY-MM-DD, otomatis terhapus setelah melewati tanggal ini)
   driveFileId?: string;
   driveFolderPath?: string;
 }
@@ -110,7 +112,7 @@ export interface PerformanceAppraisal {
   nama: string;
   departemen: string;
   role: UserRole;
-  status: 'Draft' | 'Submitted' | 'On Check' | 'Approved';
+  status: 'Draft' | 'Submitted' | 'On Review' | 'On Check' | 'Approved';
   kpis: KPIRowItem[];
   kpiTotalScore: number;
   kpiTranslatedScore: number;
@@ -124,6 +126,13 @@ export interface PerformanceAppraisal {
   managerFeedback?: string;
   hrRecommendation?: string;
   hrNote?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  isLocked?: boolean;
+  unlockedBy?: string;
+  unlockedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

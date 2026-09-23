@@ -261,10 +261,14 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
   }
 ];
 
+const initLogNow = Date.now();
+const initLogHour = 3600 * 1000;
+const initLogDay = 24 * initLogHour;
+
 export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   {
     id: "log-1001",
-    timestamp: "2026-03-16T08:15:22Z",
+    timestamp: new Date(initLogNow - 2 * initLogHour).toISOString(),
     userName: "Budi Santoso",
     userEmail: "budi.staff@ciputra.com",
     role: "staff",
@@ -279,7 +283,7 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: "log-1002",
-    timestamp: "2026-03-16T08:18:40Z",
+    timestamp: new Date(initLogNow - 5 * initLogHour).toISOString(),
     userName: "Budi Santoso",
     userEmail: "budi.staff@ciputra.com",
     role: "staff",
@@ -293,7 +297,7 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: "log-1003",
-    timestamp: "2026-03-16T09:00:15Z",
+    timestamp: new Date(initLogNow - 1 * initLogDay).toISOString(),
     userName: "Hendra Wijaya",
     userEmail: "hendra.fo@ciputra.com",
     role: "manager",
@@ -307,7 +311,7 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: "log-1004",
-    timestamp: "2026-03-16T09:30:50Z",
+    timestamp: new Date(initLogNow - 2 * initLogDay).toISOString(),
     userName: "Admin System",
     userEmail: "admin@ciputra.com",
     role: "admin",
@@ -321,7 +325,7 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
   },
   {
     id: "log-1005",
-    timestamp: "2026-03-16T10:02:11Z",
+    timestamp: new Date(initLogNow - 3 * initLogDay).toISOString(),
     userName: "Tamu Tidak Dikenal",
     userEmail: "hacker@test.com",
     role: "staff",

@@ -74,10 +74,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [autoPrunedNotice, setAutoPrunedNotice] = useState<string | null>(null);
 
   // Upload Form States
+  const todayStr = new Date().toISOString().split('T')[0];
   const [upTitle, setUpTitle] = useState('');
   const [upDept, setUpDept] = useState('All Departments');
   const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
+  const [upEffectiveDate, setUpEffectiveDate] = useState(todayStr);
+  const [upExpiryDate, setUpExpiryDate] = useState(todayStr);
   const [fileInput, setFileInput] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -87,6 +90,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [editDept, setEditDept] = useState('');
   const [editKet, setEditKet] = useState('');
+  const [editEffectiveDate, setEditEffectiveDate] = useState(todayStr);
+  const [editExpiryDate, setEditExpiryDate] = useState(todayStr);
   const [editFileInput, setEditFileInput] = useState<File | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
@@ -158,7 +163,63 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     currentPage * itemsPerPage
   );
 
-  // Helper: calculate remaining days before auto-cleanup (default 7 days)
+  // Helper: calculate expiration status and remaining time
+  const getExpirationInfo = (doc: IntranetDocument) => {
+    const now = Date.now();
+    if (doc.expiryDate) {
+      const expDate = new Date(`${doc.expiryDate}T23:59:59.999`);
+      const expTime = expDate.getTime();
+      const diffMs = expTime - now;
+      const days = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+      const isToday = doc.expiryDate === todayStr;
+
+      if (diffMs < 0) {
+        return {
+          status: 'expired',
+          label: 'Sudah Kedaluwarsa',
+          badgeClass: 'bg-rose-900/90 text-rose-200 border-rose-500/40',
+          tableBadge: 'bg-rose-50 text-rose-700 border-rose-200',
+          days: 0,
+          dateStr: doc.expiryDate,
+        };
+      } else if (isToday) {
+        return {
+          status: 'today',
+          label: 'Kedaluwarsa Hari Ini',
+          badgeClass: 'bg-amber-900/90 text-amber-200 border-amber-400 font-bold animate-pulse',
+          tableBadge: 'bg-amber-50 text-amber-800 border-amber-300 font-bold animate-pulse',
+          days: 0,
+          dateStr: doc.expiryDate,
+        };
+      } else {
+        return {
+          status: 'active',
+          label: `Sisa ${days} hari`,
+          badgeClass: 'bg-slate-900/80 text-amber-300 border-amber-400/30',
+          tableBadge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+          days,
+          dateStr: doc.expiryDate,
+        };
+      }
+    }
+
+    // Fallback default 7 days from uploadedAt
+    const pruneDays = driveConfig.autoPruneAnnouncementsDays || 7;
+    const maxAgeMs = pruneDays * 24 * 60 * 60 * 1000;
+    const elapsed = now - new Date(doc.uploadedAt).getTime();
+    const remainingMs = maxAgeMs - elapsed;
+    const days = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+
+    return {
+      status: days === 0 ? 'expired' : days <= 1 ? 'today' : 'active',
+      label: days === 0 ? 'Sudah Kedaluwarsa' : days === 1 ? 'Sisa 1 hari' : `Sisa ${days} hari`,
+      badgeClass: 'bg-slate-900/80 text-amber-300 border-amber-400/30',
+      tableBadge: 'bg-slate-100 text-slate-700 border-slate-200',
+      days,
+      dateStr: doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr,
+    };
+  };
+
   const getRemainingDays = (uploadedAt: string) => {
     const pruneDays = driveConfig.autoPruneAnnouncementsDays || 7;
     const maxAgeMs = pruneDays * 24 * 60 * 60 * 1000;
@@ -174,6 +235,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setEditTitle(doc.title);
     setEditDept(doc.akses_dept);
     setEditKet(doc.keterangan || '');
+    setEditEffectiveDate(doc.effectiveDate || (doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr));
+    setEditExpiryDate(doc.expiryDate || todayStr);
     setEditFileInput(null);
     setEditError('');
   };
@@ -196,6 +259,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         title: editTitle.trim(),
         akses_dept: editDept,
         keterangan: editKet.trim(),
+        effectiveDate: editEffectiveDate,
+        expiryDate: editExpiryDate,
         updatedAt: new Date().toISOString(),
       };
 
@@ -296,6 +361,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         uploadedBy: currentUser.nama,
         uploadedByEmail: currentUser.email,
         uploadedAt: new Date().toISOString(),
+        effectiveDate: upEffectiveDate,
+        expiryDate: upExpiryDate,
         driveFileId,
         driveFolderPath,
       };
@@ -305,6 +372,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       setShowUploadForm(false);
       setUpTitle('');
       setUpKet('');
+      setUpEffectiveDate(todayStr);
+      setUpExpiryDate(todayStr);
       setFileInput(null);
       onRefresh();
     } catch (err: any) {
@@ -572,6 +641,47 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </div>
             </div>
 
+            {/* Input Tanggal Berlaku & Tanggal Kedaluwarsa Otomatis */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-150">
+              <div>
+                <label className="block text-xs font-bold text-indigo-950 mb-1 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Tanggal Mulai Berlaku *</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={upEffectiveDate}
+                  onChange={(e) => {
+                    setUpEffectiveDate(e.target.value);
+                    if (upExpiryDate < e.target.value) {
+                      setUpExpiryDate(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+                <p className="text-[10px] text-indigo-700 mt-1">Default: hari ini saat submit pengumuman.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-rose-950 mb-1 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Tanggal Kedaluwarsa (Expired Date) *</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={upExpiryDate}
+                  min={upEffectiveDate}
+                  onChange={(e) => setUpExpiryDate(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-rose-300 bg-white font-bold text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+                <p className="text-[10px] text-rose-700 mt-1">
+                  Default: hari ini saat submit. Setelah tanggal ini lewat, pengumuman otomatis terhapus dari sistem & cloud storage.
+                </p>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Deskripsi / Keterangan Pengumuman
@@ -627,7 +737,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedAnnouncements.map((doc) => {
-              const remainingDays = getRemainingDays(doc.uploadedAt);
+              const expInfo = getExpirationInfo(doc);
               const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
 
               return (
@@ -651,10 +761,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         }}
                       />
 
-                      {/* Remaining Days TTL Badge */}
-                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md text-amber-300 text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-amber-400/30">
-                        <Clock className="w-3 h-3 text-amber-400" />
-                        <span>Tersisa {remainingDays} hari</span>
+                      {/* Expiration Status Badge */}
+                      <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-bold flex items-center gap-1.5 shadow-sm border ${expInfo.badgeClass}`}>
+                        <Clock className="w-3 h-3" />
+                        <span>{expInfo.label}</span>
                       </div>
 
                       {/* Department Distribution Badge */}
@@ -675,6 +785,18 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">
                           {doc.keterangan || 'Tidak ada catatan tambahan untuk pengumuman ini.'}
                         </p>
+                      </div>
+
+                      {/* Expiration Dates Info */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-150">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-indigo-500" />
+                          <span>Mulai: <strong>{doc.effectiveDate || (doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr)}</strong></span>
+                        </span>
+                        <span className="flex items-center gap-1 font-bold text-rose-700">
+                          <Clock className="w-3 h-3 text-rose-500" />
+                          <span>Exp: {doc.expiryDate || '7 Hari'}</span>
+                        </span>
                       </div>
 
                       {/* Folder Location Indicator */}
@@ -782,7 +904,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedAnnouncements.map((doc) => {
-                  const remainingDays = getRemainingDays(doc.uploadedAt);
+                  const expInfo = getExpirationInfo(doc);
                   const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
 
                   return (
@@ -811,9 +933,14 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         <DepartmentBadge department={doc.akses_dept} size="xs" />
                       </td>
                       <td className="py-4 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          {remainingDays} Hari lagi
-                        </span>
+                        <div className="inline-flex flex-col items-center gap-0.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${expInfo.tableBadge}`}>
+                            {expInfo.label}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            Exp: {doc.expiryDate || '7 Hari'}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 font-medium text-slate-700">
                         {doc.uploadedBy}
@@ -965,6 +1092,43 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <p className="text-[10px] text-amber-800">
                   Folder tujuan: <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong>
                 </p>
+              </div>
+
+              {/* Edit Tanggal Berlaku & Kedaluwarsa */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Tanggal Mulai Berlaku</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editEffectiveDate}
+                    onChange={(e) => {
+                      setEditEffectiveDate(e.target.value);
+                      if (editExpiryDate < e.target.value) {
+                        setEditExpiryDate(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white font-semibold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-rose-800 mb-1 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Tanggal Kedaluwarsa *</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editExpiryDate}
+                    min={editEffectiveDate}
+                    onChange={(e) => setEditExpiryDate(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-rose-300 bg-white font-bold text-rose-900"
+                  />
+                  <p className="text-[10px] text-rose-600 mt-1">Otomatis terhapus setelah tanggal ini lewat.</p>
+                </div>
               </div>
 
               <div>

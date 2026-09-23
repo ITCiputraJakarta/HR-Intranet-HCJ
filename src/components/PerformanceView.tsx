@@ -26,9 +26,19 @@ import {
   Layers,
   Sparkles,
   Lock,
+  Unlock,
+  Send,
+  Bell,
+  AlertTriangle,
 } from 'lucide-react';
 import { PerformanceAppraisal, User, KPIRowItem, KPIMasterItem, UserRole } from '../types';
-import { savePerformanceItem, getDepartments } from '../lib/storage';
+import {
+  savePerformanceItem,
+  getDepartments,
+  submitPerformanceForReview,
+  approvePerformanceItem,
+  unlockPerformanceItem,
+} from '../lib/storage';
 import { AppraisalPrintModal } from './AppraisalPrintModal';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
@@ -60,6 +70,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterGrade, setFilterGrade] = useState('All');
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   // Sorting and pagination
   const [sortField, setSortField] = useState<string>('periode');
@@ -74,6 +85,11 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
   const safePerformances = performances || [];
   const safeKpiMaster = kpiMaster || [];
+
+  // Count pending reviews waiting for Manager or Super Admin approval
+  const pendingReviewsCount = safePerformances.filter(
+    (p) => (isSuperAdmin || p.departemen === currentUser.departemen) && p.status === 'On Review'
+  ).length;
 
   // ---------------------------------------------------------------------------
   // SCOPED LIST BASED ON USER ROLE
@@ -195,10 +211,14 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   // CREATE / EDIT APPRAISAL FORM LOGIC
   // ---------------------------------------------------------------------------
   const handleOpenNewForm = () => {
+    // If Super Admin has a department filter selected, use that; otherwise use currentUser's dept
+    const targetDept = isSuperAdmin && filterDept !== 'All' ? filterDept : currentUser.departemen;
+    const targetRole = currentUser.role;
+
     const activeKpis = safeKpiMaster.filter(
       (k) =>
-        k.departemen === currentUser.departemen &&
-        k.target_role === currentUser.role &&
+        k.departemen === targetDept &&
+        k.target_role === targetRole &&
         k.status === 'Active'
     );
 
@@ -249,9 +269,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
       tipe: 'Mid-Year',
       email: currentUser.email,
       nama: currentUser.nama,
-      departemen: currentUser.departemen,
-      role: currentUser.role,
+      departemen: targetDept,
+      role: targetRole,
       status: 'Draft',
+      isLocked: false,
       kpis: kpiRows,
       kpiTotalScore: 0,
       kpiTranslatedScore: 1,
@@ -339,7 +360,85 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     if (!activeForm) return;
     savePerformanceItem(activeForm, currentUser);
     setActiveForm(null);
+    setActionNotice('Formulir berhasil disimpan.');
     onRefresh();
+  };
+
+  // Workflow Handlers
+  const handleSubmitForReview = () => {
+    if (!activeForm) return;
+    const confirmed = window.confirm(
+      'Ajukan formulir KPI ini kepada Manajer Departemen untuk dinilai dan disetujui?\nStatus akan berubah menjadi "On Review" dan Manajer Departemen akan menerima pemberitahuan.'
+    );
+    if (!confirmed) return;
+
+    const updated = submitPerformanceForReview(activeForm, currentUser);
+    if (updated) {
+      setActiveForm(updated);
+      setActionNotice('Formulir KPI berhasil diajukan. Status kini "On Review", menunggu penilaian Manajer.');
+      onRefresh();
+    }
+  };
+
+  const handleApprove = () => {
+    if (!activeForm) return;
+    const confirmed = window.confirm(
+      'Setujui (Approve) formulir KPI ini?\n\nPERHATIAN: Setelah disetujui, formulir akan otomatis TERKUNCI dan tidak dapat diedit lagi oleh Staff maupun Manajer. Hanya Super Admin yang memiliki wewenang untuk membuka kunci kembali.'
+    );
+    if (!confirmed) return;
+
+    const updated = approvePerformanceItem(
+      activeForm,
+      currentUser,
+      {
+        managerFeedback: activeForm.managerFeedback || '',
+        hrRecommendation: activeForm.hrRecommendation || 'Stay in current position',
+      }
+    );
+    if (updated) {
+      setActiveForm(updated);
+      setActionNotice('Formulir KPI telah disetujui (Approved) dan berhasil dikunci.');
+      onRefresh();
+    }
+  };
+
+  const handleRequestRevision = () => {
+    if (!activeForm) return;
+    const note = window.prompt(
+      'Masukkan catatan revisi untuk bawahan:',
+      'Mohon lengkapi atau periksa kembali isian capaian aktual KPI.'
+    );
+    if (note === null) return;
+
+    const updated: PerformanceAppraisal = {
+      ...activeForm,
+      status: 'Draft',
+      isLocked: false,
+      managerFeedback: note
+        ? `[REVISI DIMINTA]: ${note}\n\n${activeForm.managerFeedback || ''}`
+        : activeForm.managerFeedback,
+      updatedAt: new Date().toISOString(),
+    };
+    savePerformanceItem(updated, currentUser);
+    setActiveForm(updated);
+    setActionNotice('Formulir dikembalikan ke status Draf untuk direvisi bawahan.');
+    onRefresh();
+  };
+
+  const handleUnlock = () => {
+    if (!activeForm || !isSuperAdmin) return;
+    const reason = window.prompt(
+      'Masukkan alasan pembukaan kunci formulir (Super Admin Authorization):',
+      'Penyesuaian evaluasi atau perbaikan data.'
+    );
+    if (reason === null) return;
+
+    const res = unlockPerformanceItem(activeForm.id, currentUser, reason);
+    if (res.success && res.performance) {
+      setActiveForm(res.performance);
+      setActionNotice('Kunci formulir berhasil dibuka oleh Super Admin. Status dikembalikan ke On Review.');
+      onRefresh();
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -347,11 +446,16 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   // ---------------------------------------------------------------------------
   if (activeForm) {
     const isOwner = activeForm.email.toLowerCase() === currentUser.email.toLowerCase();
-    const canScore =
-      isSuperAdmin ||
-      (!isOwner && (isManager || currentUser.role === 'spv'));
-    const canEditSelf =
-      isOwner && (activeForm.status === 'Draft' || activeForm.status === 'Submitted');
+    const isLocked = Boolean(activeForm.isLocked || activeForm.status === 'Approved');
+    const isLockedForCurrentUser = isLocked && !isSuperAdmin;
+
+    // Staff/SPV can edit their self achievements (actual, starBest, starChallenge)
+    // only if the form is NOT locked and status is Draft or Submitted
+    const canEditSelf = !isLocked && (isOwner || isSuperAdmin) && (activeForm.status === 'Draft' || activeForm.status === 'Submitted');
+
+    // Manager can evaluate (achieved_yn, behaviour scores, feedback, hr recommendation)
+    // only if the form is NOT locked and the user is Manager of that dept or Super Admin
+    const canScore = !isLocked && (isSuperAdmin || (!isOwner && (isManager || currentUser.role === 'spv')));
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto pb-12 print:p-0 print:m-0">
@@ -375,15 +479,137 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
               <Printer className="w-4 h-4 text-indigo-600" />
               <span>Pratinjau & Cetak PDF (A4)</span>
             </button>
-            <button
-              onClick={handleSaveForm}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95"
-            >
-              <Save className="w-4 h-4" />
-              <span>Simpan & Proses Data</span>
-            </button>
+
+            {/* Save Button (Disabled if locked for current user) */}
+            {!isLockedForCurrentUser && (
+              <button
+                onClick={handleSaveForm}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                <span>Simpan Draf</span>
+              </button>
+            )}
+
+            {isLocked && isSuperAdmin && (
+              <button
+                onClick={handleUnlock}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 active:scale-95"
+                title="Buka kunci dokumen ini sebagai Super Admin"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Buka Kunci (Super Admin)</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Workflow Action Banners */}
+        {isLocked ? (
+          <div className="p-4 rounded-3xl bg-amber-50 border-2 border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                <Lock className="w-5 h-5 text-amber-900" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm uppercase tracking-wider text-amber-950">
+                    Formulir Terkunci (Status: Approved)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900">
+                    LOCKED
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                  Formulir telah disetujui Manajer
+                  {activeForm.approvedBy ? ` (${activeForm.approvedBy})` : ''}
+                  {activeForm.approvedAt ? ` pada ${new Date(activeForm.approvedAt).toLocaleDateString('id-ID')}` : ''}.
+                  Input tidak dapat diubah oleh Staff maupun Manajer. <strong>Hanya Super Admin yang berwenang membuka kunci.</strong>
+                </p>
+              </div>
+            </div>
+
+            {isSuperAdmin && (
+              <button
+                onClick={handleUnlock}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shrink-0 shadow-md shadow-purple-600/20 active:scale-95"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Buka Kunci Formulir</span>
+              </button>
+            )}
+          </div>
+        ) : activeForm.status === 'On Review' ? (
+          <div className="p-4 rounded-3xl bg-blue-50 border-2 border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0 mt-0.5">
+                <Clock className="w-5 h-5 text-blue-700 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm uppercase tracking-wider text-blue-950">
+                    Status: On Review (Menunggu Persetujuan Manajer)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-200 text-blue-900 animate-pulse">
+                    ON REVIEW
+                  </span>
+                </div>
+                <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                  Karyawan telah selesai mengisi capaian aktual. Manajer Departemen memeriksa hasil, memberikan penilaian sikap/perilaku, umpan balik kualitatif, lalu menyetujui formulir.
+                </p>
+              </div>
+            </div>
+
+            {(isManager || isSuperAdmin) && !isOwner && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleRequestRevision}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 text-xs font-bold border border-rose-300 transition-colors shadow-2xs"
+                >
+                  Minta Revisi
+                </button>
+                <button
+                  onClick={handleApprove}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Setujui (Approve & Kunci)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-4 rounded-3xl bg-indigo-50 border-2 border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5">
+                <Send className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm uppercase tracking-wider text-indigo-950">
+                    Status: Draf Mandiri
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-200 text-indigo-900">
+                    DRAFT
+                  </span>
+                </div>
+                <p className="text-xs text-indigo-800 mt-1 leading-relaxed">
+                  Lengkapi kolom <strong>Hasil Aktual (Inputan)</strong> dan ulasan mandiri. Jika sudah sesuai, ajukan ke Manajer Departemen untuk peninjauan.
+                </p>
+              </div>
+            </div>
+
+            {(isOwner || isSuperAdmin) && (
+              <button
+                onClick={handleSubmitForReview}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0 shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
+              >
+                <Send className="w-4 h-4" />
+                <span>Ajukan ke Manajer (Submit)</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Form Header Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
@@ -397,23 +623,20 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-semibold">Status Form:</span>
-              <select
-                value={activeForm.status}
-                disabled={!canScore && activeForm.status !== 'Draft'}
-                onChange={(e) =>
-                  setActiveForm({
-                    ...activeForm,
-                    status: e.target.value as PerformanceAppraisal['status'],
-                  })
-                }
-                className="px-3 py-1 text-xs font-bold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700"
+              <span className="text-xs text-slate-500 font-semibold">Status Dokumen:</span>
+              <span
+                className={`px-3 py-1 text-xs font-bold rounded-lg border ${
+                  activeForm.status === 'Approved'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : activeForm.status === 'On Review'
+                    ? 'bg-blue-100 text-blue-800 border-blue-300 font-bold animate-pulse'
+                    : activeForm.status === 'Submitted'
+                    ? 'bg-purple-100 text-purple-800 border-purple-300'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}
               >
-                <option value="Draft">Draft (Simpan Sementara)</option>
-                <option value="Submitted">Submitted (Diajukan ke Atasan)</option>
-                <option value="On Check">On Check (Sedang Dinilai)</option>
-                <option value="Approved">Approved (Selesai)</option>
-              </select>
+                {activeForm.status} {isLocked ? '🔒 (Terkunci)' : ''}
+              </span>
             </div>
           </div>
 
@@ -713,13 +936,42 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
               <span>Pratinjau Lembar Cetak A4</span>
             </button>
 
-            <button
-              onClick={handleSaveForm}
-              className="w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/25 transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              <span>SIMPAN & PROSES DATA APPRAISAL</span>
-            </button>
+            {isLockedForCurrentUser ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300">
+                <Lock className="w-4 h-4 text-amber-800" />
+                <span>Formulir Terkunci (Approved) • Hanya Super Admin yang Berwenang Membuka Kunci</span>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handleSaveForm}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Draf</span>
+                </button>
+
+                {activeForm.status === 'Draft' && (isOwner || isSuperAdmin) && (
+                  <button
+                    onClick={handleSubmitForReview}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Ajukan ke Manajer (On Review)</span>
+                  </button>
+                )}
+
+                {activeForm.status === 'On Review' && (isManager || isSuperAdmin) && !isOwner && (
+                  <button
+                    onClick={handleApprove}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Setujui & Kunci (Approve)</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -787,6 +1039,53 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Action Notice Alert */}
+      {actionNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-center justify-between text-xs font-semibold shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{actionNotice}</span>
+          </div>
+          <button
+            onClick={() => setActionNotice(null)}
+            className="text-emerald-700 hover:text-emerald-900 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Manager Notification: Subordinates Waiting for Review */}
+      {(isManager || isSuperAdmin) && pendingReviewsCount > 0 && (
+        <div className="p-4 rounded-3xl bg-blue-50 border-2 border-blue-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-black text-xs uppercase tracking-wider text-blue-950">
+                Pemberitahuan Peninjauan KPI ({pendingReviewsCount} Menunggu)
+              </h4>
+              <p className="text-xs text-blue-800 mt-0.5">
+                Terdapat <strong>{pendingReviewsCount} formulir KPI</strong> berstatus <em>On Review</em> yang telah diajukan bawahan dan siap diperiksa serta disetujui Manajer.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setActiveTab('forms');
+              setFilterStatus('On Review');
+              setCurrentPage(1);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0 shadow-md shadow-blue-600/20 transition-all active:scale-95"
+          >
+            <span>Periksa Formulir On Review</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Main View Mode Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 pt-3 rounded-2xl shadow-2xs overflow-x-auto">
@@ -1019,7 +1318,8 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
             className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium"
           >
             <option value="All">Semua Status</option>
-            <option value="Approved">Approved</option>
+            <option value="Approved">Approved (Disetujui & Terkunci)</option>
+            <option value="On Review">On Review (Menunggu Atasan)</option>
             <option value="Submitted">Submitted</option>
             <option value="On Check">On Check</option>
             <option value="Draft">Draft</option>
@@ -1193,17 +1493,20 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                       {/* Status */}
                       <td className="py-4 px-4 text-center whitespace-nowrap">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
                             item.status === 'Approved'
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : item.status === 'On Review'
+                              ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse'
                               : item.status === 'Submitted'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-purple-100 text-purple-800 border-purple-300'
                               : item.status === 'On Check'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-amber-100 text-amber-800'
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
                           }`}
                         >
-                          {item.status}
+                          {item.isLocked && <Lock className="w-2.5 h-2.5 text-emerald-700 inline" />}
+                          <span>{item.status}</span>
                         </span>
                       </td>
 
@@ -1370,17 +1673,20 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                       </td>
                       <td className="py-4 px-4 text-center">
                         <span
-                          className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
                             item.status === 'Approved'
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : item.status === 'On Review'
+                              ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse'
                               : item.status === 'Submitted'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-purple-100 text-purple-800 border-purple-300'
                               : item.status === 'On Check'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-amber-100 text-amber-800'
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                              : 'bg-amber-100 text-amber-800 border-amber-300'
                           }`}
                         >
-                          {item.status}
+                          {item.isLocked && <Lock className="w-2.5 h-2.5 text-emerald-700 inline" />}
+                          <span>{item.status}</span>
                         </span>
                       </td>
                       <td className="py-4 px-5 text-right whitespace-nowrap space-x-2">

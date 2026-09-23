@@ -180,12 +180,13 @@ export default function App() {
     const hasManagerAccess = role === 'admin' || role === 'manager' || role === 'hod';
 
     if (isStaffOrSpv) {
-      // Staff & SPV are strictly restricted to archives & files only
+      // Staff & SPV can access archives, files, and their KPI evaluation page
       if (
         activeTab !== 'announcements' &&
         activeTab !== 'sop' &&
         activeTab !== 'forms' &&
-        activeTab !== 'documents'
+        activeTab !== 'documents' &&
+        activeTab !== 'performance'
       ) {
         setActiveTab('announcements');
       }
@@ -197,8 +198,7 @@ export default function App() {
         (activeTab === 'departments' ||
           activeTab === 'categories' ||
           activeTab === 'kpi-master' ||
-          activeTab === 'kpi' ||
-          activeTab === 'performance')
+          activeTab === 'kpi')
       ) {
         setActiveTab('announcements');
       }
@@ -287,7 +287,13 @@ export default function App() {
 
   // If user is not logged in, render authentication page
   if (!currentUser) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <LoginView
+        onLoginSuccess={handleLoginSuccess}
+        currentLang={currentLang}
+        onLanguageChange={handleLanguageChange}
+      />
+    );
   }
 
   const unreadNotifsCount = (notifications || []).filter((n) => !n.read).length;
@@ -396,7 +402,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'performance' && isManagerOrAdmin && (
+          {activeTab === 'performance' && (
             <PerformanceView
               performances={performances}
               kpiMaster={kpiMaster}
@@ -564,22 +570,20 @@ export default function App() {
           <span>Formulir</span>
         </button>
 
-        {isManagerOrAdmin && (
-          <button
-            onClick={() => {
-              setActiveTab('performance');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-              activeTab === 'performance'
-                ? 'text-indigo-600 font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Award className="w-4 h-4 mb-0.5" />
-            <span>Kinerja</span>
-          </button>
-        )}
+        <button
+          onClick={() => {
+            setActiveTab('performance');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
+            activeTab === 'performance'
+              ? 'text-indigo-600 font-extrabold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Award className="w-4 h-4 mb-0.5" />
+          <span>{currentUser?.role === 'staff' || currentUser?.role === 'spv' ? 'KPI Saya' : 'Kinerja'}</span>
+        </button>
 
         <button
           onClick={() => setIsMobileMenuOpen(true)}

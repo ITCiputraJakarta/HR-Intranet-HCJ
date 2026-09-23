@@ -609,6 +609,14 @@ export async function firestoreSavePerformance(perf: PerformanceAppraisal): Prom
   }
 }
 
+export async function firestoreDeletePerformance(perfId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, PERFS_COL, perfId));
+  } catch (err) {
+    console.warn('firestoreDeletePerformance error:', err);
+  }
+}
+
 // Notifications
 export async function firestoreSaveNotification(notif: PushNotification): Promise<void> {
   try {

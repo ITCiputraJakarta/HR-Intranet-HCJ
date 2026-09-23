@@ -268,6 +268,17 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
         </div>
       </div>
 
+      {/* 1-Week Retention Policy Banner */}
+      <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 shadow-2xs">
+        <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
+        <div className="flex-1">
+          <span className="font-bold">Kebijakan Retensi Log 1 Minggu:</span> Sistem otomatis menjaga riwayat aktivitas dari 7 hari ke belakang (1 minggu) dari detik ini. Data log yang lebih dari 7 hari otomatis dibersihkan secara berkala agar penyimpanan database tetap optimal dan tidak menumpuk.
+        </div>
+        <span className="px-2.5 py-1 rounded-lg bg-indigo-200/80 text-indigo-900 font-extrabold text-[10px] tracking-wider uppercase shrink-0">
+          7 HARI AKTIF
+        </span>
+      </div>
+
       {/* Metric Cards - Clickable Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div

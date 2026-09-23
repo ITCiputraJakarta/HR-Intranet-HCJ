@@ -509,7 +509,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-800">{branding.appName || 'Intranet HCJ'}</span>
             <span>•</span>
-            <span>{branding.creatorSignature || '© 2026 Intranet HCJ | Developed with excellence @2026'}</span>
+            <span>{branding.creatorSignature || '© 2026 Intranet HCJ | Developed by Bagas @2026'}</span>
           </div>
           <div className="flex items-center gap-3">
             {isSuperAdmin ? (

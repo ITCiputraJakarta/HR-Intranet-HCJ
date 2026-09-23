@@ -20,7 +20,7 @@ export const DEFAULT_BRANDING: AppBranding = {
   appName: 'Intranet HCJ',
   subTitle: 'Portal Dokumen & Evaluasi Kinerja',
   customLogoUrl: null,
-  creatorSignature: '© 2026 Intranet HCJ | Developed with excellence @2026',
+  creatorSignature: '© 2026 Intranet HCJ | Developed by Bagas @2026',
   updatedAt: new Date().toISOString(),
 };
 

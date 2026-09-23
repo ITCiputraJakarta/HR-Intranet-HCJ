@@ -120,7 +120,7 @@ export const translations = {
     errCaptchaInvalid: 'Kode captcha tidak cocok atau belum diisi. Silakan coba lagi.',
     successRegistered: 'Pendaftaran berhasil! Akun Anda telah dicatat dengan status Pending dan menunggu persetujuan Super Admin.',
     customLogoLabel: 'Logo Portal Khusus',
-    creatorSignatureText: '© 2026 Intranet HCJ | Developed with excellence @2026',
+    creatorSignatureText: '© 2026 Intranet HCJ | Developed by Bagas @2026',
   },
   en: {
     // Brand & Header
@@ -241,7 +241,7 @@ export const translations = {
     errCaptchaInvalid: 'Captcha code does not match or is missing. Please try again.',
     successRegistered: 'Registration successful! Your account is now Pending approval by Super Admin.',
     customLogoLabel: 'Custom Portal Logo',
-    creatorSignatureText: '© 2026 Intranet HCJ | Developed with excellence @2026',
+    creatorSignatureText: '© 2026 Intranet HCJ | Developed By Bagas @2026',
   }
 };
 

@@ -468,10 +468,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Creator Signature Mark */}
         <div className="mt-6 text-center text-xs text-slate-500 font-medium">
           <p className="font-semibold text-slate-600">
-            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed with excellence @2026'}
+            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed by Bagas @2026'}
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Cloud Firestore Integrated Architecture • Hotel Ciputra Jakarta
+            • Hotel Ciputra Jakarta
           </p>
         </div>
 

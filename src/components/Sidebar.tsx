@@ -335,7 +335,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="pt-1 px-1 text-center">
           <p className="text-[10px] text-slate-500 font-medium">
-            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed with excellence @2026'}
+            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed with by bagas @2026'}
           </p>
         </div>
       </div>

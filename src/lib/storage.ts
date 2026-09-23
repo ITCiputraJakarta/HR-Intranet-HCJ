@@ -10,6 +10,7 @@ import {
   PerformanceAppraisal,
   PushNotification,
   SpreadsheetConfig,
+  GoogleDriveStorageConfig,
   ActionCategory,
   LogStatus,
 } from '../types';
@@ -329,6 +330,85 @@ export function deleteDocument(docId: string, actor: User): void {
       details: `Dokumen ID ${docId} dihapus dari database Firebase Firestore.`,
     });
   }
+}
+
+export function updateDocument(updatedDoc: IntranetDocument, actor: User): void {
+  const docs = getDocuments();
+  const index = docs.findIndex((d) => d.id === updatedDoc.id);
+  const updatedWithTimestamp: IntranetDocument = {
+    ...updatedDoc,
+    updatedAt: new Date().toISOString(),
+  };
+
+  let newDocs: IntranetDocument[];
+  if (index !== -1) {
+    newDocs = [...docs];
+    newDocs[index] = updatedWithTimestamp;
+  } else {
+    newDocs = [updatedWithTimestamp, ...docs];
+  }
+
+  saveDocuments(newDocs);
+  firestoreSaveDocument(updatedWithTimestamp);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'DOCUMENT',
+    action: 'Perbaharui Berkas & Keterangan Dokumen',
+    target: `${updatedWithTimestamp.title} (${updatedWithTimestamp.category})`,
+    status: 'SUCCESS',
+    details: `Dokumen diperbarui oleh ${actor.nama}. Berkas: ${updatedWithTimestamp.fileName} (${updatedWithTimestamp.fileSize || '-'}), Distribusi: ${updatedWithTimestamp.akses_dept}`,
+  });
+}
+
+/**
+ * Otomatis membersihkan pengumuman yang sudah lewat batas hari (default: 7 hari / 1 minggu)
+ * Menghapus dokumen pengumuman beserta file dan fotonya agar penyimpanan Firestore & browser tidak menumpuk.
+ */
+export function pruneExpiredAnnouncements(
+  maxDays: number = 7,
+  actor?: User
+): { deletedCount: number; remainingCount: number; deletedTitles: string[] } {
+  const docs = getDocuments();
+  const now = Date.now();
+  const maxAgeMs = maxDays * 24 * 60 * 60 * 1000;
+
+  const validDocs: IntranetDocument[] = [];
+  const expiredDocs: IntranetDocument[] = [];
+
+  for (const doc of docs) {
+    if (doc.category === 'Pengumuman') {
+      const uploadTime = new Date(doc.uploadedAt).getTime();
+      if (!isNaN(uploadTime) && now - uploadTime > maxAgeMs) {
+        expiredDocs.push(doc);
+        continue;
+      }
+    }
+    validDocs.push(doc);
+  }
+
+  if (expiredDocs.length > 0) {
+    saveDocuments(validDocs);
+    // Delete expired announcements from Firestore to avoid accumulating data
+    expiredDocs.forEach((d) => {
+      firestoreDeleteDocument(d.id);
+    });
+
+    addAccessLog({
+      user: actor || null,
+      actionCategory: 'DOCUMENT',
+      action: 'Pembersihan Otomatis Pengumuman (> 7 Hari)',
+      target: `${expiredDocs.length} pengumuman kedaluwarsa`,
+      status: 'SUCCESS',
+      details: `Sistem membersihkan ${expiredDocs.length} pengumuman & foto yang telah terbit lebih dari ${maxDays} hari agar penyimpanan tetap efisien: ${expiredDocs.map(e => e.title).slice(0, 3).join(', ')}${expiredDocs.length > 3 ? '...' : ''}`,
+    });
+  }
+
+  return {
+    deletedCount: expiredDocs.length,
+    remainingCount: validDocs.filter((d) => d.category === 'Pengumuman').length,
+    deletedTitles: expiredDocs.map((d) => d.title),
+  };
 }
 
 // ----------------- STRUCTURED ACCESS LOGS -----------------
@@ -871,31 +951,82 @@ export function markAllNotificationsAsRead(): void {
 export const markNotificationsAsRead = markAllNotificationsAsRead;
 
 // ----------------- GOOGLE DRIVE STORAGE CONFIG (SYSTEM CONFIG) -----------------
-export function getSpreadsheetConfig(): SpreadsheetConfig {
-  const conf = getStored<SpreadsheetConfig>(STORAGE_KEYS.CONFIG, {
-    spreadsheetId: '',
-    gasWebAppUrl: '',
-    googleDriveFolderId: 'Intranet_Ciputra_Uploads',
-    autoSync: true,
-  });
+export const DEFAULT_DRIVE_CONFIG: GoogleDriveStorageConfig = {
+  rootFolderId: 'Intranet_Ciputra_Uploads',
+  rootFolderName: 'Drive Utama Hotel Ciputra',
+  sharedDriveUrl: 'https://drive.google.com/drive/folders/Intranet_Ciputra_Uploads',
+  sopFolder: 'SOP',
+  formsFolder: 'Formulir Kerja',
+  photosFolder: 'Foto & Media',
+  useDepartmentSubfolders: true,
+  autoPruneAnnouncementsDays: 7,
+  updatedAt: new Date().toISOString(),
+};
+
+export function getDriveStorageConfig(): GoogleDriveStorageConfig {
+  const stored = getStored<any>(STORAGE_KEYS.CONFIG, DEFAULT_DRIVE_CONFIG);
   return {
-    ...conf,
-    webAppUrl: conf.webAppUrl || conf.gasWebAppUrl,
-    driveFolderId: conf.driveFolderId || conf.googleDriveFolderId,
-    autoSyncEnabled: conf.autoSyncEnabled !== undefined ? conf.autoSyncEnabled : true,
+    rootFolderId: stored.rootFolderId || stored.googleDriveFolderId || stored.driveFolderId || DEFAULT_DRIVE_CONFIG.rootFolderId,
+    rootFolderName: stored.rootFolderName || DEFAULT_DRIVE_CONFIG.rootFolderName,
+    sharedDriveUrl: stored.sharedDriveUrl || (stored.rootFolderId ? `https://drive.google.com/drive/folders/${stored.rootFolderId}` : DEFAULT_DRIVE_CONFIG.sharedDriveUrl),
+    sopFolder: stored.sopFolder || DEFAULT_DRIVE_CONFIG.sopFolder,
+    formsFolder: stored.formsFolder || DEFAULT_DRIVE_CONFIG.formsFolder,
+    photosFolder: stored.photosFolder || DEFAULT_DRIVE_CONFIG.photosFolder,
+    useDepartmentSubfolders: stored.useDepartmentSubfolders !== undefined ? stored.useDepartmentSubfolders : true,
+    autoPruneAnnouncementsDays: stored.autoPruneAnnouncementsDays || 7,
+    updatedAt: stored.updatedAt || new Date().toISOString(),
+  };
+}
+
+export function saveDriveStorageConfig(
+  cfg: Partial<GoogleDriveStorageConfig>,
+  actor?: User
+): GoogleDriveStorageConfig {
+  const current = getDriveStorageConfig();
+  const updated: GoogleDriveStorageConfig = {
+    ...current,
+    ...cfg,
+    updatedAt: new Date().toISOString(),
+  };
+
+  setStored(STORAGE_KEYS.CONFIG, updated);
+  firestoreSaveConfig(updated);
+
+  if (actor) {
+    addAccessLog({
+      user: actor,
+      actionCategory: 'SYSTEM',
+      action: 'Simpan Konfigurasi Google Drive & Penyimpanan',
+      target: updated.rootFolderName,
+      status: 'SUCCESS',
+      details: `Folder Utama: ${updated.rootFolderName} (${updated.rootFolderId}). Pemisahan departemen: ${updated.useDepartmentSubfolders ? 'Aktif' : 'Non-aktif'}. Retensi pengumuman: ${updated.autoPruneAnnouncementsDays} hari.`,
+    });
+  }
+
+  return updated;
+}
+
+export function getSpreadsheetConfig(): SpreadsheetConfig {
+  const drive = getDriveStorageConfig();
+  return {
+    ...drive,
+    googleDriveFolderId: drive.rootFolderId,
+    driveFolderId: drive.rootFolderId,
+    autoSync: true,
+    autoSyncEnabled: true,
   };
 }
 
 export function saveSpreadsheetConfig(cfg: SpreadsheetConfig): void {
-  const full: SpreadsheetConfig = {
-    ...cfg,
-    gasWebAppUrl: cfg.gasWebAppUrl || cfg.webAppUrl || '',
-    webAppUrl: cfg.webAppUrl || cfg.gasWebAppUrl || '',
-    googleDriveFolderId: cfg.googleDriveFolderId || cfg.driveFolderId || 'Intranet_Ciputra_Uploads',
-    driveFolderId: cfg.driveFolderId || cfg.googleDriveFolderId || 'Intranet_Ciputra_Uploads',
-    autoSync: true,
-    autoSyncEnabled: true,
-  };
-  setStored(STORAGE_KEYS.CONFIG, full);
-  firestoreSaveConfig(full);
+  saveDriveStorageConfig({
+    rootFolderId: cfg.rootFolderId || cfg.googleDriveFolderId || cfg.driveFolderId,
+    rootFolderName: cfg.rootFolderName,
+    sharedDriveUrl: cfg.sharedDriveUrl,
+    sopFolder: cfg.sopFolder,
+    formsFolder: cfg.formsFolder,
+    photosFolder: cfg.photosFolder,
+    useDepartmentSubfolders: cfg.useDepartmentSubfolders,
+    autoPruneAnnouncementsDays: cfg.autoPruneAnnouncementsDays,
+  });
 }
+

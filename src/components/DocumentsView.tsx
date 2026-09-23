@@ -19,13 +19,19 @@ import {
   List,
   SlidersHorizontal,
   X,
-  File
+  File,
+  Edit3,
+  Trash2,
+  CheckCircle2,
+  FolderTree,
+  Folder,
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster, DocumentCategory } from '../types';
-import { addDocument, addAccessLog, getDepartments } from '../lib/storage';
+import { addDocument, updateDocument, deleteDocument, addAccessLog, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { uploadFileToGoogleDrive } from '../lib/driveApi';
-import { Flame } from 'lucide-react';
+import { uploadFileToDriveStorage, getDriveFolderPath } from '../lib/driveApi';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 
@@ -72,6 +78,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [fileInput, setFileInput] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Edit / Update Modal State
+  const [editDoc, setEditDoc] = useState<IntranetDocument | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDept, setEditDept] = useState('');
+  const [editSubcat, setEditSubcat] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editFileInput, setEditFileInput] = useState<File | null>(null);
+  const [editError, setEditError] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Delete Confirm State
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<IntranetDocument | null>(null);
 
   const isManagerOrAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
   const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
@@ -138,9 +157,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const toggleSortAZ = () => {
     if (sortField === 'title' && sortDirection === 'asc') {
       setSortDirection('desc');
+      setSortBy('title-desc');
     } else {
       setSortField('title');
       setSortDirection('asc');
+      setSortBy('title-asc');
     }
     setCurrentPage(1);
   };
@@ -150,103 +171,194 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     currentPage * itemsPerPage
   );
 
-  // Subcategories available for this category and user's department
-  const relevantCategories = (categories || []).filter((c) =>
-    isStaffOrSpv
-      ? c.departemen === currentUser.departemen || c.departemen === 'All Departments'
-      : true
-  );
-
+  // Subcategories available for filter
   const availableSubcats = Array.from(
-    new Set(relevantCategories.map((c) => c.nama_kategori))
+    new Set(
+      categories
+        .filter((c) => {
+          if (currentUser.role === 'admin' || currentUser.role === 'manager') return true;
+          return c.departemen === currentUser.departemen || c.departemen === 'All Departments';
+        })
+        .map((c) => c.nama_kategori)
+    )
   );
 
   const handleDownload = (doc: IntranetDocument) => {
     addAccessLog({
       user: currentUser,
       actionCategory: 'DOCUMENT',
-      action: `Unduh File ${category}`,
+      action: 'Unduh Dokumen Google Drive',
       target: doc.title,
       status: 'SUCCESS',
-      details: `File ${doc.fileName} diunduh dari folder Google Drive.`,
+      details: `File ID ${doc.id} (${doc.fileName}) diunduh. Jalur: ${doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName)}`,
     });
 
-    const link = window.document.createElement('a');
+    const link = document.createElement('a');
     link.href = doc.downloadUrl || doc.fileUrl;
-    link.target = '_blank';
     link.download = doc.fileName;
-    window.document.body.appendChild(link);
+    link.target = '_blank';
+    document.body.appendChild(link);
     link.click();
-    window.document.body.removeChild(link);
+    document.body.removeChild(link);
   };
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
+  // Open Edit Modal
+  const handleOpenEdit = (doc: IntranetDocument) => {
+    setEditDoc(doc);
+    setEditTitle(doc.title);
+    setEditDept(doc.akses_dept);
+    setEditSubcat(doc.sub_kategori || '');
+    setEditDesc(doc.keterangan || '');
+    setEditFileInput(null);
+    setEditError('');
+  };
+
+  // Save Edit / Replace File
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!upTitle.trim()) {
-      setUploadError('Judul berkas wajib diisi.');
+    if (!editDoc) return;
+    if (!editTitle.trim()) {
+      setEditError('Judul berkas tidak boleh kosong.');
       return;
     }
 
-    let fileUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200&auto=format&fit=crop';
-    let previewUrl = fileUrl;
-    let downloadUrl = fileUrl;
-    let thumbUrl = fileUrl;
-    let fileName = `${category}-${Date.now()}.pdf`;
-    let fileType = 'application/pdf';
-    let fileSize = '1.8 MB';
-    let driveFileId = `1Drv-${category}-${Date.now().toString(36)}`;
+    setIsSavingEdit(true);
+    setEditError('');
 
-    if (fileInput) {
-      const driveResult = await uploadFileToGoogleDrive({
-        file: fileInput,
-        title: upTitle.trim(),
-        category,
-        departemen: upDept,
-        uploadedBy: currentUser.nama,
-        uploadedByEmail: currentUser.email,
-      });
+    try {
+      let updatedDoc: IntranetDocument = {
+        ...editDoc,
+        title: editTitle.trim(),
+        akses_dept: editDept,
+        sub_kategori: editSubcat || editDoc.sub_kategori,
+        keterangan: editDesc.trim(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      if (driveResult.fileUrl) fileUrl = driveResult.fileUrl;
-      if (driveResult.previewUrl) previewUrl = driveResult.previewUrl;
-      if (driveResult.downloadUrl) downloadUrl = driveResult.downloadUrl;
-      if (driveResult.thumbUrl) thumbUrl = driveResult.thumbUrl;
-      if (driveResult.driveFileId) driveFileId = driveResult.driveFileId;
-      if (driveResult.fileName) fileName = driveResult.fileName;
-      if (driveResult.fileType) fileType = driveResult.fileType;
-      if (driveResult.fileSize) fileSize = driveResult.fileSize;
+      // If user uploaded a replacement file ("ganti file")
+      if (editFileInput) {
+        const uploadResult = await uploadFileToDriveStorage({
+          file: editFileInput,
+          title: editTitle.trim(),
+          category: editDoc.category,
+          departemen: editDept,
+          uploadedBy: currentUser.nama,
+          uploadedByEmail: currentUser.email,
+        });
+
+        updatedDoc = {
+          ...updatedDoc,
+          fileUrl: uploadResult.fileUrl,
+          previewUrl: uploadResult.previewUrl,
+          downloadUrl: uploadResult.downloadUrl,
+          thumbUrl: uploadResult.thumbUrl,
+          fileName: uploadResult.fileName,
+          fileType: uploadResult.fileType,
+          fileSize: uploadResult.fileSize,
+          driveFolderPath: uploadResult.driveFolderPath,
+          driveFileId: uploadResult.driveFileId,
+        };
+      } else {
+        // Recalculate folder path in case department changed
+        updatedDoc.driveFolderPath = getDriveFolderPath(editDoc.category, editDept, editDoc.fileName);
+      }
+
+      updateDocument(updatedDoc, currentUser);
+      setEditDoc(null);
+      onRefresh();
+    } catch (err: any) {
+      setEditError(err?.message || 'Gagal menyimpan perubahan berkas.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Delete Document
+  const handleDeleteDocument = (docId: string) => {
+    deleteDocument(docId, currentUser);
+    setDeleteConfirmDoc(null);
+    onRefresh();
+  };
+
+  // Upload New Document
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upTitle.trim()) {
+      setUploadError('Judul dokumen wajib diisi.');
+      return;
     }
 
-    const newDoc: IntranetDocument = {
-      id: `doc-${Date.now()}`,
-      title: upTitle.trim(),
-      category: category,
-      sub_kategori: upSubcat || availableSubcats[0] || 'Umum',
-      akses_dept: upDept,
-      keterangan: upDesc.trim(),
-      fileUrl,
-      previewUrl: fileUrl,
-      downloadUrl: fileUrl,
-      thumbUrl: fileUrl,
-      fileName,
-      fileType,
-      fileSize,
-      uploadedBy: currentUser.nama,
-      uploadedByEmail: currentUser.email,
-      uploadedAt: new Date().toISOString(),
-      driveFileId,
-    };
+    setIsUploading(true);
+    setUploadError('');
 
-    addDocument(newDoc, currentUser);
-    setShowUploadModal(false);
-    setUpTitle('');
-    setUpDesc('');
-    setFileInput(null);
-    onRefresh();
+    try {
+      let fileUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+      let previewUrl = fileUrl;
+      let downloadUrl = fileUrl;
+      let thumbUrl = '';
+      let driveFileId = `1Drv-${Date.now().toString(36)}`;
+      let fileName = `${category}-${upTitle.trim().replace(/\s+/g, '_')}.pdf`;
+      let fileType = 'application/pdf';
+      let fileSize = '1.20 MB';
+      let driveFolderPath = getDriveFolderPath(category, upDept, fileName);
+
+      if (fileInput) {
+        const driveResult = await uploadFileToDriveStorage({
+          file: fileInput,
+          title: upTitle.trim(),
+          category,
+          departemen: upDept,
+          uploadedBy: currentUser.nama,
+          uploadedByEmail: currentUser.email,
+        });
+
+        fileUrl = driveResult.fileUrl;
+        previewUrl = driveResult.previewUrl;
+        downloadUrl = driveResult.downloadUrl;
+        thumbUrl = driveResult.thumbUrl;
+        driveFileId = driveResult.driveFileId;
+        fileName = driveResult.fileName;
+        fileType = driveResult.fileType;
+        fileSize = driveResult.fileSize;
+        driveFolderPath = driveResult.driveFolderPath;
+      }
+
+      const newDoc: IntranetDocument = {
+        id: `doc-${Date.now()}`,
+        title: upTitle.trim(),
+        category: category,
+        sub_kategori: upSubcat || availableSubcats[0] || 'Umum',
+        akses_dept: upDept,
+        keterangan: upDesc.trim(),
+        fileUrl,
+        previewUrl,
+        downloadUrl,
+        thumbUrl,
+        fileName,
+        fileType,
+        fileSize,
+        uploadedBy: currentUser.nama,
+        uploadedByEmail: currentUser.email,
+        uploadedAt: new Date().toISOString(),
+        driveFileId,
+        driveFolderPath,
+      };
+
+      addDocument(newDoc, currentUser);
+      setShowUploadModal(false);
+      setUpTitle('');
+      setUpDesc('');
+      setFileInput(null);
+      onRefresh();
+    } catch (err: any) {
+      setUploadError(err?.message || 'Gagal mengunggah berkas ke penyimpanan.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
       {/* Header Info Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3.5">
@@ -268,7 +380,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               {category === 'SOP' ? 'Standard Operating Procedures (SOP)' : 'Formulir Kerja Standar'}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Repositori dokumen resmi terintegrasi Google Drive untuk operasional hotel
+              Penyimpanan terstruktur Google Drive: <strong>Drive Utama &gt; {category} &gt; Departemen (FO, HK, ACCT, dll.)</strong>
             </p>
           </div>
         </div>
@@ -320,14 +432,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {/* Filter, Search, Sort & View Mode Bar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          
           {/* Search Bar */}
           <div className="relative flex-1 min-w-[240px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               id="search-documents"
               type="text"
-              placeholder={`Cari nama, file, atau isi ${category}...`}
+              placeholder={`Cari nama berkas, SOP, atau keterangan ${category}...`}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -349,83 +460,67 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             )}
           </div>
 
-          {/* Sort & Department Filter Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            
-            {/* Quick 1-Click A-Z / Z-A Toggle Button */}
-            <button
-              id="btn-toggle-sort-az"
-              onClick={toggleSortAZ}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                sortField === 'title'
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-              title="Klik untuk beralih antara A-Z dan Z-A"
-            >
-              {sortField === 'title' && sortDirection === 'desc' ? (
-                <>
-                  <ArrowUpZA className="w-4 h-4 text-indigo-600" />
-                  <span>Z → A</span>
-                </>
-              ) : (
-                <>
-                  <ArrowDownAZ className="w-4 h-4 text-indigo-600" />
-                  <span>A → Z</span>
-                </>
-              )}
-            </button>
-
-            {/* Sort By Dropdown */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
-              <select
-                id="select-sort-documents"
-                value={sortBy}
-                onChange={(e) => {
-                  const val = e.target.value as DocumentSortOption;
-                  setSortBy(val);
-                  if (val === 'title-asc') { setSortField('title'); setSortDirection('asc'); }
-                  else if (val === 'title-desc') { setSortField('title'); setSortDirection('desc'); }
-                  else if (val === 'date-desc') { setSortField('uploadedAt'); setSortDirection('desc'); }
-                  else if (val === 'date-asc') { setSortField('uploadedAt'); setSortDirection('asc'); }
-                  else if (val === 'dept-asc') { setSortField('akses_dept'); setSortDirection('asc'); }
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer"
-              >
-                <option value="title-asc">Judul: A → Z</option>
-                <option value="title-desc">Judul: Z → A</option>
-                <option value="date-desc">Terbaru (Tanggal)</option>
-                <option value="date-asc">Terlama (Tanggal)</option>
-                <option value="dept-asc">Departemen (A → Z)</option>
-              </select>
-            </div>
-
-            {/* Department Filter (For Admins & Managers) */}
-            {!isStaffOrSpv && (
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-                <Building2 className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+          {/* Filters & Mode */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Department Filter (Admins/Managers) */}
+            {isManagerOrAdmin && (
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 <select
-                  id="select-filter-dept"
                   value={filterDept}
                   onChange={(e) => {
                     setFilterDept(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer max-w-[150px] sm:max-w-[190px] truncate"
+                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer"
                 >
                   <option value="All">Semua Departemen</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
                     </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* View Mode Toggle: Table / Cards */}
+            {/* Sort Order */}
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  const val = e.target.value as DocumentSortOption;
+                  setSortBy(val);
+                  if (val === 'title-asc') {
+                    setSortField('title');
+                    setSortDirection('asc');
+                  } else if (val === 'title-desc') {
+                    setSortField('title');
+                    setSortDirection('desc');
+                  } else if (val === 'date-desc') {
+                    setSortField('uploadedAt');
+                    setSortDirection('desc');
+                  } else if (val === 'date-asc') {
+                    setSortField('uploadedAt');
+                    setSortDirection('asc');
+                  } else if (val === 'dept-asc') {
+                    setSortField('akses_dept');
+                    setSortDirection('asc');
+                  }
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                <option value="title-asc">Judul (A - Z)</option>
+                <option value="title-desc">Judul (Z - A)</option>
+                <option value="date-desc">Terbaru Diunggah</option>
+                <option value="date-asc">Terlama</option>
+                <option value="dept-asc">Departemen (A - Z)</option>
+              </select>
+            </div>
+
+            {/* View Mode Toggle */}
             <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-slate-500">
               <button
                 type="button"
@@ -447,12 +542,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     ? 'bg-white text-indigo-600 shadow-xs font-bold'
                     : 'hover:text-slate-800'
                 }`}
-                title="Tampilan Kartu (Responsif)"
+                title="Tampilan Kartu"
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
             </div>
-
           </div>
         </div>
 
@@ -468,18 +562,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <DepartmentBadge department={filterDept} size="xs" />
               </div>
             )}
-            <span className="text-slate-400">• Urutan:</span>
-            <span className="font-semibold text-slate-700">
-              {sortBy === 'title-asc'
-                ? 'Judul A-Z'
-                : sortBy === 'title-desc'
-                ? 'Judul Z-A'
-                : sortBy === 'date-desc'
-                ? 'Terbaru'
-                : sortBy === 'date-asc'
-                ? 'Terlama'
-                : 'Departemen'}
-            </span>
           </div>
 
           {(searchQuery || filterDept !== 'All' || selectedSubcat !== 'All') && (
@@ -500,7 +582,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       {/* Documents Display: Cards Mode OR Table Mode */}
       {viewMode === 'cards' ? (
-        /* Card Grid View (Ideal for Tablet & Smartphone) */
         catDocs.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center mx-auto">
@@ -514,84 +595,103 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {paginatedDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold text-[10px]">
-                        {doc.sub_kategori || 'Umum'}
-                      </span>
-                      <DepartmentBadge department={doc.akses_dept} size="xs" />
-                    </div>
-
-                    <div
-                      onClick={() => onOpenPreview(doc)}
-                      className="flex items-start gap-3 cursor-pointer group-hover:text-indigo-600"
-                    >
-                      <div
-                        className={`p-2.5 rounded-xl shrink-0 ${
-                          category === 'SOP'
-                            ? 'bg-blue-50 text-blue-600'
-                            : 'bg-amber-50 text-amber-600'
-                        }`}
-                      >
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
-                          {doc.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-400 font-mono mt-1 truncate hover:text-indigo-500">
-                          {doc.fileName}
-                        </p>
-                      </div>
-                    </div>
-
-                    {doc.keterangan && (
-                      <p className="text-xs text-slate-500 mt-2.5 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        {doc.keterangan}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>{doc.uploadedBy}</span>
-                      <div className="flex items-center gap-2 font-mono">
-                        <span>{doc.fileSize || '1.5 MB'}</span>
-                        <span>•</span>
-                        <span>
-                          {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+              {paginatedDocs.map((doc) => {
+                const folderPath = doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName);
+                return (
+                  <div
+                    key={doc.id}
+                    className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold text-[10px]">
+                          {doc.sub_kategori || 'Umum'}
                         </span>
+                        <DepartmentBadge department={doc.akses_dept} size="xs" />
                       </div>
+
+                      <div
+                        onClick={() => onOpenPreview(doc)}
+                        className="flex items-start gap-3 cursor-pointer group-hover:text-indigo-600"
+                      >
+                        <div
+                          className={`p-2.5 rounded-xl shrink-0 ${
+                            category === 'SOP'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'bg-amber-50 text-amber-600'
+                          }`}
+                        >
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+                            {doc.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate hover:text-indigo-500">
+                            {doc.fileName}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Google Drive Folder Path Indicator */}
+                      <div
+                        className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate"
+                        title={`Lokasi di Google Drive: ${folderPath}`}
+                      >
+                        <HardDrive className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span className="truncate">{folderPath}</span>
+                      </div>
+
+                      {doc.keterangan && (
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed bg-slate-50/50 p-2 rounded-xl">
+                          {doc.keterangan}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => onOpenPreview(doc)}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Detail</span>
-                      </button>
-                      <button
-                        onClick={() => handleDownload(doc)}
-                        className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Unduh</span>
-                      </button>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-slate-400">
+                        <span>{doc.fileSize || '1.5 MB'}</span>
+                        {doc.updatedAt && (
+                          <span className="text-emerald-600 ml-1 font-semibold">• Diedit</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => onOpenPreview(doc)}
+                          className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-1"
+                          title="Detail Berkas"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Detail</span>
+                        </button>
+
+                        {/* Edit Button */}
+                        {isManagerOrAdmin && (
+                          <button
+                            onClick={() => handleOpenEdit(doc)}
+                            className="py-1.5 px-2.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-colors flex items-center gap-1 border border-amber-200"
+                            title="Perbaharui / Edit Berkas & Keterangan"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleDownload(doc)}
+                          className="py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors flex items-center gap-1 shadow-xs"
+                          title="Unduh Berkas"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Unduh</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <TablePagination
@@ -606,10 +706,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
         )
       ) : (
-        /* Table View with responsive horizontal scroll, Sortable Headers & Pagination */
+        /* Table View */
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[700px]">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                 <tr>
                   <SortableHeader
@@ -619,7 +719,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-5"
                   >
-                    Nama Berkas & Judul
+                    Nama Berkas & Lokasi Google Drive
                   </SortableHeader>
 
                   <SortableHeader
@@ -676,82 +776,117 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  paginatedDocs.map((doc) => (
-                    <tr
-                      key={doc.id}
-                      className="hover:bg-slate-50/80 transition-colors group"
-                    >
-                      <td
-                        className="py-4 px-5 cursor-pointer"
-                        onClick={() => onOpenPreview(doc)}
-                        title="Klik untuk melihat detail berkas"
+                  paginatedDocs.map((doc) => {
+                    const folderPath = doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName);
+                    return (
+                      <tr
+                        key={doc.id}
+                        className="hover:bg-slate-50/80 transition-colors group"
                       >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`p-2 rounded-xl mt-0.5 shrink-0 ${
-                              category === 'SOP'
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'bg-amber-50 text-amber-600'
-                            }`}
-                          >
-                            <FileText className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0 max-w-sm">
-                            <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">
-                              {doc.title}
-                            </p>
-                            <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate group-hover:text-indigo-500">
-                              {doc.fileName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                          {doc.sub_kategori || 'Umum'}
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <DepartmentBadge department={doc.akses_dept} size="sm" />
-                      </td>
-
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <p className="font-semibold text-slate-800">{doc.uploadedBy}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </p>
-                      </td>
-
-                      <td className="py-4 px-4 text-center font-mono text-slate-500 whitespace-nowrap">
-                        {doc.fileSize || '1.5 MB'}
-                      </td>
-
-                      <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
-                        <button
+                        <td
+                          className="py-4 px-5 cursor-pointer"
                           onClick={() => onOpenPreview(doc)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Pratinjau Dokumen"
+                          title="Klik untuk melihat detail berkas"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Detail</span>
-                        </button>
-                        <button
-                          onClick={() => handleDownload(doc)}
-                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Unduh Berkas Google Drive"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Unduh</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`p-2 rounded-xl mt-0.5 shrink-0 ${
+                                category === 'SOP'
+                                  ? 'bg-blue-50 text-blue-600'
+                                  : 'bg-amber-50 text-amber-600'
+                              }`}
+                            >
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0 max-w-sm">
+                              <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug">
+                                {doc.title}
+                              </p>
+                              <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate group-hover:text-indigo-500">
+                                {doc.fileName}
+                              </p>
+                              {/* Drive Path Badge */}
+                              <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1">
+                                <HardDrive className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{folderPath}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                            {doc.sub_kategori || 'Umum'}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <DepartmentBadge department={doc.akses_dept} size="sm" />
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <p className="font-semibold text-slate-800">{doc.uploadedBy}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </p>
+                          {doc.updatedAt && (
+                            <span className="text-[10px] text-emerald-600 font-medium">Diedit</span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4 text-center font-mono text-slate-500 whitespace-nowrap">
+                          {doc.fileSize || '1.5 MB'}
+                        </td>
+
+                        <td className="py-4 px-5 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => onOpenPreview(doc)}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors inline-flex items-center gap-1 shadow-2xs"
+                            title="Pratinjau Dokumen"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Detail</span>
+                          </button>
+
+                          {/* Edit Button */}
+                          {isManagerOrAdmin && (
+                            <button
+                              onClick={() => handleOpenEdit(doc)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white font-bold transition-colors inline-flex items-center gap-1 shadow-2xs border border-amber-200 hover:border-amber-600"
+                              title="Perbaharui Berkas & Keterangan"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDownload(doc)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold transition-colors inline-flex items-center gap-1 shadow-2xs"
+                            title="Unduh Berkas"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Unduh</span>
+                          </button>
+
+                          {/* Delete Button (Manager/Admin) */}
+                          {isManagerOrAdmin && (
+                            <button
+                              onClick={() => setDeleteConfirmDoc(doc)}
+                              className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors inline-flex items-center"
+                              title="Hapus Berkas"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -769,14 +904,194 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
       )}
 
-      {/* Upload Modal (Manager / Admin) */}
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4">
+      {/* MODAL 1: EDIT / PERBAHARUI DOKUMEN & GANTI BERKAS */}
+      {editDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setEditDoc(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Unggah Dokumen {category} Baru
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Perbaharui Berkas & Keterangan {category}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ID Dokumen: {editDoc.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditDoc(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Judul Dokumen *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Contoh: Standard Prosedur FO Check-In"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Distribusi Departemen
+                  </label>
+                  <select
+                    value={editDept}
+                    onChange={(e) => setEditDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  >
+                    <option value="All Departments">All Departments</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Sub-Kategori
+                  </label>
+                  <select
+                    value={editSubcat}
+                    onChange={(e) => setEditSubcat(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  >
+                    <option value="">- Pilih Kategori -</option>
+                    {availableSubcats.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Upload Ganti File */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-950">Ganti Berkas / Upload File Baru (Opsional)</span>
+                  <span className="text-[10px] text-amber-700 font-mono">Saat ini: {editDoc.fileName}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                    onChange={(e) => setEditFileInput(e.target.files?.[0] || null)}
+                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
+                  />
+                  {editFileInput && (
+                    <button
+                      type="button"
+                      onClick={() => setEditFileInput(null)}
+                      className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
+                      title="Batalkan penggantian file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-amber-800">
+                  Folder tujuan di Google Drive: <strong>{getDriveFolderPath(editDoc.category, editDept, editFileInput ? editFileInput.name : editDoc.fileName)}</strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Keterangan / Catatan Dokumen
+                </label>
+                <textarea
+                  rows={3}
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Keterangan, instruksi, atau versi revisi..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditDoc(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Menyimpan ke Firestore...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Perubahan</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: UPLOAD DOKUMEN BARU */}
+      {showUploadModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setShowUploadModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Unggah Dokumen {category} Baru
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Otomatis disimpan ke Google Drive per departemen & terdaftar di Firebase
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowUploadModal(false)}
                 className="text-slate-400 hover:text-slate-600 text-xs font-bold"
@@ -802,7 +1117,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   required
                   value={upTitle}
                   onChange={(e) => setUpTitle(e.target.value)}
-                  placeholder={`Contoh: Prosedur Standar ${category}`}
+                  placeholder={`Contoh: Prosedur Standar Operasional ${category}`}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
               </div>
@@ -847,7 +1162,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Pilih Berkas (PDF / Dokumen)
+                  Pilih Berkas (PDF / Dokumen / Excel)
                 </label>
                 <input
                   type="file"
@@ -855,6 +1170,9 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   onChange={(e) => setFileInput(e.target.files?.[0] || null)}
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Lokasi Google Drive: <strong>{getDriveFolderPath(category, upDept, fileInput ? fileInput.name : undefined)}</strong>
+                </p>
               </div>
 
               <div>
@@ -870,7 +1188,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
@@ -898,6 +1216,42 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
       )}
 
+      {/* MODAL 3: DELETE CONFIRMATION */}
+      {deleteConfirmDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setDeleteConfirmDoc(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 space-y-4 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Hapus Dokumen?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Apakah Anda yakin ingin menghapus <strong>"{deleteConfirmDoc.title}"</strong> dari arsip Firebase Firestore?
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeleteConfirmDoc(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => handleDeleteDocument(deleteConfirmDoc.id)}
+                className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

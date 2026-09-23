@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Megaphone,
   Plus,
@@ -21,10 +21,23 @@ import {
   X,
   LayoutGrid,
   List,
+  Edit3,
+  Trash2,
+  Image,
+  FolderSync,
+  Info
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster } from '../types';
-import { addDocument, getDepartments } from '../lib/storage';
+import {
+  addDocument,
+  updateDocument,
+  deleteDocument,
+  getDepartments,
+  pruneExpiredAnnouncements,
+  getDriveStorageConfig
+} from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { uploadFileToDriveStorage, getDriveFolderPath } from '../lib/driveApi';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 
@@ -46,6 +59,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
+  const driveConfig = getDriveStorageConfig();
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('All');
@@ -56,20 +70,46 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState<number>(6);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
+  // Auto-prune state notification
+  const [autoPrunedNotice, setAutoPrunedNotice] = useState<string | null>(null);
+
   // Upload Form States
   const [upTitle, setUpTitle] = useState('');
   const [upDept, setUpDept] = useState('All Departments');
-  const [upSubcat, setUpSubcat] = useState('');
+  const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
   const [fileInput, setFileInput] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
+  // Edit Form States
+  const [editDoc, setEditDoc] = useState<IntranetDocument | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDept, setEditDept] = useState('');
+  const [editKet, setEditKet] = useState('');
+  const [editFileInput, setEditFileInput] = useState<File | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Delete Confirm State
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<IntranetDocument | null>(null);
+
   const isManagerOrAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
   const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
 
-  // 1. Department Filtering Logic (Staff / SPV requirement)
-  // "Pas user buka dashboard, sistem cuma bakal narik dan nampilin daftar file yang variabel departemennya cocok dengan departemen si user"
+  // Automatically prune announcements older than 7 days (1 week) on view load
+  useEffect(() => {
+    const pruneDays = driveConfig.autoPruneAnnouncementsDays || 7;
+    const result = pruneExpiredAnnouncements(pruneDays, currentUser);
+    if (result.deletedCount > 0) {
+      setAutoPrunedNotice(
+        `Sistem telah membersihkan otomatis ${result.deletedCount} pengumuman dan foto lama (> ${pruneDays} hari) agar penyimpanan tetap efisien.`
+      );
+      onRefresh();
+    }
+  }, []);
+
+  // Department Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
 
   if (isStaffOrSpv) {
@@ -113,25 +153,95 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setCurrentPage(1);
   };
 
-  const toggleSortAZ = () => {
-    if (sortField === 'title' && sortDirection === 'asc') {
-      setSortDirection('desc');
-      setSortOrder('title-desc');
-    } else {
-      setSortField('title');
-      setSortDirection('asc');
-      setSortOrder('title-asc');
-    }
-    setCurrentPage(1);
-  };
-
   const paginatedAnnouncements = filteredAnnouncements.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // Upload handler with Google Drive simulation & Anyone with Link setting
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  // Helper: calculate remaining days before auto-cleanup (default 7 days)
+  const getRemainingDays = (uploadedAt: string) => {
+    const pruneDays = driveConfig.autoPruneAnnouncementsDays || 7;
+    const maxAgeMs = pruneDays * 24 * 60 * 60 * 1000;
+    const elapsed = Date.now() - new Date(uploadedAt).getTime();
+    const remainingMs = maxAgeMs - elapsed;
+    const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+    return Math.max(0, days);
+  };
+
+  // Open Edit Modal
+  const handleOpenEdit = (doc: IntranetDocument) => {
+    setEditDoc(doc);
+    setEditTitle(doc.title);
+    setEditDept(doc.akses_dept);
+    setEditKet(doc.keterangan || '');
+    setEditFileInput(null);
+    setEditError('');
+  };
+
+  // Save Edit Announcement
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editDoc) return;
+    if (!editTitle.trim()) {
+      setEditError('Judul pengumuman wajib diisi.');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setEditError('');
+
+    try {
+      let updatedDoc: IntranetDocument = {
+        ...editDoc,
+        title: editTitle.trim(),
+        akses_dept: editDept,
+        keterangan: editKet.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (editFileInput) {
+        const uploadResult = await uploadFileToDriveStorage({
+          file: editFileInput,
+          title: editTitle.trim(),
+          category: 'Pengumuman',
+          departemen: editDept,
+          uploadedBy: currentUser.nama,
+          uploadedByEmail: currentUser.email,
+        });
+
+        updatedDoc = {
+          ...updatedDoc,
+          fileUrl: uploadResult.fileUrl,
+          previewUrl: uploadResult.previewUrl,
+          downloadUrl: uploadResult.downloadUrl,
+          thumbUrl: uploadResult.thumbUrl || uploadResult.fileUrl,
+          fileName: uploadResult.fileName,
+          fileType: uploadResult.fileType,
+          fileSize: uploadResult.fileSize,
+          driveFolderPath: uploadResult.driveFolderPath,
+          driveFileId: uploadResult.driveFileId,
+        };
+      }
+
+      updateDocument(updatedDoc, currentUser);
+      setEditDoc(null);
+      onRefresh();
+    } catch (err: any) {
+      setEditError(err?.message || 'Gagal menyimpan perubahan pengumuman.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Delete Announcement
+  const handleDeleteAnnouncement = (docId: string) => {
+    deleteDocument(docId, currentUser);
+    setDeleteConfirmDoc(null);
+    onRefresh();
+  };
+
+  // Upload handler with Centralized Photo/Media Google Drive folder
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!upTitle.trim()) {
       setUploadError('Judul pengumuman wajib diisi.');
@@ -141,42 +251,55 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setIsUploading(true);
     setUploadError('');
 
-    // If file is selected, create object URL or image preview
-    let fileUrl = 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&auto=format&fit=crop';
-    let thumbUrl = 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=500&auto=format&fit=crop';
-    let fileName = 'Pengumuman-' + Date.now() + '.pdf';
-    let fileType = 'application/pdf';
-    let fileSize = '1.2 MB';
+    try {
+      let fileUrl = 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&auto=format&fit=crop';
+      let thumbUrl = fileUrl;
+      let fileName = 'Pengumuman-' + Date.now() + '.jpg';
+      let fileType = 'image/jpeg';
+      let fileSize = '1.20 MB';
+      let driveFolderPath = getDriveFolderPath('Pengumuman', upDept, fileName);
+      let driveFileId = `1Drv-${Date.now().toString(36)}`;
 
-    if (fileInput) {
-      fileName = fileInput.name;
-      fileType = fileInput.type || 'application/octet-stream';
-      fileSize = (fileInput.size / (1024 * 1024)).toFixed(2) + ' MB';
-      fileUrl = URL.createObjectURL(fileInput);
-      thumbUrl = fileUrl;
-    }
+      if (fileInput) {
+        const driveResult = await uploadFileToDriveStorage({
+          file: fileInput,
+          title: upTitle.trim(),
+          category: 'Pengumuman',
+          departemen: upDept,
+          uploadedBy: currentUser.nama,
+          uploadedByEmail: currentUser.email,
+        });
 
-    const newDoc: IntranetDocument = {
-      id: `doc-${Date.now()}`,
-      title: upTitle.trim(),
-      category: 'Pengumuman',
-      sub_kategori: upSubcat || 'Umum',
-      akses_dept: upDept,
-      keterangan: upKet.trim(),
-      fileUrl,
-      previewUrl: fileUrl,
-      downloadUrl: fileUrl,
-      thumbUrl,
-      fileName,
-      fileType,
-      fileSize,
-      uploadedBy: currentUser.nama,
-      uploadedByEmail: currentUser.email,
-      uploadedAt: new Date().toISOString(),
-      driveFileId: `1Drive-Ciputra-${Date.now().toString(36)}`,
-    };
+        fileUrl = driveResult.fileUrl;
+        thumbUrl = driveResult.thumbUrl || driveResult.fileUrl;
+        fileName = driveResult.fileName;
+        fileType = driveResult.fileType;
+        fileSize = driveResult.fileSize;
+        driveFolderPath = driveResult.driveFolderPath;
+        driveFileId = driveResult.driveFileId;
+      }
 
-    setTimeout(() => {
+      const newDoc: IntranetDocument = {
+        id: `doc-${Date.now()}`,
+        title: upTitle.trim(),
+        category: 'Pengumuman',
+        sub_kategori: upSubcat || 'Umum',
+        akses_dept: upDept,
+        keterangan: upKet.trim(),
+        fileUrl,
+        previewUrl: fileUrl,
+        downloadUrl: fileUrl,
+        thumbUrl,
+        fileName,
+        fileType,
+        fileSize,
+        uploadedBy: currentUser.nama,
+        uploadedByEmail: currentUser.email,
+        uploadedAt: new Date().toISOString(),
+        driveFileId,
+        driveFolderPath,
+      };
+
       addDocument(newDoc, currentUser);
       setIsUploading(false);
       setShowUploadForm(false);
@@ -184,13 +307,15 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       setUpKet('');
       setFileInput(null);
       onRefresh();
-    }, 400);
+    } catch (err: any) {
+      setUploadError(err?.message || 'Gagal menyimpan pengumuman.');
+      setIsUploading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
-      {/* Top Banner / Department Filter Indicator */}
+      {/* Top Banner */}
       <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold mb-3">
@@ -201,9 +326,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
             Papan Pengumuman Digital
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
-            {isStaffOrSpv
-              ? `Menampilkan pengumuman resmi terdistribusi untuk departemen ${currentUser.departemen} & seluruh karyawan.`
-              : `Sebagai ${currentUser.role.toUpperCase()}, Anda dapat mengunggah dan mendistribusikan pengumuman ke Google Drive.`}
+            Foto & banner disimpan terpusat di folder <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong>.
+            Pengumuman memiliki masa retensi <strong>7 hari</strong> sebelum otomatis dibersihkan agar penyimpanan Vercel & Firebase tetap optimal.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-4 pt-2">
@@ -213,7 +337,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold flex items-center gap-2 border border-white/10">
               <Clock className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Total Dilihat: <strong>{filteredAnnouncements.length} Berkas</strong></span>
+              <span>Retensi Otomatis: <strong>{driveConfig.autoPruneAnnouncementsDays || 7} Hari</strong></span>
             </div>
           </div>
         </div>
@@ -223,23 +347,38 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         </div>
       </div>
 
+      {/* Auto Pruned Notice */}
+      {autoPrunedNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{autoPrunedNotice}</span>
+          </div>
+          <button
+            onClick={() => setAutoPrunedNotice(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Action Bar (Search, Filter, Sort, Upload Button) */}
       <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          
           {/* Search */}
           <div className="relative flex-1 min-w-[240px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               id="search-announcements"
               type="text"
-              placeholder="Cari pengumuman..."
+              placeholder="Cari judul atau isi pengumuman..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 bg-slate-50 placeholder:text-slate-400"
+              className="w-full pl-9 pr-9 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
@@ -257,74 +396,23 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-            
-            {/* Quick 1-Click A-Z / Z-A Toggle Button */}
-            <button
-              id="btn-toggle-sort-announcement-az"
-              onClick={toggleSortAZ}
-              className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
-                sortField === 'title'
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-2xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-              title="Urutkan A-Z atau Z-A"
-            >
-              {sortField === 'title' && sortDirection === 'desc' ? (
-                <>
-                  <ArrowUpZA className="w-4 h-4 text-indigo-600" />
-                  <span>Z → A</span>
-                </>
-              ) : (
-                <>
-                  <ArrowDownAZ className="w-4 h-4 text-indigo-600" />
-                  <span>A → Z</span>
-                </>
-              )}
-            </button>
-
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
-              <select
-                id="sort-announcement"
-                value={sortOrder}
-                onChange={(e) => {
-                  const val = e.target.value as AnnouncementSortOption;
-                  setSortOrder(val);
-                  if (val === 'title-asc') { setSortField('title'); setSortDirection('asc'); }
-                  else if (val === 'title-desc') { setSortField('title'); setSortDirection('desc'); }
-                  else if (val === 'newest') { setSortField('uploadedAt'); setSortDirection('desc'); }
-                  else if (val === 'oldest') { setSortField('uploadedAt'); setSortDirection('asc'); }
-                  else if (val === 'dept-asc') { setSortField('akses_dept'); setSortDirection('asc'); }
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer"
-              >
-                <option value="newest">Terbaru (Tanggal)</option>
-                <option value="oldest">Terlama (Tanggal)</option>
-                <option value="title-asc">Judul: A → Z</option>
-                <option value="title-desc">Judul: Z → A</option>
-                <option value="dept-asc">Departemen (A → Z)</option>
-              </select>
-            </div>
-
-            {/* Department Filter (Admin / Manager) */}
-            {!isStaffOrSpv && (
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-                <Building2 className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
+            {/* Department Filter (Admin & Manager) */}
+            {isManagerOrAdmin && (
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 <select
-                  id="filter-dept-announcement"
+                  id="filter-announcement-dept"
                   value={filterDept}
                   onChange={(e) => {
                     setFilterDept(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none py-1 pr-1 cursor-pointer max-w-[150px] sm:max-w-[180px] truncate"
+                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
                 >
                   <option value="All">Semua Departemen</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
                     </option>
                   ))}
                 </select>
@@ -377,7 +465,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span>
-              Menampilkan <strong>{filteredAnnouncements.length}</strong> pengumuman
+              Menampilkan <strong>{filteredAnnouncements.length}</strong> pengumuman aktif
             </span>
             {filterDept !== 'All' && (
               <div className="flex items-center gap-1.5">
@@ -402,7 +490,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         </div>
       </div>
 
-      {/* Upload Form (Drawer/Card for Manager/Admin) */}
+      {/* Upload Form */}
       {showUploadForm && isManagerOrAdmin && (
         <div className="bg-white p-6 rounded-3xl border-2 border-indigo-200 shadow-xl space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -412,10 +500,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">
-                  Unggah Berkas Pengumuman ke Google Drive
+                  Unggah Pengumuman & Foto ke Folder Terpusat
                 </h3>
                 <p className="text-xs text-slate-500">
-                  File otomatis disimpan dengan izin publik (Anyone with link) melalui DriveApp
+                  Folder Google Drive: <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong> (Masa tayang: 7 hari)
                 </p>
               </div>
             </div>
@@ -447,7 +535,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                   value={upTitle}
                   onChange={(e) => setUpTitle(e.target.value)}
                   placeholder="Contoh: Jadwal Shift Libur Nasional"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
                 />
               </div>
 
@@ -472,7 +560,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  File Dokumen / Foto (PDF/IMG)
+                  Foto Banner / Lampiran Berkas
                 </label>
                 <input
                   id="up-announcement-file"
@@ -484,7 +572,6 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Deskripsi / Keterangan Pengumuman
@@ -494,7 +581,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 rows={3}
                 value={upKet}
                 onChange={(e) => setUpKet(e.target.value)}
-                placeholder="Tuliskan isi keterangan atau rincian pengumuman..."
+                placeholder="Tuliskan rincian isi pengumuman..."
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
               />
             </div>
@@ -518,7 +605,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                <span>{isUploading ? 'Menyimpan ke Drive...' : 'Unggah Sekarang'}</span>
+                <span>{isUploading ? 'Menyimpan ke Drive & Firebase...' : 'Unggah Pengumuman'}</span>
               </button>
             </div>
           </form>
@@ -531,81 +618,114 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center mx-auto">
             <Megaphone className="w-8 h-8" />
           </div>
-          <h3 className="font-bold text-slate-800 text-base">Belum Ada Pengumuman</h3>
+          <h3 className="font-bold text-slate-800 text-base">Belum Ada Pengumuman Aktif</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Tidak ada pengumuman yang sesuai dengan filter departemen Anda.
+            Pengumuman yang telah terbit lebih dari 7 hari otomatis dibersihkan oleh sistem.
           </p>
         </div>
       ) : viewMode === 'cards' ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedAnnouncements.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => onOpenPreview(doc)}
-                className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer hover:border-indigo-300"
-              >
-                {/* Card Image Banner */}
-                <div className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer">
-                  <img
-                    src={doc.thumbUrl}
-                    alt={doc.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                    onError={(e: any) => {
-                      e.target.src =
-                        'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop';
-                    }}
-                  />
-                  
-                  {/* Date Chip */}
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1.5 shadow-sm">
-                    <Calendar className="w-3 h-3 text-indigo-400" />
-                    <span>
-                      {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
+            {paginatedAnnouncements.map((doc) => {
+              const remainingDays = getRemainingDays(doc.uploadedAt);
+              const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
 
-                  {/* Department Distribution Badge */}
-                  <div className="absolute top-3 right-3 shadow-md">
-                    <DepartmentBadge department={doc.akses_dept} size="xs" />
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              return (
+                <div
+                  key={doc.id}
+                  className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between group hover:border-indigo-300"
+                >
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2">
-                      {doc.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">
-                      {doc.keterangan || 'Tidak ada catatan tambahan untuk dokumen ini.'}
-                    </p>
+                    {/* Card Image Banner */}
+                    <div
+                      onClick={() => onOpenPreview(doc)}
+                      className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer"
+                    >
+                      <img
+                        src={doc.thumbUrl || doc.fileUrl}
+                        alt={doc.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
+                        onError={(e: any) => {
+                          e.target.src =
+                            'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop';
+                        }}
+                      />
+
+                      {/* Remaining Days TTL Badge */}
+                      <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md text-amber-300 text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-amber-400/30">
+                        <Clock className="w-3 h-3 text-amber-400" />
+                        <span>Tersisa {remainingDays} hari</span>
+                      </div>
+
+                      {/* Department Distribution Badge */}
+                      <div className="absolute top-3 right-3 shadow-md">
+                        <DepartmentBadge department={doc.akses_dept} size="xs" />
+                      </div>
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="p-5 space-y-3">
+                      <div
+                        onClick={() => onOpenPreview(doc)}
+                        className="cursor-pointer space-y-1"
+                      >
+                        <h3 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+                          {doc.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">
+                          {doc.keterangan || 'Tidak ada catatan tambahan untuk pengumuman ini.'}
+                        </p>
+                      </div>
+
+                      {/* Folder Location Indicator */}
+                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate">
+                        <HardDrive className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span className="truncate">{folderPath}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400 font-medium truncate max-w-[140px]">
+                  {/* Card Actions Footer */}
+                  <div className="p-5 pt-0 border-t border-slate-100 mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400 font-medium truncate max-w-[120px]">
                       Oleh: <strong>{doc.uploadedBy}</strong>
                     </span>
-                    <button
-                      id={`btn-view-${doc.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenPreview(doc);
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Lihat Detail</span>
-                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Edit Button */}
+                      {isManagerOrAdmin && (
+                        <button
+                          onClick={() => handleOpenEdit(doc)}
+                          className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-colors flex items-center gap-1 border border-amber-200"
+                          title="Perbaharui Pengumuman"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                        </button>
+                      )}
+
+                      {/* Delete Button */}
+                      {isManagerOrAdmin && (
+                        <button
+                          onClick={() => setDeleteConfirmDoc(doc)}
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors flex items-center gap-1 border border-rose-200"
+                          title="Hapus Pengumuman"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => onOpenPreview(doc)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Detail</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200">
@@ -623,94 +743,111 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           </div>
         </div>
       ) : (
+        /* Table View */
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden w-full">
           <div className="overflow-x-auto w-full scrollbar-thin">
-            <table className="w-full min-w-[640px] text-left text-xs">
+            <table className="w-full min-w-[680px] text-left text-xs">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
                   <SortableHeader
                     field="title"
-                    currentSortField={sortField}
-                    currentSortDirection={sortDirection}
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
                     onSort={handleSort}
                     className="pl-6 py-4"
                   >
-                    Judul & Catatan
+                    Judul & Lokasi Foto Google Drive
                   </SortableHeader>
                   <SortableHeader
                     field="akses_dept"
-                    currentSortField={sortField}
-                    currentSortDirection={sortDirection}
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
                     onSort={handleSort}
                     className="py-4"
                   >
                     Target Departemen
                   </SortableHeader>
+                  <th className="py-4 text-center">Sisa Waktu (Auto-Hapus)</th>
                   <SortableHeader
                     field="uploadedBy"
-                    currentSortField={sortField}
-                    currentSortDirection={sortDirection}
+                    currentSort={sortField}
+                    currentDirection={sortDirection}
                     onSort={handleSort}
                     className="py-4"
                   >
                     Diterbitkan Oleh
                   </SortableHeader>
-                  <SortableHeader
-                    field="uploadedAt"
-                    currentSortField={sortField}
-                    currentSortDirection={sortDirection}
-                    onSort={handleSort}
-                    className="py-4"
-                  >
-                    Tanggal Rilis
-                  </SortableHeader>
                   <th className="py-4 pr-6 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedAnnouncements.map((doc) => (
-                  <tr
-                    key={doc.id}
-                    onClick={() => onOpenPreview(doc)}
-                    className="hover:bg-indigo-50/40 transition-colors cursor-pointer group"
-                  >
-                    <td className="pl-6 py-4">
-                      <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                        {doc.title}
-                      </div>
-                      {doc.keterangan && (
-                        <div className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
-                          {doc.keterangan}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-4">
-                      <DepartmentBadge department={doc.akses_dept} size="xs" />
-                    </td>
-                    <td className="py-4 font-medium text-slate-700">
-                      {doc.uploadedBy}
-                    </td>
-                    <td className="py-4 text-slate-500 whitespace-nowrap">
-                      {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="py-4 pr-6 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenPreview(doc);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
+                {paginatedAnnouncements.map((doc) => {
+                  const remainingDays = getRemainingDays(doc.uploadedAt);
+                  const folderPath = doc.driveFolderPath || getDriveFolderPath('Pengumuman', doc.akses_dept, doc.fileName);
+
+                  return (
+                    <tr
+                      key={doc.id}
+                      className="hover:bg-indigo-50/40 transition-colors group"
+                    >
+                      <td
+                        className="pl-6 py-4 cursor-pointer"
+                        onClick={() => onOpenPreview(doc)}
                       >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Lihat</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                          {doc.title}
+                        </div>
+                        {doc.keterangan && (
+                          <div className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
+                            {doc.keterangan}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1">
+                          <HardDrive className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{folderPath}</span>
+                        </div>
+                      </td>
+                      <td className="py-4">
+                        <DepartmentBadge department={doc.akses_dept} size="xs" />
+                      </td>
+                      <td className="py-4 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          {remainingDays} Hari lagi
+                        </span>
+                      </td>
+                      <td className="py-4 font-medium text-slate-700">
+                        {doc.uploadedBy}
+                      </td>
+                      <td className="py-4 pr-6 text-right space-x-1.5 whitespace-nowrap">
+                        {isManagerOrAdmin && (
+                          <button
+                            onClick={() => handleOpenEdit(doc)}
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold transition-colors inline-flex items-center border border-amber-200"
+                            title="Edit Pengumuman"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isManagerOrAdmin && (
+                          <button
+                            onClick={() => setDeleteConfirmDoc(doc)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition-colors inline-flex items-center border border-rose-200"
+                            title="Hapus Pengumuman"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onOpenPreview(doc)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-xs transition-colors shadow-2xs"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Lihat</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -729,6 +866,184 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         </div>
       )}
 
+      {/* MODAL: EDIT PENGUMUMAN & GANTI FOTO/BERKAS */}
+      {editDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setEditDoc(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Perbaharui Pengumuman & Foto
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ID: {editDoc.id} • Tersimpan di Folder Media & Foto
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditDoc(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Judul Pengumuman *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Target Distribusi Departemen
+                </label>
+                <select
+                  value={editDept}
+                  onChange={(e) => setEditDept(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                >
+                  <option value="All Departments">All Departments (Semua Karyawan)</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Upload Ganti Foto / File */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-950">Ganti Foto / Banner (Opsional)</span>
+                  <span className="text-[10px] text-amber-700 font-mono">Berkas: {editDoc.fileName}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={(e) => setEditFileInput(e.target.files?.[0] || null)}
+                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
+                  />
+                  {editFileInput && (
+                    <button
+                      type="button"
+                      onClick={() => setEditFileInput(null)}
+                      className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
+                      title="Batalkan foto baru"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-amber-800">
+                  Folder tujuan: <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Keterangan / Rincian Pengumuman
+                </label>
+                <textarea
+                  rows={3}
+                  value={editKet}
+                  onChange={(e) => setEditKet(e.target.value)}
+                  placeholder="Keterangan rilis pengumuman..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditDoc(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Perubahan</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE CONFIRMATION */}
+      {deleteConfirmDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setDeleteConfirmDoc(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 space-y-4 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Hapus Pengumuman?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Apakah Anda yakin ingin menghapus <strong>"{deleteConfirmDoc.title}"</strong> beserta foto dan berkas lampirannya?
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setDeleteConfirmDoc(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => handleDeleteAnnouncement(deleteConfirmDoc.id)}
+                className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

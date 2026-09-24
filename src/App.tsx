@@ -39,8 +39,9 @@ import { AccessLogsView } from './components/AccessLogsView';
 import { CategoriesMasterView } from './components/CategoriesMasterView';
 import { DepartmentsMasterView } from './components/DepartmentsMasterView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
-import { GASConfigModal } from './components/GASConfigModal';
+import { FirestoreSyncModal } from './components/FirestoreSyncModal';
 import { BrandingSettingsModal } from './components/BrandingSettingsModal';
+import { useIdleTimeout, recordUserActivity, clearActivityTimer } from './lib/useIdleTimeout';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
@@ -72,7 +73,6 @@ export default function App() {
   // Connection State
   const [firebaseState, setFirebaseState] = useState<FirebaseConnectionState>('checking');
   const [firebaseErrorMsg, setFirebaseErrorMsg] = useState<string>('');
-  const [modalInitialTab, setModalInitialTab] = useState<'firebase' | 'rules' | 'credentials'>('firebase');
 
   // Master Data States with synchronous fallback initialization
   const [documents, setDocuments] = useState<IntranetDocument[]>(() => getDocuments());
@@ -87,8 +87,9 @@ export default function App() {
 
   // Modals
   const [previewDoc, setPreviewDoc] = useState<IntranetDocument | null>(null);
-  const [showGASModal, setShowGASModal] = useState<boolean>(false);
+  const [showFirestoreModal, setShowFirestoreModal] = useState<boolean>(false);
   const [showBrandingModal, setShowBrandingModal] = useState<boolean>(false);
+  const [idleTimeoutMessage, setIdleTimeoutMessage] = useState<string>('');
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
   // Load all data from storage
@@ -220,36 +221,53 @@ export default function App() {
     }
   }, [currentUser, activeTab]);
 
+  // 1-minute idle auto-logout handler
+  useIdleTimeout(!!currentUser, () => {
+    handleLogout(true);
+  });
+
   const handleLoginSuccess = (user: User) => {
+    setCurrentUser(user);
     setUserState(user);
+    setIdleTimeoutMessage('');
+    recordUserActivity();
     // Always start at announcements on login so staff never sees previous admin tab
     setActiveTab('announcements');
     setIsMobileMenuOpen(false);
     refreshAllData();
   };
 
-  const handleLogout = () => {
+  const handleLogout = (isIdleTimeout: boolean = false) => {
     if (currentUser) {
       addAccessLog({
         user: currentUser,
         actionCategory: 'AUTH',
-        action: 'Logout Pengguna',
+        action: isIdleTimeout ? 'Logout Otomatis (Idle 1 Menit)' : 'Logout Pengguna',
         target: currentUser.email,
         status: 'SUCCESS',
-        details: 'Sesi portal intranet berakhir secara normal.',
+        details: isIdleTimeout
+          ? 'Sesi portal intranet berakhir otomatis karena pengguna tidak ada aktivitas selama 1 menit.'
+          : 'Sesi portal intranet berakhir secara normal.',
       });
     }
 
-    // Clear all storage, local cache, and session data completely
+    // Clear user and timer while keeping system data intact
+    clearActivityTimer();
     clearAllSessionCache();
     setCurrentUser(null);
     setUserState(null);
     setActiveTab('announcements');
     setIsMobileMenuOpen(false);
     setPreviewDoc(null);
-    setShowGASModal(false);
+    setShowFirestoreModal(false);
 
-    // Reset data states in memory to prevent lingering data across sessions
+    if (isIdleTimeout) {
+      setIdleTimeoutMessage('Sesi Anda telah berakhir karena tidak ada aktivitas selama 1 menit. Silakan login kembali.');
+    } else {
+      setIdleTimeoutMessage('');
+    }
+
+    // Reset volatile states
     setDocuments(getDocuments());
     setAnnouncements(getAnnouncements());
     setUsers(getUsers());
@@ -260,6 +278,7 @@ export default function App() {
   const handleRoleSwitch = (newUser: User) => {
     setCurrentUser(newUser);
     setUserState(newUser);
+    recordUserActivity();
     refreshAllData();
   };
 
@@ -269,8 +288,8 @@ export default function App() {
   };
 
   const handleNavigate = (tab: string, category?: string) => {
-    if (tab === 'spreadsheet') {
-      setShowGASModal(true);
+    if (tab === 'spreadsheet' || tab === 'firestore-sync') {
+      setShowFirestoreModal(true);
       return;
     }
     if (tab === 'documents') {
@@ -307,6 +326,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         currentLang={currentLang}
         onLanguageChange={handleLanguageChange}
+        sessionMessage={idleTimeoutMessage}
       />
     );
   }
@@ -326,10 +346,8 @@ export default function App() {
         onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
         onOpenBranding={() => setShowBrandingModal(true)}
-        onOpenConfig={() => {
-          setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
-          setShowGASModal(true);
-        }}
+        onOpenConfig={() => setShowFirestoreModal(true)}
+        onOpenFirestoreModal={() => setShowFirestoreModal(true)}
         onRoleSwitch={handleRoleSwitch}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
@@ -348,13 +366,10 @@ export default function App() {
               </span>
             </div>
             <button
-              onClick={() => {
-                setModalInitialTab('rules');
-                setShowGASModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 text-white font-bold text-[11px] hover:bg-slate-800 transition-colors shrink-0 self-start sm:self-auto"
+              onClick={() => setShowFirestoreModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 text-white font-bold text-[11px] hover:bg-slate-800 transition-colors shrink-0 self-start sm:self-auto cursor-pointer"
             >
-              <span>Salin Aturan & Perbaiki Rules</span>
+              <span>Buka Status Firestore</span>
               <span>→</span>
             </button>
           </div>
@@ -374,12 +389,19 @@ export default function App() {
           currentUser={currentUser}
           onLogout={handleLogout}
           pendingUsersCount={(users || []).filter((u) => u.status === 'Pending').length}
+          pendingAppraisalsCount={
+            (performances || []).filter((p) => {
+              if (p.status !== 'On Review' && p.status !== 'Submitted' && p.status !== 'On Check') return false;
+              if (isSuperAdmin) return true;
+              if (currentUser?.role === 'manager' || currentUser?.role === 'hod' || currentUser?.role === 'spv') {
+                return p.departemen === currentUser?.departemen;
+              }
+              return false;
+            }).length
+          }
           newLogsCount={(logs || []).filter((l) => l.status === 'WARNING' || l.status === 'FAILED').length}
           unreadLogsCount={(logs || []).filter((l) => l.status === 'WARNING' || l.status === 'FAILED').length}
-          onOpenGASModal={() => {
-            setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
-            setShowGASModal(true);
-          }}
+          onOpenFirestoreModal={() => setShowFirestoreModal(true)}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
@@ -488,18 +510,13 @@ export default function App() {
         />
       )}
 
-      {/* Google Apps Script & Spreadsheet Connector Modal (Super Admin only) */}
-      {showGASModal && (
-        <GASConfigModal
-          currentUser={currentUser}
-          initialTab={modalInitialTab}
-          onClose={() => setShowGASModal(false)}
-          onConfigSaved={(newCfg) => {
-            setConfig(newCfg);
-            refreshAllData();
-          }}
-        />
-      )}
+      {/* Cloud Firestore Status & Sync Modal (Super Admin only) */}
+      <FirestoreSyncModal
+        isOpen={showFirestoreModal}
+        onClose={() => setShowFirestoreModal(false)}
+        currentUser={currentUser}
+        onRefreshAll={refreshAllData}
+      />
 
       {/* Super Admin Branding & Custom Logo Modal */}
       <BrandingSettingsModal
@@ -514,17 +531,14 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-800 tracking-wide text-xs">
-              {branding.creatorSignature || 'JBagas 2026 ttd'}
+              {branding.creatorSignature || 'Created by Bagas Prasetyo • 2026'}
             </span>
           </div>
           <div className="flex items-center gap-3">
             {isSuperAdmin ? (
               <button
-                onClick={() => {
-                  setModalInitialTab(firebaseState === 'permission_denied' ? 'rules' : 'firebase');
-                  setShowGASModal(true);
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-all ${
+                onClick={() => setShowFirestoreModal(true)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-all cursor-pointer ${
                   firebaseState === 'connected'
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                     : firebaseState === 'permission_denied'

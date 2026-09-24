@@ -34,16 +34,14 @@ let currentBranding: AppBranding = (() => {
       const stored = localStorage.getItem(BRANDING_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Sanitize old signature variations if cached
-        if (
-          !parsed.creatorSignature ||
-          parsed.creatorSignature.includes('Intranet HCJ') ||
-          parsed.creatorSignature.includes('excellence') ||
-          parsed.creatorSignature.includes('Bagas @')
-        ) {
-          parsed.creatorSignature = 'Created by Bagas Prasetyo • 2026';
-        }
-        return { ...DEFAULT_BRANDING, ...parsed };
+        return {
+          appName: parsed.appName || DEFAULT_BRANDING.appName,
+          subTitle: parsed.subTitle !== undefined ? parsed.subTitle : DEFAULT_BRANDING.subTitle,
+          customLogoUrl: parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
+          creatorSignature: parsed.creatorSignature || DEFAULT_BRANDING.creatorSignature,
+          updatedAt: parsed.updatedAt || DEFAULT_BRANDING.updatedAt,
+          updatedBy: parsed.updatedBy,
+        };
       }
     } catch (e) {
       console.warn('Failed to parse cached branding:', e);
@@ -58,43 +56,68 @@ export function getAppBranding(): AppBranding {
   return currentBranding;
 }
 
+function notifySubscribers(updated: AppBranding) {
+  listeners.forEach((fn) => {
+    try {
+      fn(updated);
+    } catch (err) {
+      console.warn('Branding subscriber error:', err);
+    }
+  });
+}
+
+// Global active Firestore listener
+let isListenerActive = false;
+
+export function initBrandingFirestoreSync(): void {
+  if (isListenerActive || !isFirebaseConfigured()) return;
+  try {
+    const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
+    onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as Partial<AppBranding>;
+          const updated: AppBranding = {
+            appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
+            subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
+            customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
+            creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
+            updatedAt: data.updatedAt || new Date().toISOString(),
+            updatedBy: data.updatedBy || currentBranding.updatedBy,
+          };
+          currentBranding = updated;
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
+            } catch (e) {}
+          }
+          notifySubscribers(updated);
+        }
+      },
+      (err) => {
+        console.debug('Branding live subscription notice:', err.message);
+      }
+    );
+    isListenerActive = true;
+  } catch (e) {
+    console.warn('Failed to setup branding live listener:', e);
+  }
+}
+
+// Fetch initial branding once immediately
+if (typeof window !== 'undefined') {
+  initBrandingFirestoreSync();
+}
+
 export function subscribeToAppBranding(callback: (branding: AppBranding) => void): () => void {
   listeners.push(callback);
   callback(currentBranding);
-
-  // If Firestore is ready, listen to live updates from the database
-  let unsubscribeFirestore: (() => void) | null = null;
-  if (isFirebaseConfigured()) {
-    try {
-      const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
-      unsubscribeFirestore = onSnapshot(
-        docRef,
-        (snap) => {
-          if (snap.exists()) {
-            const data = snap.data() as Partial<AppBranding>;
-            const updated: AppBranding = { ...DEFAULT_BRANDING, ...data };
-            currentBranding = updated;
-            try {
-              localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
-            } catch (e) {
-              console.warn('Failed to cache branding:', e);
-            }
-            listeners.forEach((fn) => fn(updated));
-          }
-        },
-        (err) => {
-          console.debug('Branding live subscription notice:', err.message);
-        }
-      );
-    } catch (e) {
-      console.warn('Failed to setup branding live listener:', e);
-    }
-  }
+  initBrandingFirestoreSync();
 
   return () => {
     const idx = listeners.indexOf(callback);
     if (idx !== -1) listeners.splice(idx, 1);
-    if (unsubscribeFirestore) unsubscribeFirestore();
   };
 }
 
@@ -105,7 +128,9 @@ export async function saveAppBranding(
   const updated: AppBranding = {
     ...currentBranding,
     ...newBranding,
-    appName: newBranding.appName?.trim() || currentBranding.appName || 'Intranet HCJ',
+    appName: newBranding.appName !== undefined ? newBranding.appName.trim() : currentBranding.appName,
+    subTitle: newBranding.subTitle !== undefined ? newBranding.subTitle.trim() : currentBranding.subTitle,
+    creatorSignature: newBranding.creatorSignature !== undefined ? newBranding.creatorSignature.trim() : currentBranding.creatorSignature,
     updatedAt: new Date().toISOString(),
     updatedBy: actorEmail || currentBranding.updatedBy,
   };
@@ -120,8 +145,8 @@ export async function saveAppBranding(
     }
   }
 
-  // Broadcast to local subscribers
-  listeners.forEach((fn) => fn(updated));
+  // Broadcast to local subscribers immediately
+  notifySubscribers(updated);
 
   // Sync to Firestore
   if (isFirebaseConfigured()) {

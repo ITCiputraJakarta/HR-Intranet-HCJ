@@ -31,7 +31,7 @@ import {
 import { IntranetDocument, User, CategoryMaster, DocumentCategory } from '../types';
 import { addDocument, updateDocument, deleteDocument, addAccessLog, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
+import { processFileForFirestore, formatBytes, downloadFileFromDataUrl } from '../lib/fileCompressor';
 import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
@@ -197,16 +197,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       action: 'Unduh Dokumen Cloud Firestore',
       target: doc.title,
       status: 'SUCCESS',
-      details: `File ID ${doc.id} (${doc.fileName}) diunduh dari cloud Firestore. Jalur: ${doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName)}`,
+      details: `File ID ${doc.id} (${doc.fileName}) diunduh dari cloud Firestore. Jalur: ${getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName)}`,
     });
 
-    const link = document.createElement('a');
-    link.href = doc.downloadUrl || doc.fileUrl;
-    link.download = doc.fileName;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadFileFromDataUrl(doc.downloadUrl || doc.fileUrl, doc.fileName);
   };
 
   // Open Edit Modal
@@ -580,7 +574,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {paginatedDocs.map((doc) => {
-                const folderPath = doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
+                const folderPath = getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
                 return (
                   <div
                     key={doc.id}
@@ -763,7 +757,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   </tr>
                 ) : (
                   paginatedDocs.map((doc) => {
-                    const folderPath = doc.driveFolderPath || getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
+                    const folderPath = getFirestoreStoragePath(doc.category, doc.akses_dept, doc.fileName);
                     return (
                       <tr
                         key={doc.id}

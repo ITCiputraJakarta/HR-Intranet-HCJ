@@ -9,7 +9,8 @@ import {
   ArrowRight,
   AlertCircle,
   Briefcase,
-  Globe
+  Globe,
+  Clock
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { getUsers, saveUsers, addAccessLog, getDepartments } from '../lib/storage';
@@ -21,12 +22,14 @@ interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
   currentLang?: Language;
   onLanguageChange?: (lang: Language) => void;
+  sessionMessage?: string;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
   currentLang = 'id',
   onLanguageChange,
+  sessionMessage,
 }) => {
   const departments = getDepartments();
   const [isRegister, setIsRegister] = useState(false);
@@ -269,6 +272,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
 
           {/* Feedback Messages */}
+          {sessionMessage && !errorMessage && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1 font-medium leading-relaxed">{sessionMessage}</div>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-in fade-in">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />

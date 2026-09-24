@@ -92,6 +92,17 @@ export function notifyFirebaseState(state: FirebaseConnectionState, message: str
 }
 
 /**
+ * Check Firebase connection status (alias for testFirestoreConnection)
+ */
+export async function checkFirebaseConnection(): Promise<{ connected: boolean; message: string }> {
+  const rep = await testFirestoreConnection();
+  return {
+    connected: rep.success,
+    message: rep.message,
+  };
+}
+
+/**
  * Perform a live diagnostic probe against Cloud Firestore
  */
 export async function testFirestoreConnection(): Promise<FirebaseDiagnosticReport> {
@@ -260,13 +271,12 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       batch.set(doc(db, NOTIFS_COL, n.id), n);
     });
 
-    // 8. Seed Default System Config (Google Drive settings)
-    batch.set(doc(db, CONFIG_COL, 'drive_storage_config'), {
-      id: 'drive_storage_config',
-      googleDriveFolderId: 'Intranet_Ciputra_Uploads',
-      driveFolderId: 'Intranet_Ciputra_Uploads',
-      gasWebAppUrl: '',
-      webAppUrl: '',
+    // 8. Seed Default System Config (Firestore Native Storage settings)
+    batch.set(doc(db, CONFIG_COL, 'storage_settings'), {
+      id: 'storage_settings',
+      provider: 'firestore',
+      maxFileSizeMb: 15,
+      autoPruneDays: 7,
       autoSyncEnabled: true,
       updatedAt: new Date().toISOString(),
     });

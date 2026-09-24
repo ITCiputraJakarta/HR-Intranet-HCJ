@@ -7,7 +7,7 @@ export const translations = {
     hotelFullName: 'Hotel Ciputra Jakarta',
     intranetPortal: 'Intranet HCJ',
     portalSubtitle: 'Portal Dokumen & Evaluasi Kinerja',
-    googleSheetStudio: 'Studio Basis Data',
+    googleSheetStudio: 'Basis Data Cloud Firestore',
     
     // Page Headers Translations
     headerAnnouncementsTitle: 'Pengumuman & Berita Perusahaan',
@@ -48,7 +48,7 @@ export const translations = {
     menuKPIMaster: 'Master Data KPI',
     menuUserManagement: 'Manajemen User',
     menuAccessLogs: 'Sistem Log Akses',
-    menuCloudSync: 'Konfigurasi Cloud & Logo',
+    menuCloudSync: 'Sinkronisasi Cloud Firestore',
     
     // Notifications
     notificationsTitle: 'Notifikasi Masuk',
@@ -185,7 +185,7 @@ export const translations = {
     hotelFullName: 'Hotel Ciputra Jakarta',
     intranetPortal: 'Intranet HCJ',
     portalSubtitle: 'Document Portal & Performance Appraisal',
-    googleSheetStudio: 'Database Studio',
+    googleSheetStudio: 'Cloud Firestore Database',
     
     // Page Headers Translations
     headerAnnouncementsTitle: 'Company Announcements & News',
@@ -226,7 +226,7 @@ export const translations = {
     menuKPIMaster: 'KPI Master Data',
     menuUserManagement: 'User Management',
     menuAccessLogs: 'Access Audit Logs',
-    menuCloudSync: 'Cloud & Logo Config',
+    menuCloudSync: 'Cloud Firestore Sync',
     
     // Notifications
     notificationsTitle: 'Incoming Notifications',

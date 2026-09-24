@@ -156,3 +156,45 @@ export async function processFileForFirestore(file: File): Promise<CompressionRe
     return prepareDocumentFile(file);
   }
 }
+
+/**
+ * Triggers safe and instant client-side download for base64 data URLs or HTTP URLs
+ * without requiring Google Drive or any third-party services.
+ */
+export function downloadFileFromDataUrl(url: string, fileName: string): void {
+  if (!url) return;
+
+  if (url.startsWith('data:')) {
+    try {
+      const parts = url.split(',');
+      const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+      const binary = atob(parts[1]);
+      const array = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        array[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([array], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      return;
+    } catch (e) {
+      console.warn('Fallback standard download:', e);
+    }
+  }
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'download';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+

@@ -1,155 +1,177 @@
 {
-  "description": "Hotel Ciputra Jakarta Intranet Portal & Digital Archive Database Schema (Firestore)",
-  "collections": [
-    {
-      "name": "users",
-      "description": "User profiles, roles, and status for portal access",
-      "fields": {
-        "id": { "type": "string", "description": "Unique user ID" },
-        "nama": { "type": "string", "description": "Full employee name" },
-        "email": { "type": "string", "description": "Email address" },
-        "departemen": { "type": "string", "description": "Department name" },
-        "role": { "type": "string", "description": "Access role: staff, spv, manager, hod, admin" },
-        "status": { "type": "string", "description": "Account status: Approved or Pending" },
-        "createdAt": { "type": "string", "description": "ISO timestamp of registration" },
-        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
-      }
+  "entities": {
+    "user": {
+      "title": "User Profile",
+      "description": "User profile with role, department, and account status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama": { "type": "string", "maxLength": 150 },
+        "email": { "type": "string", "maxLength": 150 },
+        "departemen": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
+        "status": { "type": "string", "enum": ["Approved", "Pending"] },
+        "password": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "nama", "email", "role", "status"]
     },
-    {
-      "name": "documents",
-      "description": "Official SOP, Form, and Announcement documents stored in Google Drive and cataloged in Firestore",
-      "fields": {
-        "id": { "type": "string", "description": "Document ID" },
-        "title": { "type": "string", "description": "Document title" },
-        "category": { "type": "string", "description": "Category: SOP, Form, Pengumuman" },
-        "sub_kategori": { "type": "string", "description": "Subcategory" },
-        "akses_dept": { "type": "string", "description": "Target department access: All Departments or specific dept" },
-        "keterangan": { "type": "string", "description": "Description or usage instructions" },
-        "fileUrl": { "type": "string", "description": "Google Drive view link" },
-        "previewUrl": { "type": "string", "description": "Google Drive preview link" },
-        "downloadUrl": { "type": "string", "description": "Google Drive download link" },
-        "thumbUrl": { "type": "string", "description": "Thumbnail preview link" },
-        "fileName": { "type": "string", "description": "Original file name" },
-        "fileType": { "type": "string", "description": "MIME type" },
-        "fileSize": { "type": "string", "description": "Human-readable file size" },
-        "uploadedBy": { "type": "string", "description": "Uploader name" },
-        "uploadedByEmail": { "type": "string", "description": "Uploader email" },
-        "uploadedAt": { "type": "string", "description": "ISO upload timestamp" },
-        "driveFileId": { "type": "string", "description": "Google Drive File ID" }
-      }
+    "document": {
+      "title": "Intranet Document",
+      "description": "SOP, Form, and Announcement records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "enum": ["SOP", "Form", "Pengumuman"] },
+        "sub_kategori": { "type": "string" },
+        "akses_dept": { "type": "string" },
+        "keterangan": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "previewUrl": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "thumbUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "uploadedByEmail": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category"]
     },
-    {
-      "name": "accessLogs",
-      "description": "Structured real-time audit logs of portal operations",
-      "fields": {
-        "id": { "type": "string", "description": "Log ID" },
-        "timestamp": { "type": "string", "description": "ISO timestamp" },
-        "userName": { "type": "string", "description": "Actor name" },
-        "userEmail": { "type": "string", "description": "Actor email" },
-        "role": { "type": "string", "description": "Actor role" },
-        "departemen": { "type": "string", "description": "Actor department" },
-        "actionCategory": { "type": "string", "description": "Category: AUTH, DOCUMENT, KPI_CONFIG, APPRAISAL, USER_MGMT, SYSTEM" },
-        "action": { "type": "string", "description": "Action title" },
-        "target": { "type": "string", "description": "Target entity" },
-        "status": { "type": "string", "description": "Status: SUCCESS, WARNING, DANGER" },
-        "details": { "type": "string", "description": "Detailed log description" },
-        "ipAddress": { "type": "string", "description": "Client IP address" },
-        "userAgent": { "type": "string", "description": "Client user agent" }
-      }
+    "accessLog": {
+      "title": "Access Log",
+      "description": "Audit trail log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "role": { "type": "string" },
+        "departemen": { "type": "string" },
+        "actionCategory": { "type": "string" },
+        "action": { "type": "string" },
+        "target": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "action"]
     },
-    {
-      "name": "categories",
-      "description": "Document category and subcategory master",
-      "fields": {
-        "id": { "type": "string", "description": "Category ID" },
-        "nama_kategori": { "type": "string", "description": "Category name" },
-        "departemen": { "type": "string", "description": "Department ownership" },
-        "tipe_dokumen": { "type": "string", "description": "Document type: SOP, Form, etc." },
-        "createdAt": { "type": "string", "description": "ISO timestamp" }
-      }
+    "category": {
+      "title": "Document Category",
+      "description": "Document category per department",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nama_kategori": { "type": "string" },
+        "departemen": { "type": "string" }
+      },
+      "required": ["id", "nama_kategori"]
     },
-    {
-      "name": "departments",
-      "description": "Hotel departments master list",
-      "fields": {
-        "id": { "type": "string", "description": "Department ID" },
-        "name": { "type": "string", "description": "Department name" },
-        "code": { "type": "string", "description": "Department code abbreviation" },
-        "description": { "type": "string", "description": "Description" },
-        "createdAt": { "type": "string", "description": "ISO timestamp" },
-        "updatedAt": { "type": "string", "description": "ISO timestamp" }
-      }
+    "department": {
+      "title": "Department Master",
+      "description": "Department code and name",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" }
+      },
+      "required": ["id", "name", "code"]
     },
-    {
-      "name": "kpiMaster",
-      "description": "Standardized KPI target indicators per department, role, year, and period",
-      "fields": {
-        "id": { "type": "string", "description": "KPI ID" },
-        "pillar": { "type": "string", "description": "Pillar name" },
-        "objective": { "type": "string", "description": "Specific goal objective" },
-        "target": { "type": "string", "description": "Standard target description" },
-        "weight": { "type": "number", "description": "Weight percentage" },
-        "target_role": { "type": "string", "description": "Role: staff, spv, manager" },
-        "departemen": { "type": "string", "description": "Department name" },
-        "tipe": { "type": "string", "description": "Mid-Year or Annual" },
-        "tahun": { "type": "number", "description": "Evaluation year" },
-        "status": { "type": "string", "description": "Active or Draft" },
-        "createdAt": { "type": "string", "description": "ISO timestamp" }
-      }
+    "kpiMaster": {
+      "title": "KPI Master",
+      "description": "Standardized KPI indicators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "departemen": { "type": "string" },
+        "tahun": { "type": "number" },
+        "tipe": { "type": "string" },
+        "pillar": { "type": "string" },
+        "objective": { "type": "string" },
+        "weight": { "type": "number" },
+        "target": { "type": "string" }
+      },
+      "required": ["id", "departemen", "pillar", "objective"]
     },
-    {
-      "name": "performances",
-      "description": "Employee performance appraisal records with weighted calculations",
-      "fields": {
-        "id": { "type": "string", "description": "Appraisal ID" },
-        "nama": { "type": "string", "description": "Employee name" },
-        "email": { "type": "string", "description": "Employee email" },
-        "departemen": { "type": "string", "description": "Employee department" },
-        "role": { "type": "string", "description": "Role" },
-        "periode": { "type": "number", "description": "Year" },
-        "tipe": { "type": "string", "description": "Mid-Year or Annual" },
-        "kpis": { "type": "array", "description": "Array of scored KPI items" },
-        "kpiTotalScore": { "type": "number", "description": "Calculated KPI percentage" },
-        "kpiTranslatedScore": { "type": "number", "description": "Converted 1-5 KPI score" },
-        "behaviourScores": { "type": "map", "description": "7 Core Competencies scores" },
-        "avgBehaviour": { "type": "number", "description": "Average behaviour score" },
-        "complianceScore": { "type": "number", "description": "Discipline/compliance score 1-5" },
-        "finalGrandTotal": { "type": "number", "description": "Weighted grand total score 1.0-5.0" },
-        "finalGrade": { "type": "string", "description": "Grade code: E, G, M, U" },
-        "status": { "type": "string", "description": "Draft, Submitted, Approved" },
-        "starBest": { "type": "string", "description": "Best achievement" },
-        "starChallenge": { "type": "string", "description": "Challenge faced" },
-        "managerFeedback": { "type": "string", "description": "Manager feedback" },
-        "hrRecommendation": { "type": "string", "description": "HR recommendation" },
-        "hrNote": { "type": "string", "description": "HR internal note" },
-        "createdAt": { "type": "string", "description": "ISO timestamp" },
-        "updatedAt": { "type": "string", "description": "ISO timestamp" }
-      }
+    "performance": {
+      "title": "Performance Appraisal",
+      "description": "Employee performance evaluation record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "nama": { "type": "string" },
+        "departemen": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "email", "nama", "status"]
     },
-    {
-      "name": "notifications",
-      "description": "In-app push notifications for published documents and appraisal updates",
-      "fields": {
-        "id": { "type": "string", "description": "Notification ID" },
-        "title": { "type": "string", "description": "Notification title" },
-        "message": { "type": "string", "description": "Notification body" },
-        "category": { "type": "string", "description": "Category" },
-        "targetDepartment": { "type": "string", "description": "Target department" },
-        "documentId": { "type": "string", "description": "Optional document ID reference" },
-        "createdAt": { "type": "string", "description": "ISO timestamp" },
-        "read": { "type": "boolean", "description": "Read flag" }
-      }
+    "notification": {
+      "title": "Notification",
+      "description": "System push notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "title", "message"]
     },
-    {
-      "name": "systemConfig",
-      "description": "Global system configurations including Google Drive upload endpoints",
-      "fields": {
-        "id": { "type": "string", "description": "Config document key (e.g. 'portal_config')" },
-        "googleDriveFolderId": { "type": "string", "description": "Google Drive Folder Name/ID for storage" },
-        "gasWebAppUrl": { "type": "string", "description": "Google Apps Script Web App URL for Google Drive file uploads" },
-        "autoSyncEnabled": { "type": "boolean", "description": "Real-time sync flag" },
-        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+    "systemConfig": {
+      "title": "System Configuration",
+      "description": "Branding, custom logo, and system parameters",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "subTitle": { "type": "string" },
+        "customLogoUrl": { "type": "string" },
+        "creatorSignature": { "type": "string" },
+        "updatedAt": { "type": "string" }
       }
     }
-  ]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profiles and credentials"
+    },
+    "/documents/{documentId}": {
+      "schema": "document",
+      "description": "Official SOPs, Forms, and Announcements"
+    },
+    "/accessLogs/{logId}": {
+      "schema": "accessLog",
+      "description": "Audit access logs"
+    },
+    "/categories/{catId}": {
+      "schema": "category",
+      "description": "Category master records"
+    },
+    "/departments/{deptId}": {
+      "schema": "department",
+      "description": "Department master records"
+    },
+    "/kpiMaster/{kpiId}": {
+      "schema": "kpiMaster",
+      "description": "KPI targets master records"
+    },
+    "/performances/{perfId}": {
+      "schema": "performance",
+      "description": "Performance appraisal records"
+    },
+    "/notifications/{notifId}": {
+      "schema": "notification",
+      "description": "In-app push notifications"
+    },
+    "/systemConfig/{configId}": {
+      "schema": "systemConfig",
+      "description": "Global branding and system config"
+    }
+  }
 }

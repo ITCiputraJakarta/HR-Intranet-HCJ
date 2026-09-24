@@ -289,7 +289,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               Proteksi Integritas Data Aktif (Anti-Hapus Relasional)
             </p>
             <p className="text-slate-600 mt-0.5 leading-relaxed">
-              Sesuai kebijakan keamanan sistem portal, tombol hapus departemen <strong>ditiadakan</strong> agar tidak memicu galat (<em>error</em>) pada relasi akun karyawan, dokumen arsip Google Drive, formulir SOP, dan histori penilaian kinerja. Anda dapat <strong>menambah</strong> departemen baru atau <strong>mengubah nama & kodenya</strong> kapan saja dengan sinkronisasi otomatis.
+              Sesuai kebijakan keamanan sistem portal, tombol hapus departemen <strong>ditiadakan</strong> agar tidak memicu galat (<em>error</em>) pada relasi akun karyawan, dokumen arsip Cloud Firestore, formulir SOP, dan histori penilaian kinerja. Anda dapat <strong>menambah</strong> departemen baru atau <strong>mengubah nama & kodenya</strong> kapan saja dengan sinkronisasi otomatis.
             </p>
           </div>
         </div>

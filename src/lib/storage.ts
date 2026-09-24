@@ -11,6 +11,7 @@ import {
   PushNotification,
   SpreadsheetConfig,
   GoogleDriveStorageConfig,
+  SystemStorageConfig,
   ActionCategory,
   LogStatus,
 } from '../types';
@@ -42,7 +43,6 @@ import {
   firestoreMarkNotificationRead,
   firestoreSaveConfig,
 } from './firestoreService';
-import { deleteDriveFile } from './driveApi';
 
 const STORAGE_KEYS = {
   USERS: 'ciputra_intra_users_v1',
@@ -56,6 +56,64 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'ciputra_intra_notifs_v1',
   CONFIG: 'ciputra_intra_config_v1',
 };
+
+// Runtime in-memory cache to prevent excessive Firestore reads and ensure instant UI performance
+let memoryUsers: User[] | null = null;
+let memoryDocuments: IntranetDocument[] | null = null;
+let memoryLogs: AccessLog[] | null = null;
+let memoryCategories: CategoryMaster[] | null = null;
+let memoryDepartments: DepartmentMaster[] | null = null;
+let memoryKPIs: KPIMasterItem[] | null = null;
+let memoryPerformances: PerformanceAppraisal[] | null = null;
+let memoryNotifications: PushNotification[] | null = null;
+let memoryConfig: any = null;
+
+export function updateMemoryCache(
+  collectionKey: 'users' | 'documents' | 'logs' | 'categories' | 'departments' | 'kpis' | 'performances' | 'notifications' | 'config',
+  data: any
+): void {
+  switch (collectionKey) {
+    case 'users':
+      memoryUsers = data;
+      break;
+    case 'documents':
+      memoryDocuments = data;
+      break;
+    case 'logs':
+      memoryLogs = data;
+      break;
+    case 'categories':
+      memoryCategories = data;
+      break;
+    case 'departments':
+      memoryDepartments = data;
+      break;
+    case 'kpis':
+      memoryKPIs = data;
+      break;
+    case 'performances':
+      memoryPerformances = data;
+      break;
+    case 'notifications':
+      memoryNotifications = data;
+      break;
+    case 'config':
+      memoryConfig = data;
+      break;
+  }
+}
+
+export function clearMemoryCache(): void {
+  memoryUsers = null;
+  memoryDocuments = null;
+  memoryLogs = null;
+  memoryCategories = null;
+  memoryDepartments = null;
+  memoryKPIs = null;
+  memoryPerformances = null;
+  memoryNotifications = null;
+  memoryConfig = null;
+}
 
 // Safe storage getter with fallback
 function getStored<T>(key: string, fallback: T): T {
@@ -83,10 +141,16 @@ function setStored<T>(key: string, data: T): void {
 
 // ----------------- USERS -----------------
 export function getUsers(): User[] {
-  return getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+  if (memoryUsers && memoryUsers.length > 0) {
+    return memoryUsers;
+  }
+  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+  memoryUsers = loaded;
+  return loaded;
 }
 
 export function saveUsers(users: User[]): void {
+  memoryUsers = users;
   setStored(STORAGE_KEYS.USERS, users);
 }
 
@@ -276,12 +340,18 @@ export function updateUserByAdmin(
   return { success: true, message: 'Data pengguna berhasil diperbarui!', user: updatedUser };
 }
 
-// ----------------- DOCUMENTS (WITH GOOGLE DRIVE STORAGE) -----------------
+// ----------------- DOCUMENTS (CLOUD FIRESTORE STORAGE) -----------------
 export function getDocuments(): IntranetDocument[] {
-  return getStored<IntranetDocument[]>(STORAGE_KEYS.DOCUMENTS, INITIAL_DOCUMENTS);
+  if (memoryDocuments && memoryDocuments.length > 0) {
+    return memoryDocuments;
+  }
+  const loaded = getStored<IntranetDocument[]>(STORAGE_KEYS.DOCUMENTS, INITIAL_DOCUMENTS);
+  memoryDocuments = loaded;
+  return loaded;
 }
 
 export function saveDocuments(docs: IntranetDocument[]): void {
+  memoryDocuments = docs;
   setStored(STORAGE_KEYS.DOCUMENTS, docs);
 }
 
@@ -290,23 +360,23 @@ export function addDocument(doc: IntranetDocument, actor: User): void {
   const updated = [doc, ...docs];
   saveDocuments(updated);
 
-  // Save document metadata and Google Drive links directly to Firestore
+  // Save document metadata and content directly to Firestore
   firestoreSaveDocument(doc);
 
   // Record Structured Access Log
   addAccessLog({
     user: actor,
     actionCategory: 'DOCUMENT',
-    action: 'Unggah Berkas ke Google Drive & Simpan ke Firebase',
+    action: 'Unggah Berkas ke Cloud Firestore',
     target: `${doc.title} (${doc.category})`,
     status: 'SUCCESS',
-    details: `Dokumen disimpan di folder Google Drive dan didaftarkan ke Firebase Firestore. Distribusi: ${doc.akses_dept}`,
+    details: `Dokumen disimpan langsung ke database Firebase Firestore. Distribusi: ${doc.akses_dept}`,
   });
 
   // Trigger Push Notification for relevant department users
   sendPushNotification({
     title: `Dokumen Baru: ${doc.title}`,
-    message: `${doc.category} baru telah diterbitkan oleh ${actor.nama} untuk ${doc.akses_dept}. Berkas tersimpan di Google Drive.`,
+    message: `${doc.category} baru telah diterbitkan oleh ${actor.nama} untuk ${doc.akses_dept}. Berkas tersimpan di Cloud Firestore.`,
     category: doc.category,
     targetDepartment: doc.akses_dept,
     documentId: doc.id,
@@ -322,21 +392,14 @@ export function deleteDocument(docId: string, actor: User): void {
   // Delete from Firestore
   firestoreDeleteDocument(docId);
 
-  // Also delete from Google Drive if driveFileId exists
-  if (target?.driveFileId) {
-    deleteDriveFile(target.driveFileId).catch((err) => {
-      console.warn('Failed to delete file from Google Drive:', err);
-    });
-  }
-
   if (target) {
     addAccessLog({
       user: actor,
       actionCategory: 'DOCUMENT',
-      action: 'Hapus Dokumen Arsip & File Drive',
+      action: 'Hapus Dokumen Arsip Firestore',
       target: target.title,
       status: 'SUCCESS',
-      details: `Dokumen ID ${docId} dihapus dari Firestore dan Google Drive.${target.driveFileId ? ` (Drive File ID: ${target.driveFileId})` : ''}`,
+      details: `Dokumen ID ${docId} dihapus dari Cloud Firestore.`,
     });
   }
 }
@@ -373,7 +436,7 @@ export function updateDocument(updatedDoc: IntranetDocument, actor: User): void 
 /**
  * Otomatis membersihkan pengumuman yang sudah mencapai tanggal kedaluwarsa (expiryDate)
  * atau lewat batas hari (default: 7 hari / 1 minggu).
- * Menghapus dokumen pengumuman beserta file dan fotonya agar penyimpanan Firestore & browser tidak menumpuk.
+ * Menghapus dokumen pengumuman beserta file dan fotonya langsung dari Firestore.
  */
 export function pruneExpiredAnnouncements(
   maxDays: number = 7,
@@ -415,14 +478,9 @@ export function pruneExpiredAnnouncements(
 
   if (expiredDocs.length > 0) {
     saveDocuments(validDocs);
-    // Delete expired announcements from Firestore to avoid accumulating data
+    // Delete expired announcements directly from Firestore
     expiredDocs.forEach((d) => {
       firestoreDeleteDocument(d.id);
-      if (d.driveFileId) {
-        deleteDriveFile(d.driveFileId).catch((err) => {
-          console.warn('Failed to delete expired announcement file from Google Drive:', err);
-        });
-      }
     });
 
     addAccessLog({
@@ -431,7 +489,7 @@ export function pruneExpiredAnnouncements(
       action: 'Pembersihan Otomatis Pengumuman Kedaluwarsa',
       target: `${expiredDocs.length} pengumuman kedaluwarsa`,
       status: 'SUCCESS',
-      details: `Sistem membersihkan ${expiredDocs.length} pengumuman & foto yang telah mencapai batas tanggal kedaluwarsa: ${expiredDocs.map((e) => e.title).slice(0, 3).join(', ')}${expiredDocs.length > 3 ? '...' : ''}`,
+      details: `Sistem membersihkan ${expiredDocs.length} pengumuman & foto kedaluwarsa dari Firestore: ${expiredDocs.map((e) => e.title).slice(0, 3).join(', ')}${expiredDocs.length > 3 ? '...' : ''}`,
     });
   }
 
@@ -450,13 +508,14 @@ export const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari (1 minggu)
  * Log hanya bertahan selama 1 minggu agar penyimpanan tidak penuh.
  */
 export function pruneExpiredAccessLogs(): AccessLog[] {
-  const all = getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
+  const all = memoryLogs || getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
   const now = Date.now();
   const valid = all.filter((log) => {
     const time = new Date(log.timestamp).getTime();
     return !isNaN(time) && now - time <= LOG_RETENTION_MS;
   });
 
+  memoryLogs = valid;
   if (valid.length !== all.length) {
     setStored(STORAGE_KEYS.ACCESS_LOGS, valid);
   }
@@ -464,6 +523,9 @@ export function pruneExpiredAccessLogs(): AccessLog[] {
 }
 
 export function getAccessLogs(): AccessLog[] {
+  if (memoryLogs && memoryLogs.length > 0) {
+    return memoryLogs;
+  }
   return pruneExpiredAccessLogs();
 }
 
@@ -473,6 +535,7 @@ export function saveAccessLogs(logs: AccessLog[]): void {
     const time = new Date(log.timestamp).getTime();
     return !isNaN(time) && now - time <= LOG_RETENTION_MS;
   });
+  memoryLogs = valid;
   setStored(STORAGE_KEYS.ACCESS_LOGS, valid);
 }
 
@@ -535,10 +598,16 @@ export function clearAccessLogs(actor: User): void {
 
 // ----------------- CATEGORIES -----------------
 export function getCategories(): CategoryMaster[] {
-  return getStored<CategoryMaster[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+  if (memoryCategories && memoryCategories.length > 0) {
+    return memoryCategories;
+  }
+  const loaded = getStored<CategoryMaster[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+  memoryCategories = loaded;
+  return loaded;
 }
 
 export function saveCategories(cats: CategoryMaster[]): void {
+  memoryCategories = cats;
   setStored(STORAGE_KEYS.CATEGORIES, cats);
 }
 
@@ -575,10 +644,16 @@ export function deleteCategory(id: string, actor: User): void {
 
 // ----------------- DEPARTMENTS MASTER -----------------
 export function getDepartmentMasters(): DepartmentMaster[] {
-  return getStored<DepartmentMaster[]>(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS);
+  if (memoryDepartments && memoryDepartments.length > 0) {
+    return memoryDepartments;
+  }
+  const loaded = getStored<DepartmentMaster[]>(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS);
+  memoryDepartments = loaded;
+  return loaded;
 }
 
 export function saveDepartmentMasters(depts: DepartmentMaster[]): void {
+  memoryDepartments = depts;
   setStored(STORAGE_KEYS.DEPARTMENTS, depts);
 }
 
@@ -756,10 +831,16 @@ export function updateDepartment(
 
 // ----------------- KPI MASTER -----------------
 export function getKPIMaster(): KPIMasterItem[] {
-  return getStored<KPIMasterItem[]>(STORAGE_KEYS.KPIS, INITIAL_KPIS);
+  if (memoryKPIs && memoryKPIs.length > 0) {
+    return memoryKPIs;
+  }
+  const loaded = getStored<KPIMasterItem[]>(STORAGE_KEYS.KPIS, INITIAL_KPIS);
+  memoryKPIs = loaded;
+  return loaded;
 }
 
 export function saveKPIMaster(kpis: KPIMasterItem[]): void {
+  memoryKPIs = kpis;
   setStored(STORAGE_KEYS.KPIS, kpis);
 }
 
@@ -857,19 +938,28 @@ export function deployKPI(dept: string, year: number | string, tipe: string, rol
 
 // ----------------- PERFORMANCE APPRAISAL -----------------
 export function getPerformances(): PerformanceAppraisal[] {
+  if (memoryPerformances && memoryPerformances.length > 0) {
+    return memoryPerformances;
+  }
   const list = getStored<PerformanceAppraisal[]>(STORAGE_KEYS.PERFORMANCES, INITIAL_PERFORMANCES);
-  if (!list || list.length === 0) return INITIAL_PERFORMANCES;
+  if (!list || list.length === 0) {
+    memoryPerformances = INITIAL_PERFORMANCES;
+    return INITIAL_PERFORMANCES;
+  }
   const existingIds = new Set(list.map((p) => p.id));
   const missingInitials = INITIAL_PERFORMANCES.filter((p) => !existingIds.has(p.id));
   if (missingInitials.length > 0) {
     const merged = [...list, ...missingInitials];
     setStored(STORAGE_KEYS.PERFORMANCES, merged);
+    memoryPerformances = merged;
     return merged;
   }
+  memoryPerformances = list;
   return list;
 }
 
 export function savePerformances(perfs: PerformanceAppraisal[]): void {
+  memoryPerformances = perfs;
   setStored(STORAGE_KEYS.PERFORMANCES, perfs);
 }
 
@@ -1093,13 +1183,14 @@ export function getAnnouncements(): IntranetDocument[] {
 export const NOTIFICATION_RETENTION_MS = 3 * 24 * 60 * 60 * 1000; // 3 hari
 
 export function cleanExpiredNotifications(): PushNotification[] {
-  const all = getStored<PushNotification[]>(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
+  const all = memoryNotifications || getStored<PushNotification[]>(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS);
   const now = Date.now();
   const valid = all.filter((n) => {
     const time = new Date(n.createdAt).getTime();
     return !isNaN(time) && now - time <= NOTIFICATION_RETENTION_MS;
   });
 
+  memoryNotifications = valid;
   if (valid.length !== all.length) {
     setStored(STORAGE_KEYS.NOTIFICATIONS, valid);
   }
@@ -1107,10 +1198,14 @@ export function cleanExpiredNotifications(): PushNotification[] {
 }
 
 export function getNotifications(): PushNotification[] {
+  if (memoryNotifications && memoryNotifications.length > 0) {
+    return memoryNotifications;
+  }
   return cleanExpiredNotifications();
 }
 
 export function saveNotifications(notifs: PushNotification[]): void {
+  memoryNotifications = notifs;
   setStored(STORAGE_KEYS.NOTIFICATIONS, notifs);
 }
 
@@ -1167,64 +1262,70 @@ export function markAllNotificationsAsRead(): void {
 
 export const markNotificationsAsRead = markAllNotificationsAsRead;
 
-// ----------------- GOOGLE DRIVE STORAGE CONFIG (SYSTEM CONFIG) -----------------
-export const DEFAULT_DRIVE_CONFIG: GoogleDriveStorageConfig = {
-  rootFolderId: '17QOXdBWg1STMYuE7RkYshNM6vSJ1Dq0u',
-  rootFolderName: 'Drive Utama Hotel Ciputra',
-  sharedDriveUrl: 'https://drive.google.com/drive/folders/17QOXdBWg1STMYuE7RkYshNM6vSJ1Dq0u?usp=sharing',
+// ----------------- CLOUD FIRESTORE STORAGE CONFIG (SYSTEM CONFIG) -----------------
+export const DEFAULT_STORAGE_CONFIG: SystemStorageConfig = {
+  storageProvider: 'firestore',
+  autoPruneAnnouncementsDays: 7,
+  autoSyncEnabled: true,
+  rootFolderId: 'firestore-native',
+  rootFolderName: 'Penyimpanan Berkas Cloud Firestore',
   sopFolder: 'SOP',
   formsFolder: 'Formulir Kerja',
   photosFolder: 'Foto & Media',
-  useDepartmentSubfolders: true,
-  autoPruneAnnouncementsDays: 7,
   updatedAt: new Date().toISOString(),
 };
 
-/**
- * Extracts Google Drive Folder ID from a shared URL or raw folder ID
- */
+export const DEFAULT_DRIVE_CONFIG: GoogleDriveStorageConfig = {
+  ...DEFAULT_STORAGE_CONFIG,
+  sharedDriveUrl: '',
+  useDepartmentSubfolders: true,
+};
+
 export function extractDriveFolderId(input: string): string {
   if (!input) return '';
-  const trimmed = input.trim();
-  // Match https://drive.google.com/drive/folders/{folderId} or /u/0/folders/{folderId}
-  const urlMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  if (urlMatch && urlMatch[1]) {
-    return urlMatch[1];
-  }
-  // Match id={folderId} parameter
-  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idParamMatch && idParamMatch[1]) {
-    return idParamMatch[1];
-  }
-  return trimmed;
+  return input.trim();
+}
+
+export function getSystemStorageConfig(): SystemStorageConfig {
+  if (memoryConfig) return memoryConfig;
+  const stored = getStored<any>(STORAGE_KEYS.CONFIG, DEFAULT_STORAGE_CONFIG);
+  const res: SystemStorageConfig = {
+    storageProvider: 'firestore',
+    autoPruneAnnouncementsDays: stored.autoPruneAnnouncementsDays || 7,
+    autoSyncEnabled: stored.autoSyncEnabled !== undefined ? stored.autoSyncEnabled : true,
+    rootFolderId: stored.rootFolderId || 'firestore-native',
+    rootFolderName: stored.rootFolderName || 'Penyimpanan Berkas Cloud Firestore',
+    sopFolder: stored.sopFolder || 'SOP',
+    formsFolder: stored.formsFolder || 'Formulir Kerja',
+    photosFolder: stored.photosFolder || 'Foto & Media',
+    updatedAt: stored.updatedAt || new Date().toISOString(),
+  };
+  memoryConfig = res;
+  return res;
 }
 
 export function getDriveStorageConfig(): GoogleDriveStorageConfig {
-  const stored = getStored<any>(STORAGE_KEYS.CONFIG, DEFAULT_DRIVE_CONFIG);
+  const base = getSystemStorageConfig();
   return {
-    rootFolderId: stored.rootFolderId || stored.googleDriveFolderId || stored.driveFolderId || DEFAULT_DRIVE_CONFIG.rootFolderId,
-    rootFolderName: stored.rootFolderName || DEFAULT_DRIVE_CONFIG.rootFolderName,
-    sharedDriveUrl: stored.sharedDriveUrl || (stored.rootFolderId ? `https://drive.google.com/drive/folders/${stored.rootFolderId}` : DEFAULT_DRIVE_CONFIG.sharedDriveUrl),
-    sopFolder: stored.sopFolder || DEFAULT_DRIVE_CONFIG.sopFolder,
-    formsFolder: stored.formsFolder || DEFAULT_DRIVE_CONFIG.formsFolder,
-    photosFolder: stored.photosFolder || DEFAULT_DRIVE_CONFIG.photosFolder,
-    useDepartmentSubfolders: stored.useDepartmentSubfolders !== undefined ? stored.useDepartmentSubfolders : true,
-    autoPruneAnnouncementsDays: stored.autoPruneAnnouncementsDays || 7,
-    updatedAt: stored.updatedAt || new Date().toISOString(),
+    ...base,
+    sharedDriveUrl: '',
+    useDepartmentSubfolders: true,
   };
 }
 
-export function saveDriveStorageConfig(
-  cfg: Partial<GoogleDriveStorageConfig>,
+export function saveSystemStorageConfig(
+  cfg: Partial<SystemStorageConfig>,
   actor?: User
-): GoogleDriveStorageConfig {
-  const current = getDriveStorageConfig();
-  const updated: GoogleDriveStorageConfig = {
+): SystemStorageConfig {
+  const current = getSystemStorageConfig();
+  const updated: SystemStorageConfig = {
     ...current,
     ...cfg,
+    storageProvider: 'firestore',
     updatedAt: new Date().toISOString(),
   };
 
+  memoryConfig = updated;
   setStored(STORAGE_KEYS.CONFIG, updated);
   firestoreSaveConfig(updated);
 
@@ -1232,37 +1333,41 @@ export function saveDriveStorageConfig(
     addAccessLog({
       user: actor,
       actionCategory: 'SYSTEM',
-      action: 'Simpan Konfigurasi Google Drive & Penyimpanan',
-      target: updated.rootFolderName,
+      action: 'Simpan Konfigurasi Penyimpanan Firestore',
+      target: updated.rootFolderName || 'Cloud Firestore',
       status: 'SUCCESS',
-      details: `Folder Utama: ${updated.rootFolderName} (${updated.rootFolderId}). Pemisahan departemen: ${updated.useDepartmentSubfolders ? 'Aktif' : 'Non-aktif'}. Retensi pengumuman: ${updated.autoPruneAnnouncementsDays} hari.`,
+      details: `Penyimpanan: Firebase Cloud Firestore. Retensi pengumuman otomatis: ${updated.autoPruneAnnouncementsDays} hari.`,
     });
   }
 
   return updated;
 }
 
-export function getSpreadsheetConfig(): SpreadsheetConfig {
-  const drive = getDriveStorageConfig();
+export function saveDriveStorageConfig(
+  cfg: Partial<GoogleDriveStorageConfig>,
+  actor?: User
+): GoogleDriveStorageConfig {
+  const res = saveSystemStorageConfig(cfg, actor);
   return {
-    ...drive,
-    googleDriveFolderId: drive.rootFolderId,
-    driveFolderId: drive.rootFolderId,
+    ...res,
+    sharedDriveUrl: cfg.sharedDriveUrl || '',
+    useDepartmentSubfolders: cfg.useDepartmentSubfolders !== undefined ? cfg.useDepartmentSubfolders : true,
+  };
+}
+
+export function getSpreadsheetConfig(): SpreadsheetConfig {
+  const conf = getSystemStorageConfig();
+  return {
+    ...conf,
     autoSync: true,
     autoSyncEnabled: true,
   };
 }
 
 export function saveSpreadsheetConfig(cfg: SpreadsheetConfig): void {
-  saveDriveStorageConfig({
-    rootFolderId: cfg.rootFolderId || cfg.googleDriveFolderId || cfg.driveFolderId,
-    rootFolderName: cfg.rootFolderName,
-    sharedDriveUrl: cfg.sharedDriveUrl,
-    sopFolder: cfg.sopFolder,
-    formsFolder: cfg.formsFolder,
-    photosFolder: cfg.photosFolder,
-    useDepartmentSubfolders: cfg.useDepartmentSubfolders,
+  saveSystemStorageConfig({
     autoPruneAnnouncementsDays: cfg.autoPruneAnnouncementsDays,
+    autoSyncEnabled: cfg.autoSyncEnabled !== undefined ? cfg.autoSyncEnabled : true,
   });
 }
 

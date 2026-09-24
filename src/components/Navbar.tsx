@@ -37,6 +37,7 @@ interface NavbarProps {
   onRefreshNotifications?: () => void;
   onClearNotifications?: () => void;
   onOpenConfig?: () => void;
+  onOpenFirestoreModal?: () => void;
   onOpenBranding?: () => void;
   onNavigate?: (tab: string, category?: string) => void;
   onToggleMobileMenu?: () => void;
@@ -56,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefreshNotifications,
   onClearNotifications,
   onOpenConfig,
+  onOpenFirestoreModal,
   onOpenBranding,
   onNavigate,
   onToggleMobileMenu,
@@ -72,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const isSuperAdmin = currentUser.role === 'admin';
   const handleClear = onClearNotifications || onRefreshNotifications || (() => {});
-  const handleConfig = onOpenConfig || (() => onNavigate?.('spreadsheet'));
+  const handleConfig = onOpenFirestoreModal || onOpenConfig || (() => onNavigate?.('firestore-sync'));
 
   const safeNotifications = notifications || [];
   const safeAllUsers = allUsers || [];
@@ -255,11 +257,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="btn-nav-cloud-config"
                   onClick={handleConfig}
-                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 hover:border-emerald-400 bg-emerald-50 text-emerald-700 text-xs font-bold transition-all shadow-2xs active:scale-95"
-                  title="Panel Konfigurasi Cloud Firestore & Sistem (Super Admin Only)"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 hover:border-emerald-400 bg-emerald-50 text-emerald-700 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title="Panel Status & Sinkronisasi Cloud Firestore (Super Admin Only)"
                 >
                   <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                  <span>Cloud & Rules</span>
+                  <span>Cloud Firestore</span>
                 </button>
               </div>
             )}

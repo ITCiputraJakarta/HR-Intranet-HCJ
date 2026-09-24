@@ -40,8 +40,10 @@ export interface IntranetDocument {
   attachmentName?: string;
   attachmentType?: string;
   attachmentSize?: string;
-  driveFileId?: string;
-  driveFolderPath?: string;
+  isChunked?: boolean;
+  chunksCount?: number;
+  driveFileId?: string; // deprecated
+  driveFolderPath?: string; // deprecated
 }
 
 export type ActionCategory =
@@ -156,27 +158,33 @@ export interface PushNotification {
 export type Announcement = IntranetDocument;
 export type NotificationItem = PushNotification;
 
-export interface GoogleDriveStorageConfig {
-  rootFolderId: string; // ID atau Kode Folder Utama / Shared Drive
-  rootFolderName: string; // Nama Folder Utama (e.g., 'Drive Utama Hotel Ciputra')
-  sharedDriveUrl: string; // URL langsung ke folder Google Drive
-  sopFolder: string; // Subfolder untuk SOP (e.g., 'SOP')
-  formsFolder: string; // Subfolder untuk Formulir Kerja (e.g., 'Formulir Kerja')
-  photosFolder: string; // Subfolder terpusat untuk foto & media (e.g., 'Foto & Media')
-  useDepartmentSubfolders: boolean; // Pemisahan subfolder per departemen (FO, HK, ACCT, HR, dll.)
-  autoPruneAnnouncementsDays: number; // Jumlah hari retensi pengumuman sebelum terhapus otomatis (default 7 hari)
+export interface SystemStorageConfig {
+  storageProvider: 'firestore';
+  autoPruneAnnouncementsDays: number;
+  autoSyncEnabled: boolean;
   updatedAt?: string;
+  rootFolderId?: string;
+  rootFolderName?: string;
+  sopFolder?: string;
+  formsFolder?: string;
+  photosFolder?: string;
 }
 
-export interface SpreadsheetConfig extends Partial<GoogleDriveStorageConfig> {
+// Backward-compatibility aliases (eliminating Google Drive while keeping type safety)
+export type GoogleDriveStorageConfig = SystemStorageConfig & {
+  sharedDriveUrl?: string;
+  useDepartmentSubfolders?: boolean;
+};
+
+export type SpreadsheetConfig = SystemStorageConfig & {
   spreadsheetId?: string;
   gasWebAppUrl?: string;
   webAppUrl?: string;
   googleDriveFolderId?: string;
   driveFolderId?: string;
   autoSync?: boolean;
-  autoSyncEnabled?: boolean;
   lastSync?: string;
   lastSyncTimestamp?: string;
-}
+};
+
 

@@ -165,8 +165,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     attachmentSize: "1.8 MB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-03-10T09:00:00Z",
-    driveFileId: "1Drv-A9812-Ciputra-IdulFitri"
+    uploadedAt: "2026-03-10T09:00:00Z"
   },
   {
     id: "doc-102",
@@ -184,8 +183,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "2.4 MB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-03-02T11:30:00Z",
-    driveFileId: "1Drv-B7621-Ciputra-EOM"
+    uploadedAt: "2026-03-02T11:30:00Z"
   },
   {
     id: "doc-103",
@@ -203,8 +201,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "3.2 MB",
     uploadedBy: "Hendra Wijaya",
     uploadedByEmail: "hendra.fo@ciputra.com",
-    uploadedAt: "2026-02-20T14:00:00Z",
-    driveFileId: "1Drv-FO-991-SOP"
+    uploadedAt: "2026-02-20T14:00:00Z"
   },
   {
     id: "doc-104",
@@ -222,8 +219,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "2.1 MB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-02-18T10:20:00Z",
-    driveFileId: "1Drv-HK-032-SOP"
+    uploadedAt: "2026-02-18T10:20:00Z"
   },
   {
     id: "doc-105",
@@ -241,8 +237,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "450 KB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-01-25T08:30:00Z",
-    driveFileId: "1Drv-FRM-07-Cuti"
+    uploadedAt: "2026-01-25T08:30:00Z"
   },
   {
     id: "doc-106",
@@ -260,8 +255,7 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "580 KB",
     uploadedBy: "Ahmad Fauzi",
     uploadedByEmail: "fauzi.eng@ciputra.com",
-    uploadedAt: "2026-02-05T09:10:00Z",
-    driveFileId: "1Drv-ENG-WO-02"
+    uploadedAt: "2026-02-05T09:10:00Z"
   }
 ];
 
@@ -293,10 +287,10 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
     role: "staff",
     departemen: "Front Office",
     actionCategory: "DOCUMENT",
-    action: "Unduh Dokumen Google Drive",
+    action: "Unduh Dokumen Cloud Firestore",
     target: "SOP-FO-01-VIP-Express-Checkin.pdf",
     status: "SUCCESS",
-    details: "Tautan unduh DriveApp publik diakses.",
+    details: "Berkas SOP resmi berhasil diunduh dari cloud Firestore.",
     ipAddress: "192.168.10.42"
   },
   {
@@ -307,10 +301,10 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
     role: "manager",
     departemen: "Front Office",
     actionCategory: "DOCUMENT",
-    action: "Unggah File ke Google Drive",
+    action: "Unggah File ke Cloud Firestore",
     target: "SOP-FO-01-VIP-Express-Checkin.pdf",
     status: "SUCCESS",
-    details: "File diunggah ke Google Drive dengan akses 'Anyone with link' dan disimpan ke basis data.",
+    details: "File dioptimasi dan disimpan langsung ke database Firebase Firestore.",
     ipAddress: "192.168.10.15"
   },
   {
@@ -544,7 +538,7 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
         objective: "Penyelesaian berkas arsip karyawan & database 100% akurat.",
         weight: 40,
         target: "100% kelengkapan arsip digital.",
-        actual: "Seluruh berkas karyawan telah diverifikasi dan masuk Google Drive Cloud.",
+        actual: "Seluruh berkas karyawan telah diverifikasi dan tersimpan aman di Cloud Firestore.",
         achieved_yn: "Yes",
         achieved_pct: 40
       },
@@ -582,7 +576,7 @@ export const INITIAL_PERFORMANCES: PerformanceAppraisal[] = [
     complianceScore: 5.0,
     finalGrandTotal: 4.87,
     finalGrade: "E",
-    starBest: "Menginisiasi digitalisasi seluruh arsip fisik ke intranet Google Drive dalam tempo 2 minggu.",
+    starBest: "Menginisiasi digitalisasi seluruh arsip fisik ke intranet Cloud Firestore dalam tempo 2 minggu.",
     starChallenge: "Koordinasi jadwal training karyawan operasional shift malam.",
     managerFeedback: "Sangat proaktif, detail, dan berintegritas tinggi dalam mengelola data sensitif personalia.",
     hrRecommendation: "Promote",

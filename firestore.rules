@@ -33,11 +33,17 @@ service cloud.firestore {
       allow delete: if isValidId(userId);
     }
 
-    // Official intranet documents (SOPs, Forms, Announcements with Google Drive storage)
+    // Official intranet documents (SOPs, Forms, Announcements directly stored in Cloud Firestore)
     match /documents/{docId} {
       allow read: if true;
       allow create, update: if isValidId(docId) && hasValidDocumentFields(request.resource.data);
       allow delete: if isValidId(docId);
+
+      // Large file chunks subcollection for seamless Firestore storage without 1MB limit
+      match /chunks/{chunkId} {
+        allow read: if true;
+        allow create, update, delete: if isValidId(docId) && isValidId(chunkId);
+      }
     }
 
     // Structured Audit Access Logs

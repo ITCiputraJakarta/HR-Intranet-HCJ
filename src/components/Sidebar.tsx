@@ -35,6 +35,7 @@ interface SidebarProps {
   pendingUsersCount?: number;
   newLogsCount?: number;
   unreadLogsCount?: number;
+  onOpenFirestoreModal?: () => void;
   onOpenGASModal?: () => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
@@ -52,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingUsersCount = 0,
   newLogsCount,
   unreadLogsCount,
+  onOpenFirestoreModal,
   onOpenGASModal,
   isMobileOpen = false,
   onCloseMobile = () => {},
@@ -63,6 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => unsub();
   }, []);
 
+  const openSyncModal = onOpenFirestoreModal || onOpenGASModal;
+
   const role = currentUser?.role || 'staff';
   const isStaffOrSpv = role === 'staff' || role === 'spv';
   const isManagerOrAdmin = role === 'admin' || role === 'manager' || role === 'hod';
@@ -72,8 +76,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleNav = (tab: string, category?: string) => {
     if (onCloseMobile) onCloseMobile();
-    if (tab === 'spreadsheet' && onOpenGASModal) {
-      onOpenGASModal();
+    if ((tab === 'spreadsheet' || tab === 'firestore-sync') && openSyncModal) {
+      openSyncModal();
       return;
     }
     if (typeof onNavigate === 'function') {

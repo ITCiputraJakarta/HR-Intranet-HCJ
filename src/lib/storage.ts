@@ -355,13 +355,24 @@ export function saveDocuments(docs: IntranetDocument[]): void {
   setStored(STORAGE_KEYS.DOCUMENTS, docs);
 }
 
-export function addDocument(doc: IntranetDocument, actor: User): void {
+export async function addDocument(doc: IntranetDocument, actor: User): Promise<void> {
   const docs = getDocuments();
-  const updated = [doc, ...docs];
+  const existingIdx = docs.findIndex((d) => d.id === doc.id);
+  let updated: IntranetDocument[];
+  if (existingIdx !== -1) {
+    updated = [...docs];
+    updated[existingIdx] = doc;
+  } else {
+    updated = [doc, ...docs];
+  }
   saveDocuments(updated);
 
   // Save document metadata and content directly to Firestore
-  firestoreSaveDocument(doc);
+  try {
+    await firestoreSaveDocument(doc);
+  } catch (err) {
+    console.warn('[Storage] firestoreSaveDocument error on addDocument:', err);
+  }
 
   // Record Structured Access Log
   addAccessLog({
@@ -383,14 +394,18 @@ export function addDocument(doc: IntranetDocument, actor: User): void {
   });
 }
 
-export function deleteDocument(docId: string, actor: User): void {
+export async function deleteDocument(docId: string, actor: User): Promise<void> {
   const docs = getDocuments();
   const target = docs.find((d) => d.id === docId);
   const updated = docs.filter((d) => d.id !== docId);
   saveDocuments(updated);
 
   // Delete from Firestore
-  firestoreDeleteDocument(docId);
+  try {
+    await firestoreDeleteDocument(docId);
+  } catch (err) {
+    console.warn('[Storage] firestoreDeleteDocument error:', err);
+  }
 
   if (target) {
     addAccessLog({
@@ -404,7 +419,7 @@ export function deleteDocument(docId: string, actor: User): void {
   }
 }
 
-export function updateDocument(updatedDoc: IntranetDocument, actor: User): void {
+export async function updateDocument(updatedDoc: IntranetDocument, actor: User): Promise<void> {
   const docs = getDocuments();
   const index = docs.findIndex((d) => d.id === updatedDoc.id);
   const updatedWithTimestamp: IntranetDocument = {
@@ -421,7 +436,12 @@ export function updateDocument(updatedDoc: IntranetDocument, actor: User): void 
   }
 
   saveDocuments(newDocs);
-  firestoreSaveDocument(updatedWithTimestamp);
+
+  try {
+    await firestoreSaveDocument(updatedWithTimestamp);
+  } catch (err) {
+    console.warn('[Storage] firestoreSaveDocument error on updateDocument:', err);
+  }
 
   addAccessLog({
     user: actor,
@@ -435,7 +455,6 @@ export function updateDocument(updatedDoc: IntranetDocument, actor: User): void 
 
 /**
  * Otomatis membersihkan pengumuman yang sudah mencapai tanggal kedaluwarsa (expiryDate)
- * atau lewat batas hari (default: 7 hari / 1 minggu).
  * Menghapus dokumen pengumuman beserta file dan fotonya langsung dari Firestore.
  */
 export function pruneExpiredAnnouncements(
@@ -444,7 +463,6 @@ export function pruneExpiredAnnouncements(
 ): { deletedCount: number; remainingCount: number; deletedTitles: string[] } {
   const docs = getDocuments();
   const now = Date.now();
-  const maxAgeMs = maxDays * 24 * 60 * 60 * 1000;
 
   const validDocs: IntranetDocument[] = [];
   const expiredDocs: IntranetDocument[] = [];
@@ -453,17 +471,10 @@ export function pruneExpiredAnnouncements(
     if (doc.category === 'Pengumuman') {
       let isExpired = false;
 
-      // 1. Prioritaskan pengecekan tanggal kedaluwarsa eksplisit (expiryDate)
+      // Hanya bersihkan bila tanggal kedaluwarsa eksplisit (expiryDate) terlewati
       if (doc.expiryDate) {
-        // Kedaluwarsa berlaku hingga detik terakhir di hari tersebut (23:59:59.999)
         const expiryTimestamp = new Date(`${doc.expiryDate}T23:59:59.999`).getTime();
         if (!isNaN(expiryTimestamp) && now > expiryTimestamp) {
-          isExpired = true;
-        }
-      } else {
-        // 2. Fallback untuk pengumuman lawas tanpa expiryDate: gunakan batas maxDays dari uploadedAt
-        const uploadTime = new Date(doc.uploadedAt).getTime();
-        if (!isNaN(uploadTime) && now - uploadTime > maxAgeMs) {
           isExpired = true;
         }
       }

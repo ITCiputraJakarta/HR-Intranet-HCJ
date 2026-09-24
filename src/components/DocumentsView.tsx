@@ -251,7 +251,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         };
       }
 
-      updateDocument(updatedDoc, currentUser);
+      await updateDocument(updatedDoc, currentUser);
       setEditDoc(null);
       onRefresh();
     } catch (err: any) {
@@ -262,8 +262,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   };
 
   // Delete Document
-  const handleDeleteDocument = (docId: string) => {
-    deleteDocument(docId, currentUser);
+  const handleDeleteDocument = async (docId: string) => {
+    await deleteDocument(docId, currentUser);
     setDeleteConfirmDoc(null);
     onRefresh();
   };
@@ -318,7 +318,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         uploadedAt: new Date().toISOString(),
       };
 
-      addDocument(newDoc, currentUser);
+      await addDocument(newDoc, currentUser);
       setShowUploadModal(false);
       setUpTitle('');
       setUpDesc('');

@@ -251,9 +251,9 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       batch.set(doc(db, CATS_COL, c.id), c);
     });
 
-    // 4. Seed Documents (Google Drive linked SOPs & Forms)
+    // 4. Seed Documents (Firestore Native Storage)
     INITIAL_DOCUMENTS.forEach((docItem) => {
-      batch.set(doc(db, DOCS_COL, docItem.id), docItem);
+      batch.set(doc(db, DOCS_COL, docItem.id), sanitizeForFirestore(docItem));
     });
 
     // 5. Seed KPIs
@@ -339,18 +339,22 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void): () => void 
 }
 
 export function subscribeToDocuments(onUpdate: (docs: IntranetDocument[]) => void): () => void {
+  if (!isFirebaseConfigured()) return () => {};
   try {
     const q = collection(db, DOCS_COL);
     return onSnapshot(
       q,
       (snapshot) => {
         const items: IntranetDocument[] = [];
-        snapshot.forEach((d) => items.push(d.data() as IntranetDocument));
-        items.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-        if (items.length > 0) {
-          notifyFirebaseState('connected');
-          onUpdate(items);
-        }
+        snapshot.forEach((d) => {
+          const item = d.data() as IntranetDocument;
+          if (item && item.id) {
+            items.push(item);
+          }
+        });
+        items.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+        notifyFirebaseState('connected');
+        onUpdate(items);
       },
       (err) => handleSubscriptionError('Docs', err)
     );
@@ -530,20 +534,42 @@ export async function firestoreDeleteUser(userId: string): Promise<void> {
   }
 }
 
-// Documents (with Google Drive URLs)
+/**
+ * Recursively strips undefined values so Firestore setDoc does not throw "Unsupported field value: undefined"
+ */
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      result[key] = sanitizeForFirestore(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+// Documents (Firestore Native Storage)
 export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
-    await setDoc(doc(db, DOCS_COL, docItem.id), docItem, { merge: true });
-  } catch (err) {
-    console.warn('firestoreSaveDocument error:', err);
+    const cleanData = sanitizeForFirestore(docItem);
+    await setDoc(doc(db, DOCS_COL, docItem.id), cleanData, { merge: true });
+    console.log('[Firestore] Document saved:', docItem.id, docItem.title);
+  } catch (err: any) {
+    console.error('[Firestore] firestoreSaveDocument error:', err);
+    throw err;
   }
 }
 
 export async function firestoreDeleteDocument(docId: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, DOCS_COL, docId));
-  } catch (err) {
-    console.warn('firestoreDeleteDocument error:', err);
+    console.log('[Firestore] Document deleted:', docId);
+  } catch (err: any) {
+    console.warn('[Firestore] firestoreDeleteDocument error:', err);
   }
 }
 

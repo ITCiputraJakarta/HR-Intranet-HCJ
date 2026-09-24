@@ -163,16 +163,19 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
   // Upload Form States
   const todayStr = new Date().toISOString().split('T')[0];
+  const defaultExpiryStr = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const [upTitle, setUpTitle] = useState('');
-  const [upDept, setUpDept] = useState(defaultDept);
+  const [upDept, setUpDept] = useState('All Departments');
   const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
   const [upEffectiveDate, setUpEffectiveDate] = useState(todayStr);
-  const [upExpiryDate, setUpExpiryDate] = useState(todayStr);
+  const [upExpiryDate, setUpExpiryDate] = useState(defaultExpiryStr);
   const [photoInput, setPhotoInput] = useState<File | null>(null);
   const [docAttachmentInput, setDocAttachmentInput] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [uploadSuccessNotice, setUploadSuccessNotice] = useState<string | null>(null);
+  const [editSuccessNotice, setEditSuccessNotice] = useState<string | null>(null);
 
   // Edit Form States
   const [editDoc, setEditDoc] = useState<IntranetDocument | null>(null);
@@ -379,10 +382,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       }
 
       if (removeAttachment) {
-        updatedDoc.attachmentUrl = undefined;
-        updatedDoc.attachmentName = undefined;
-        updatedDoc.attachmentType = undefined;
-        updatedDoc.attachmentSize = undefined;
+        delete updatedDoc.attachmentUrl;
+        delete updatedDoc.attachmentName;
+        delete updatedDoc.attachmentType;
+        delete updatedDoc.attachmentSize;
       }
 
       if (editDocAttachmentInput) {
@@ -396,8 +399,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         };
       }
 
-      updateDocument(updatedDoc, currentUser);
+      await updateDocument(updatedDoc, currentUser);
       setEditDoc(null);
+      setEditSuccessNotice(`Perubahan pengumuman "${updatedDoc.title}" berhasil disimpan ke Cloud Firestore!`);
+      setTimeout(() => setEditSuccessNotice(null), 5000);
       onRefresh();
     } catch (err: any) {
       setEditError(err?.message || 'Gagal menyimpan perubahan pengumuman.');
@@ -407,8 +412,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   };
 
   // Delete Announcement
-  const handleDeleteAnnouncement = (docId: string) => {
-    deleteDocument(docId, currentUser);
+  const handleDeleteAnnouncement = async (docId: string) => {
+    await deleteDocument(docId, currentUser);
     setDeleteConfirmDoc(null);
     onRefresh();
   };
@@ -421,7 +426,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       return;
     }
 
-    const targetDept = isSuperAdmin ? upDept : (currentUser.departemen || 'All Departments');
+    const targetDept = upDept || 'All Departments';
 
     setIsUploading(true);
     setUploadError('');
@@ -462,17 +467,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         sub_kategori: upSubcat || 'Umum',
         akses_dept: targetDept,
         keterangan: upKet.trim(),
-        fileUrl,
-        previewUrl: fileUrl,
-        downloadUrl: fileUrl,
-        thumbUrl,
+        fileUrl: fileUrl || '',
+        previewUrl: fileUrl || '',
+        downloadUrl: fileUrl || '',
+        thumbUrl: thumbUrl || '',
         fileName: fileName || (attachmentName ? attachmentName : 'Pengumuman.txt'),
         fileType: fileType || (attachmentType ? attachmentType : 'text/plain'),
         fileSize: fileSize || (attachmentSize ? attachmentSize : '1 KB'),
-        attachmentUrl,
-        attachmentName,
-        attachmentType,
-        attachmentSize,
         uploadedBy: currentUser.nama,
         uploadedByEmail: currentUser.email,
         uploadedAt: new Date().toISOString(),
@@ -480,12 +481,25 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         expiryDate: upExpiryDate,
       };
 
-      addDocument(newDoc, currentUser);
+      if (attachmentUrl) {
+        newDoc.attachmentUrl = attachmentUrl;
+        newDoc.attachmentName = attachmentName;
+        newDoc.attachmentType = attachmentType;
+        newDoc.attachmentSize = attachmentSize;
+      }
+
+      await addDocument(newDoc, currentUser);
       setShowUploadForm(false);
       setUpTitle('');
       setUpKet('');
       setPhotoInput(null);
       setDocAttachmentInput(null);
+      setUpExpiryDate(defaultExpiryStr);
+      setFilterDept('All');
+      setSearchQuery('');
+      setCurrentPage(1);
+      setUploadSuccessNotice(`Pengumuman "${newDoc.title}" berhasil diunggah dan tersinkron ke Cloud Firestore!`);
+      setTimeout(() => setUploadSuccessNotice(null), 5000);
       onRefresh();
     } catch (err: any) {
       setUploadError(err?.message || 'Gagal mengunggah pengumuman ke penyimpanan.');
@@ -526,6 +540,37 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           <Database className="w-96 h-96 text-white" />
         </div>
       </div>
+
+      {/* Success Notices */}
+      {uploadSuccessNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{uploadSuccessNotice}</span>
+          </div>
+          <button
+            onClick={() => setUploadSuccessNotice(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {editSuccessNotice && (
+        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span className="font-semibold">{editSuccessNotice}</span>
+          </div>
+          <button
+            onClick={() => setEditSuccessNotice(null)}
+            className="text-indigo-700 hover:text-indigo-900 font-bold text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Auto Pruned Notice */}
       {autoPrunedNotice && (
@@ -725,36 +770,29 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Target Distribusi Departemen *
                 </label>
-                {isSuperAdmin ? (
-                  <select
-                    id="up-announcement-dept"
-                    value={upDept}
-                    onChange={(e) => setUpDept(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
-                  >
-                    <option value="All Departments">All Departments (Semua Karyawan)</option>
-                    {departments.map((d) => (
+                <select
+                  id="up-announcement-dept"
+                  value={upDept}
+                  onChange={(e) => setUpDept(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                >
+                  <option value="All Departments">All Departments (Semua Karyawan / Seluruh Hotel)</option>
+                  {currentUser.departemen && currentUser.departemen !== 'All Departments' && (
+                    <option value={currentUser.departemen}>
+                      {currentUser.departemen} (Departemen Anda)
+                    </option>
+                  )}
+                  {departments
+                    .filter((d) => d !== 'All Departments' && d !== currentUser.departemen)
+                    .map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
                     ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 font-bold text-slate-800 flex items-center justify-between shadow-2xs">
-                    <span className="flex items-center gap-1.5 truncate">
-                      <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="truncate">{currentUser.departemen || 'Departemen Anda'}</span>
-                    </span>
-                    <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shrink-0">
-                      Khusus Departemen
-                    </span>
-                  </div>
-                )}
-                {!isSuperAdmin && (
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Sebagai Manager, pengumuman otomatis hanya dirilis untuk departemen Anda.
-                  </p>
-                )}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Pilih "All Departments" untuk seluruh hotel, atau tentukan departemen tujuan.
+                </p>
               </div>
             </div>
 
@@ -838,8 +876,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                   onChange={(e) => setUpExpiryDate(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs rounded-xl border border-rose-300 bg-white font-bold text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
-                <p className="text-[10px] text-rose-700 mt-1">
-                  Default: hari ini saat submit. Setelah tanggal ini lewat, pengumuman otomatis terhapus dari sistem & cloud storage.
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Standar retensi: 14 hari aktif. Anda dapat menentukan tanggal kedaluwarsa pengumuman sesuai kebutuhan.
                 </p>
               </div>
             </div>
@@ -1254,30 +1292,25 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Target Distribusi Departemen *
                 </label>
-                {isSuperAdmin ? (
-                  <select
-                    value={editDept}
-                    onChange={(e) => setEditDept(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
-                  >
-                    <option value="All Departments">All Departments (Semua Karyawan)</option>
-                    {departments.map((d) => (
+                <select
+                  value={editDept}
+                  onChange={(e) => setEditDept(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                >
+                  <option value="All Departments">All Departments (Semua Karyawan / Seluruh Hotel)</option>
+                  {currentUser.departemen && currentUser.departemen !== 'All Departments' && (
+                    <option value={currentUser.departemen}>
+                      {currentUser.departemen} (Departemen Anda)
+                    </option>
+                  )}
+                  {departments
+                    .filter((d) => d !== 'All Departments' && d !== currentUser.departemen)
+                    .map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
                     ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 font-bold text-slate-800 flex items-center justify-between shadow-2xs">
-                    <span className="flex items-center gap-1.5 truncate">
-                      <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span className="truncate">{currentUser.departemen || editDoc.akses_dept}</span>
-                    </span>
-                    <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shrink-0">
-                      Khusus Departemen Anda
-                    </span>
-                  </div>
-                )}
+                </select>
               </div>
 
               {/* Upload Ganti Foto / Banner */}

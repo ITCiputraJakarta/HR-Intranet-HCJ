@@ -165,7 +165,9 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     attachmentSize: "1.8 MB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-03-10T09:00:00Z"
+    uploadedAt: "2026-09-20T09:00:00Z",
+    effectiveDate: "2026-09-01",
+    expiryDate: "2026-12-31"
   },
   {
     id: "doc-102",
@@ -183,7 +185,9 @@ export const INITIAL_DOCUMENTS: IntranetDocument[] = [
     fileSize: "2.4 MB",
     uploadedBy: "Admin System",
     uploadedByEmail: "admin@ciputra.com",
-    uploadedAt: "2026-03-02T11:30:00Z"
+    uploadedAt: "2026-09-22T11:30:00Z",
+    effectiveDate: "2026-09-01",
+    expiryDate: "2026-12-31"
   },
   {
     id: "doc-103",

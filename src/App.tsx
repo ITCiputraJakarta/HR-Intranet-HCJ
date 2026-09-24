@@ -26,6 +26,8 @@ import {
   addAccessLog,
   clearAllSessionCache,
   pruneExpiredAnnouncements,
+  saveDocuments,
+  saveUsers,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -124,14 +126,14 @@ export default function App() {
 
     // Real-time Firestore snapshot subscriptions
     const unsubUsers = subscribeToUsers((newUsers) => {
+      saveUsers(newUsers);
       setUsers(newUsers);
-      localStorage.setItem('ciputra_intra_users_v1', JSON.stringify(newUsers));
     });
 
     const unsubDocs = subscribeToDocuments((newDocs) => {
+      saveDocuments(newDocs);
       setDocuments(newDocs);
       setAnnouncements(newDocs.filter((d) => d.category === 'Pengumuman'));
-      localStorage.setItem('ciputra_intra_documents_v1', JSON.stringify(newDocs));
     });
 
     const unsubLogs = subscribeToAccessLogs((newLogs) => {

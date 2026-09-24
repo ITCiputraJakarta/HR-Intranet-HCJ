@@ -520,7 +520,9 @@ export function subscribeToSystemConfig(onUpdate: (cfg: any) => void): () => voi
 // Users
 export async function firestoreSaveUser(user: User): Promise<void> {
   try {
-    await setDoc(doc(db, USERS_COL, user.id), user, { merge: true });
+    const cleanUser = sanitizeForFirestore(user);
+    await setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true });
+    console.log('[Firestore] User saved successfully:', user.id, user.email, user.status);
   } catch (err) {
     console.warn('firestoreSaveUser error:', err);
   }

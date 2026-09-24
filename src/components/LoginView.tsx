@@ -13,7 +13,7 @@ import {
   Clock
 } from 'lucide-react';
 import { User, UserRole } from '../types';
-import { getUsers, saveUsers, addAccessLog, getDepartments } from '../lib/storage';
+import { getUsers, registerUser, addAccessLog, getDepartments } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
@@ -128,7 +128,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     onLoginSuccess(found);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -165,7 +165,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    saveUsers([...users, newUser]);
+    // Save to local storage and sync directly to Cloud Firestore USERS_COL
+    await registerUser(newUser);
 
     addAccessLog({
       user: newUser,
@@ -173,7 +174,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       action: 'Pendaftaran Akun Baru',
       target: `${newUser.nama} (${newUser.email})`,
       status: 'SUCCESS',
-      details: `Pendaftaran berhasil untuk role ${newUser.role} pada departemen ${newUser.departemen}. Status: Pending.`,
+      details: `Pendaftaran berhasil untuk role ${newUser.role} pada departemen ${newUser.departemen}. Status: Pending (menunggu persetujuan Super Admin).`,
     });
 
     setSuccessMessage(t('successRegistered', currentLang));

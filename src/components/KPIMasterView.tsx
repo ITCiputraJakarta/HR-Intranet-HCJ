@@ -23,6 +23,7 @@ import {
   deleteKPIMasterItem,
   deployKPI,
   getDepartments,
+  getRoleWeights,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
@@ -67,6 +68,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(5);
+
+  const isSuperAdmin = currentUser.role === 'admin';
+  const isHod = currentUser.role === 'hod';
+  const activeRoleWeights = getRoleWeights(filterRole);
 
   const safeKpiMaster = kpiMaster || [];
 
@@ -126,6 +131,11 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
+
+    if (filterRole === 'hod' && !isSuperAdmin) {
+      setErrorMessage('KPI untuk Head of Department (HOD) hanya dapat dibuat dan dikelola secara terpusat oleh Super Admin.');
+      return;
+    }
 
     if (!pillar.trim() || !objective.trim() || !target.trim()) {
       setErrorMessage('Harap lengkapi semua kolom indikator.');
@@ -312,8 +322,40 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
             <option value="staff">Staff (Pelaksana)</option>
             <option value="spv">Supervisor</option>
             <option value="manager">Manager</option>
-            <option value="hod">Head of Dept (HOD)</option>
+            {isSuperAdmin && <option value="hod">Head of Dept (HOD - Super Admin)</option>}
           </select>
+        </div>
+      </div>
+
+      {/* Role Weight Distribution Information Card */}
+      <div className="p-4 bg-gradient-to-r from-indigo-50 via-slate-50 to-purple-50 rounded-2xl border border-indigo-100/80 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-600 text-white">
+              Aturan Bobot Evaluasi: {filterRole.toUpperCase()}
+            </span>
+            <span className="text-xs font-bold text-slate-800">
+              {activeRoleWeights.roleLabel}
+            </span>
+          </div>
+          <p className="text-xs text-slate-600">
+            {filterRole === 'staff' || filterRole === 'spv'
+              ? 'Level 1: Staff & SPV memiliki bobot KPI terstandarisasi sama (Bobot KPI 50%, Sikap Perilaku 45%, Disiplin 5%).'
+              : filterRole === 'manager'
+              ? 'Level 1 (Manager): Bobot KPI operasional & manajerial lebih tinggi (Bobot KPI 60%, Sikap Perilaku 35%, Disiplin 5%).'
+              : 'Level 2 (HOD / Head Office): Bobot KPI departemen strategis (Bobot KPI 70%, Sikap Kepemimpinan 25%, Disiplin 5%). Dikelola khusus oleh Super Admin.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-bold shadow-2xs">
+            KPI {activeRoleWeights.kpiPercent}%
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-white border border-emerald-200 text-emerald-700 text-xs font-bold shadow-2xs">
+            Sikap {activeRoleWeights.behPercent}%
+          </span>
+          <span className="px-2.5 py-1 rounded-xl bg-white border border-amber-200 text-amber-700 text-xs font-bold shadow-2xs">
+            Disiplin {activeRoleWeights.compPercent}%
+          </span>
         </div>
       </div>
 

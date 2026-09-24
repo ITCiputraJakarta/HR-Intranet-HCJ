@@ -154,12 +154,20 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Auto-prune state notification
   const [autoPrunedNotice, setAutoPrunedNotice] = useState<string | null>(null);
 
-  // Permissions & Role Control
+  // Permissions & Role Control (L1: View Only, L2: HOD own dept, L3: Super Admin)
   const isSuperAdmin = currentUser.role === 'admin';
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'hod';
-  const isManagerOrAdmin = isSuperAdmin || isManager;
-  const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
+  const isHod = currentUser.role === 'hod';
+  const isLevel1 = currentUser.role === 'staff' || currentUser.role === 'spv' || currentUser.role === 'manager';
+  const canManageAnnouncements = isSuperAdmin || isHod;
   const defaultDept = isSuperAdmin ? 'All Departments' : (currentUser.departemen || 'All Departments');
+
+  const canEditDoc = (d: IntranetDocument) => {
+    if (isSuperAdmin) return true;
+    if (isHod && (d.akses_dept === currentUser.departemen || d.uploadedByEmail?.toLowerCase() === currentUser.email?.toLowerCase())) {
+      return true;
+    }
+    return false;
+  };
 
   // Upload Form States
   const todayStr = new Date().toISOString().split('T')[0];
@@ -209,7 +217,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Department Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
 
-  if (isStaffOrSpv) {
+  if (isLevel1) {
     filteredAnnouncements = filteredAnnouncements.filter(
       (d) => d.akses_dept === 'All Departments' || d.akses_dept === currentUser.departemen
     );
@@ -426,7 +434,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       return;
     }
 
-    const targetDept = upDept || 'All Departments';
+    const targetDept = isSuperAdmin ? (upDept || 'All Departments') : (currentUser.departemen || 'All Departments');
 
     setIsUploading(true);
     setUploadError('');
@@ -621,8 +629,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-            {/* Department Filter (Admin & Manager) */}
-            {isManagerOrAdmin && (
+            {/* Department Filter (Super Admin only) */}
+            {isSuperAdmin && (
               <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 <select
@@ -672,8 +680,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </button>
             </div>
 
-            {/* Upload Button (Manager / Super Admin only) */}
-            {isManagerOrAdmin && (
+            {/* Upload Button (HOD & Super Admin only; L1 Staff/SPV/Manager view-only) */}
+            {canManageAnnouncements && (
               <button
                 id="btn-open-upload-announcement"
                 onClick={() => setShowUploadForm(!showUploadForm)}
@@ -716,7 +724,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       </div>
 
       {/* Upload Form */}
-      {showUploadForm && isManagerOrAdmin && (
+      {showUploadForm && canManageAnnouncements && (
         <div className="bg-white p-6 rounded-3xl border-2 border-indigo-200 shadow-xl space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -770,28 +778,32 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Target Distribusi Departemen *
                 </label>
-                <select
-                  id="up-announcement-dept"
-                  value={upDept}
-                  onChange={(e) => setUpDept(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
-                >
-                  <option value="All Departments">All Departments (Semua Karyawan / Seluruh Hotel)</option>
-                  {currentUser.departemen && currentUser.departemen !== 'All Departments' && (
-                    <option value={currentUser.departemen}>
-                      {currentUser.departemen} (Departemen Anda)
-                    </option>
-                  )}
-                  {departments
-                    .filter((d) => d !== 'All Departments' && d !== currentUser.departemen)
-                    .map((d) => (
+                {isSuperAdmin ? (
+                  <select
+                    id="up-announcement-dept"
+                    value={upDept}
+                    onChange={(e) => setUpDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                  >
+                    <option value="All Departments">All Departments (Semua Karyawan / Seluruh Hotel)</option>
+                    {departments.map((d) => (
                       <option key={d} value={d}>
-                        {d}
+                        Departemen {d}
                       </option>
                     ))}
-                </select>
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/60 font-bold text-indigo-900 flex items-center justify-between">
+                    <span>{currentUser.departemen}</span>
+                    <span className="text-[10px] bg-indigo-200/80 text-indigo-800 px-2 py-0.5 rounded font-bold">
+                      Departemen Anda (HOD)
+                    </span>
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Pilih "All Departments" untuk seluruh hotel, atau tentukan departemen tujuan.
+                  {isSuperAdmin
+                    ? 'Super Admin dapat mempublikasikan pengumuman ke seluruh hotel atau departemen tertentu.'
+                    : 'Sebagai Head of Department, Anda membagikan pengumuman khusus untuk departemen Anda.'}
                 </p>
               </div>
             </div>
@@ -1030,7 +1042,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
                     <div className="flex items-center gap-1.5">
                       {/* Edit Button */}
-                      {isManagerOrAdmin && (
+                      {canEditDoc(doc) && (
                         <button
                           onClick={() => handleOpenEdit(doc)}
                           className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-colors flex items-center gap-1 border border-amber-200"
@@ -1041,7 +1053,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                       )}
 
                       {/* Delete Button */}
-                      {isManagerOrAdmin && (
+                      {canEditDoc(doc) && (
                         <button
                           onClick={() => setDeleteConfirmDoc(doc)}
                           className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors flex items-center gap-1 border border-rose-200"
@@ -1188,7 +1200,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         {doc.uploadedBy}
                       </td>
                       <td className="py-4 pr-6 text-right space-x-1.5 whitespace-nowrap">
-                        {isManagerOrAdmin && (
+                        {canEditDoc(doc) && (
                           <button
                             onClick={() => handleOpenEdit(doc)}
                             className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold transition-colors inline-flex items-center border border-amber-200"
@@ -1197,7 +1209,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {isManagerOrAdmin && (
+                        {canEditDoc(doc) && (
                           <button
                             onClick={() => setDeleteConfirmDoc(doc)}
                             className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition-colors inline-flex items-center border border-rose-200"

@@ -346,6 +346,40 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         </div>
       )}
 
+      {/* Pending Account Registration Banner */}
+      {pendingCount > 0 && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-950 text-sm">
+                {pendingCount} Pendaftaran Akun Baru Menunggu Persetujuan
+              </h3>
+              <p className="text-xs text-amber-800">
+                Pengguna baru yang mendaftar secara mandiri memerlukan persetujuan Super Admin sebelum dapat masuk ke sistem.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setFilterStatus('Pending');
+                setCurrentPage(1);
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                filterStatus === 'Pending'
+                  ? 'bg-amber-600 text-white shadow-amber-600/30'
+                  : 'bg-white text-amber-900 border border-amber-300 hover:bg-amber-100'
+              }`}
+            >
+              {filterStatus === 'Pending' ? 'Sedang Memfilter Pending' : 'Tampilkan Akun Pending'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-3">

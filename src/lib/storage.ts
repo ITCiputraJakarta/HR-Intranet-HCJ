@@ -253,13 +253,59 @@ export function deleteUser(userId: string, actor: User): { success: boolean; mes
   return { success: true };
 }
 
-export function registerUser(newUser: User): void {
+export interface RoleWeights {
+  kpiWeight: number;
+  kpiPercent: number;
+  behWeight: number;
+  behPercent: number;
+  compWeight: number;
+  compPercent: number;
+  roleLabel: string;
+}
+
+export function getRoleWeights(role?: UserRole | string): RoleWeights {
+  const r = (role || '').toLowerCase();
+  if (r === 'hod') {
+    return {
+      kpiWeight: 0.70,
+      kpiPercent: 70,
+      behWeight: 0.25,
+      behPercent: 25,
+      compWeight: 0.05,
+      compPercent: 5,
+      roleLabel: 'Head of Dept / Head Office (KPI 70% | Sikap 25% | Disiplin 5%)',
+    };
+  }
+  if (r === 'manager') {
+    return {
+      kpiWeight: 0.60,
+      kpiPercent: 60,
+      behWeight: 0.35,
+      behPercent: 35,
+      compWeight: 0.05,
+      compPercent: 5,
+      roleLabel: 'Manager (KPI 60% | Sikap 35% | Disiplin 5%)',
+    };
+  }
+  // staff & spv (default sama)
+  return {
+    kpiWeight: 0.50,
+    kpiPercent: 50,
+    behWeight: 0.45,
+    behPercent: 45,
+    compWeight: 0.05,
+    compPercent: 5,
+    roleLabel: 'Staff & Supervisor (KPI 50% | Sikap 45% | Disiplin 5%)',
+  };
+}
+
+export async function registerUser(newUser: User): Promise<void> {
   const users = getUsers();
   const exists = users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase());
   if (!exists) {
     const updated = [...users, newUser];
     saveUsers(updated);
-    firestoreSaveUser(newUser);
+    await firestoreSaveUser(newUser);
   }
 }
 
@@ -1058,19 +1104,35 @@ export function submitPerformanceForReview(perf: PerformanceAppraisal, actor: Us
 }
 
 /**
- * Manajer menyetujui KPI (Approve): status menjadi 'Approved' dan dokumen DIKUNCI (isLocked: true).
- * Setelah disetujui, Staff maupun Manajer tidak dapat mengedit lagi. Hanya Super Admin yang bisa membuka kunci.
+ * Persetujuan KPI (Approve):
+ * - Staff, SPV, dan Manager disetujui oleh Head of Department (HOD) atau Super Admin.
+ * - HOD hanya dapat disetujui oleh Super Admin.
+ * - Setelah disetujui, dokumen status 'Approved' dan DIKUNCI (isLocked: true). Hanya Super Admin yang berwenang membuka kunci.
  */
 export function approvePerformanceItem(
   perf: PerformanceAppraisal,
   actor: User,
   extra?: { managerFeedback?: string; hrRecommendation?: string }
 ): PerformanceAppraisal {
+  const isSuperAdmin = actor.role === 'admin';
+  const isTargetHod = perf.role === 'hod';
+  const isHodOfDept = actor.role === 'hod' && actor.departemen === perf.departemen;
+
+  if (isTargetHod && !isSuperAdmin) {
+    throw new Error('Penilaian Head of Department (HOD) hanya dapat disetujui oleh Super Admin.');
+  }
+
+  if (!isTargetHod && !isHodOfDept && !isSuperAdmin) {
+    throw new Error('Penilaian karyawan hanya dapat disetujui oleh Head of Department (HOD) terkait atau Super Admin.');
+  }
+
+  const approverTitle = isSuperAdmin ? 'Super Admin' : 'Head of Department (HOD)';
+
   const updatedPerf: PerformanceAppraisal = {
     ...perf,
     status: 'Approved',
     isLocked: true,
-    approvedBy: actor.nama,
+    approvedBy: `${actor.nama} (${approverTitle})`,
     approvedAt: new Date().toISOString(),
     managerFeedback: extra?.managerFeedback !== undefined ? extra.managerFeedback : perf.managerFeedback,
     hrRecommendation: extra?.hrRecommendation !== undefined ? extra.hrRecommendation : perf.hrRecommendation,
@@ -1082,7 +1144,7 @@ export function approvePerformanceItem(
   // Notifikasi ke karyawan bahwa KPI telah disetujui dan dikunci
   sendPushNotification({
     title: `KPI Disetujui & Dikunci: ${perf.nama}`,
-    message: `Form KPI Anda periode ${perf.periode} (${perf.tipe}) telah disetujui oleh Manajer ${actor.nama} dengan predikat ${perf.finalGrade} (Skor: ${perf.finalGrandTotal.toFixed(2)}). Dokumen resmi terkunci.`,
+    message: `Form KPI Anda periode ${perf.periode} (${perf.tipe}) telah disetujui oleh ${approverTitle} ${actor.nama} dengan predikat ${perf.finalGrade} (Skor: ${perf.finalGrandTotal.toFixed(2)}). Dokumen resmi terkunci.`,
     category: 'KPI',
     targetDepartment: perf.departemen,
     documentId: perf.id,
@@ -1094,7 +1156,7 @@ export function approvePerformanceItem(
     action: 'Persetujuan & Penguncian Form KPI (Approved)',
     target: `${perf.nama} (${perf.departemen}) - Nilai: ${perf.finalGrandTotal.toFixed(2)} (${perf.finalGrade})`,
     status: 'SUCCESS',
-    details: `Disetujui oleh Manajer ${actor.nama}. Dokumen dikunci permanen. Hanya Super Admin yang memiliki hak istimewa untuk membukanya kembali.`,
+    details: `Disetujui oleh ${approverTitle} ${actor.nama}. Dokumen dikunci permanen. Hanya Super Admin yang berwenang membuka kunci dokumen.`,
   });
 
   return updatedPerf;

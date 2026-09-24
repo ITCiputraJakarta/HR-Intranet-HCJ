@@ -184,21 +184,20 @@ export default function App() {
   }, []);
 
   const isSuperAdmin = currentUser?.role === 'admin';
-  const isManagerOrAdmin =
-    currentUser?.role === 'admin' ||
-    currentUser?.role === 'manager' ||
-    currentUser?.role === 'hod';
+  const isHod = currentUser?.role === 'hod';
+  const isHodOrAdmin = isSuperAdmin || isHod;
+  const isL1 = currentUser?.role === 'staff' || currentUser?.role === 'spv' || currentUser?.role === 'manager';
 
   // Strict role guard: redirect to announcements if user does not have permission to view current tab
   useEffect(() => {
     if (!currentUser) return;
     const role = currentUser.role || 'staff';
-    const isStaffOrSpv = role === 'staff' || role === 'spv';
-    const hasAdminAccess = role === 'admin';
-    const hasManagerAccess = role === 'admin' || role === 'manager' || role === 'hod';
+    const isLevel1 = role === 'staff' || role === 'spv' || role === 'manager';
+    const isHead = role === 'hod';
+    const isAdmin = role === 'admin';
 
-    if (isStaffOrSpv) {
-      // Staff & SPV can access archives, files, and their KPI evaluation page
+    if (isLevel1) {
+      // Level 1: Staff, SPV, and Manager have view-only/self-service access to archives, files, and their own KPI evaluation
       if (
         activeTab !== 'announcements' &&
         activeTab !== 'sop' &&
@@ -208,15 +207,14 @@ export default function App() {
       ) {
         setActiveTab('announcements');
       }
-    } else {
-      if (!hasAdminAccess && (activeTab === 'users' || activeTab === 'logs' || activeTab === 'access-logs')) {
-        setActiveTab('announcements');
-      } else if (
-        !hasManagerAccess &&
-        (activeTab === 'departments' ||
-          activeTab === 'categories' ||
-          activeTab === 'kpi-master' ||
-          activeTab === 'kpi')
+    } else if (isHead) {
+      // Level 2: Head of Department (HOD) can manage KPI Master & view departments/categories
+      if (
+        activeTab === 'users' ||
+        activeTab === 'logs' ||
+        activeTab === 'access-logs' ||
+        activeTab === 'spreadsheet' ||
+        activeTab === 'firestore-sync'
       ) {
         setActiveTab('announcements');
       }
@@ -455,7 +453,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'departments' && isManagerOrAdmin && (
+          {activeTab === 'departments' && isHodOrAdmin && (
             <DepartmentsMasterView
               currentUser={currentUser}
               users={users}
@@ -465,7 +463,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'categories' && isManagerOrAdmin && (
+          {activeTab === 'categories' && isHodOrAdmin && (
             <CategoriesMasterView
               categories={categories}
               currentUser={currentUser}
@@ -474,7 +472,7 @@ export default function App() {
             />
           )}
 
-          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isManagerOrAdmin && (
+          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isHodOrAdmin && (
             <KPIMasterView
               kpiMaster={kpiMaster}
               currentUser={currentUser}

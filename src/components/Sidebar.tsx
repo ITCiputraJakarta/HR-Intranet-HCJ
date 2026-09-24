@@ -68,9 +68,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const openSyncModal = onOpenFirestoreModal || onOpenGASModal;
 
   const role = currentUser?.role || 'staff';
-  const isStaffOrSpv = role === 'staff' || role === 'spv';
-  const isManagerOrAdmin = role === 'admin' || role === 'manager' || role === 'hod';
-  const isAdmin = role === 'admin';
+  const isL1 = role === 'staff' || role === 'spv' || role === 'manager'; // Level 1 (View only / self-service)
+  const isHod = role === 'hod';                                         // Level 2 (Head of Department)
+  const isAdmin = role === 'admin';                                     // Level 3 (Super Admin)
+  const isHodOrAdmin = isHod || isAdmin;
 
   const activeTab = propActiveTab || currentTab || 'announcements';
 
@@ -211,14 +212,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Award className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="flex-1 text-left">
-                {role === 'staff' || role === 'spv' ? 'Form KPI Saya' : t('menuPerformance', currentLang)}
+                {isL1 ? 'Form KPI Saya' : (isHod ? 'Evaluasi Kinerja Tim' : t('menuPerformance', currentLang))}
               </span>
             </button>
           </nav>
         </div>
 
-        {/* Master Data (Manager, HOD & Super Admin Khusus) */}
-        {isManagerOrAdmin && (
+        {/* Master Data (HOD Level 2 & Super Admin Level 3) */}
+        {isHodOrAdmin && (
           <div>
             <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               {t('masterAndConfig', currentLang)}

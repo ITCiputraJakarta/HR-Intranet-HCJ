@@ -42,6 +42,7 @@ import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { GASConfigModal } from './components/GASConfigModal';
 import { BrandingSettingsModal } from './components/BrandingSettingsModal';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
 import {
@@ -630,6 +631,9 @@ export default function App() {
           <span>Menu</span>
         </button>
       </nav>
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
 
     </div>
   );

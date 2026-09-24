@@ -8,7 +8,7 @@ import {
   ArrowUpDown,
   Calendar,
   Building2,
-  HardDrive,
+  Database,
   Eye,
   FileText,
   AlertCircle,
@@ -392,7 +392,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         </div>
 
         <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 opacity-10 pointer-events-none">
-          <HardDrive className="w-96 h-96 text-white" />
+          <Database className="w-96 h-96 text-white" />
         </div>
       </div>
 
@@ -551,9 +551,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <h3 className="font-bold text-slate-900 text-sm">
                   Unggah Pengumuman & Foto ke Folder Terpusat
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Folder Google Drive: <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong> (Masa tayang: 7 hari)
-                </p>
+                {currentUser.role === 'admin' && (
+                  <p className="text-xs text-slate-500">
+                    Penyimpanan Cloud: <strong>{driveConfig.photosFolder}</strong> (Masa tayang: {driveConfig.autoPruneAnnouncementsDays || 7} hari)
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -695,7 +697,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                <span>{isUploading ? 'Menyimpan ke Drive & Firebase...' : 'Unggah Pengumuman'}</span>
+                <span>
+                  {isUploading
+                    ? (currentLang === 'en' ? 'Uploading notice...' : 'Menyimpan pengumuman...')
+                    : (currentLang === 'en' ? 'Publish Announcement' : 'Unggah Pengumuman')}
+                </span>
               </button>
             </div>
           </form>
@@ -779,11 +785,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         </span>
                       </div>
 
-                      {/* Folder Location Indicator */}
-                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate">
-                        <HardDrive className="w-3 h-3 text-indigo-500 shrink-0" />
-                        <span className="truncate">{folderPath}</span>
-                      </div>
+                      {/* Folder Location Indicator - Super Admin Only */}
+                      {currentUser.role === 'admin' && (
+                        <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate">
+                          <Database className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span className="truncate">{folderPath}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -858,7 +866,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     onSort={handleSort}
                     className="pl-6 py-4"
                   >
-                    Judul & Lokasi Foto Google Drive
+                    {t('thNoticeTitle', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="akses_dept"
@@ -867,9 +875,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     onSort={handleSort}
                     className="py-4"
                   >
-                    Target Departemen
+                    {t('thTargetDept', currentLang)}
                   </SortableHeader>
-                  <th className="py-4 text-center">Sisa Waktu (Auto-Hapus)</th>
+                  <th className="py-4 text-center">{t('thTimeLeftAutoDelete', currentLang)}</th>
                   <SortableHeader
                     field="uploadedBy"
                     currentSort={sortField}
@@ -877,9 +885,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     onSort={handleSort}
                     className="py-4"
                   >
-                    Diterbitkan Oleh
+                    {t('thPublishedBy', currentLang)}
                   </SortableHeader>
-                  <th className="py-4 pr-6 text-right">Aksi</th>
+                  <th className="py-4 pr-6 text-right">{t('thAction', currentLang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -904,10 +912,12 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                             {doc.keterangan}
                           </div>
                         )}
-                        <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1">
-                          <HardDrive className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{folderPath}</span>
-                        </div>
+                        {currentUser.role === 'admin' && (
+                          <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1" title="Jalur Penyimpanan Cloud">
+                            <Database className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{folderPath}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-4">
                         <DepartmentBadge department={doc.akses_dept} size="xs" />
@@ -1069,9 +1079,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </button>
                   )}
                 </div>
-                <p className="text-[10px] text-amber-800">
-                  Folder tujuan: <strong>{driveConfig.rootFolderName} &gt; {driveConfig.photosFolder}</strong>
-                </p>
+                {currentUser.role === 'admin' && (
+                  <p className="text-[10px] text-amber-800">
+                    Penyimpanan Cloud: <strong>{driveConfig.photosFolder}</strong>
+                  </p>
+                )}
               </div>
 
               {/* Edit Tanggal Berlaku & Kedaluwarsa */}

@@ -11,7 +11,7 @@ import {
   Trash2,
   Edit3,
   Check,
-  HardDrive,
+  Database,
   AlertTriangle,
   Upload,
   Clock,
@@ -21,7 +21,7 @@ import {
 import { IntranetDocument, User } from '../types';
 import { addAccessLog, deleteDocument, updateDocument, getDepartments } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { uploadFileToDriveStorage, getDriveFolderPath } from '../lib/driveApi';
+import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
 
 interface DocumentPreviewModalProps {
   document: IntranetDocument | null;
@@ -53,17 +53,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [editError, setEditError] = useState('');
 
   const canManage = currentUser.role === 'admin' || currentUser.role === 'manager';
-
-  const folderPath = doc.driveFolderPath || getDriveFolderPath(doc.category, doc.akses_dept, doc.fileName);
+  const folderPath = `${doc.category} / ${doc.akses_dept} / ${doc.fileName}`;
 
   const handleDownload = () => {
     addAccessLog({
       user: currentUser,
       actionCategory: 'DOCUMENT',
-      action: 'Unduh Dokumen Google Drive',
+      action: 'Unduh Dokumen',
       target: doc.title,
       status: 'SUCCESS',
-      details: `Berkas ID ${doc.id} (${doc.fileName}) diunduh. Lokasi: ${folderPath}`,
+      details: `Berkas ID ${doc.id} (${doc.fileName}) diunduh.`,
     });
 
     const link = window.document.createElement('a');
@@ -94,29 +93,17 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       };
 
       if (replacementFile) {
-        const uploadResult = await uploadFileToDriveStorage({
-          file: replacementFile,
-          title: editTitle.trim(),
-          category: doc.category,
-          departemen: editDept,
-          uploadedBy: currentUser.nama,
-          uploadedByEmail: currentUser.email,
-        });
-
+        const compressed = await processFileForFirestore(replacementFile);
         updated = {
           ...updated,
-          fileUrl: uploadResult.fileUrl,
-          previewUrl: uploadResult.previewUrl,
-          downloadUrl: uploadResult.downloadUrl,
-          thumbUrl: uploadResult.thumbUrl || updated.thumbUrl,
-          fileName: uploadResult.fileName,
-          fileType: uploadResult.fileType,
-          fileSize: uploadResult.fileSize,
-          driveFolderPath: uploadResult.driveFolderPath,
-          driveFileId: uploadResult.driveFileId,
+          fileUrl: compressed.dataUrl,
+          previewUrl: compressed.dataUrl,
+          downloadUrl: compressed.dataUrl,
+          thumbUrl: compressed.mimeType.startsWith('image/') ? compressed.dataUrl : (updated.thumbUrl || ''),
+          fileName: compressed.fileName,
+          fileType: compressed.mimeType,
+          fileSize: formatBytes(compressed.compressedSizeBytes),
         };
-      } else {
-        updated.driveFolderPath = getDriveFolderPath(doc.category, editDept, doc.fileName);
       }
 
       // Save to local storage & Firestore
@@ -160,9 +147,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
   return (
     <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={onClose}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
     >
       <div
@@ -173,11 +158,11 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-indigo-600/30 border border-indigo-400/30 text-indigo-400">
-              <HardDrive className="w-5 h-5" />
+              <Database className="w-5 h-5" />
             </div>
             <div>
               <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider block">
-                Google Drive Storage • {doc.category}
+                Penyimpanan Cloud • {doc.category}
               </span>
               <h3 className="text-base font-bold text-white truncate max-w-lg">
                 {doc.title}
@@ -194,19 +179,21 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Google Drive Location Banner */}
-          <div className="p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 font-mono">
-            <div className="flex items-center gap-2 truncate">
-              <HardDrive className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="text-slate-500 font-sans">Folder Drive:</span>
-              <span className="font-bold truncate text-indigo-800">{folderPath}</span>
+          {/* Storage Location Banner - Super Admin Only */}
+          {currentUser.role === 'admin' && (
+            <div className="p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 font-mono">
+              <div className="flex items-center gap-2 truncate">
+                <Database className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span className="text-slate-500 font-sans">Penyimpanan Cloud:</span>
+                <span className="font-bold truncate text-indigo-800">{folderPath}</span>
+              </div>
+              {doc.updatedAt && (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-sans font-bold shrink-0">
+                  Diedit
+                </span>
+              )}
             </div>
-            {doc.updatedAt && (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-sans font-bold shrink-0">
-                Diedit
-              </span>
-            )}
-          </div>
+          )}
 
           {/* Preview Canvas (Image / Document Box) */}
           <div className="rounded-2xl overflow-hidden bg-slate-950/5 border border-slate-200 flex items-center justify-center min-h-[240px] max-h-[360px]">

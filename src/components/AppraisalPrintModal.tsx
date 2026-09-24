@@ -194,9 +194,7 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
 
       {/* Scrollable Preview Canvas Background */}
       <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
+        onClick={onClose}
         className="flex-1 overflow-y-auto p-2 sm:p-6 bg-slate-950/70 flex justify-center items-start print:p-0 print:bg-white print:overflow-visible cursor-pointer"
       >
         

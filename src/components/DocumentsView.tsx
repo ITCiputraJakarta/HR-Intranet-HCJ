@@ -7,7 +7,7 @@ import {
   Download,
   Eye,
   Building2,
-  HardDrive,
+  Database,
   Filter,
   Upload,
   Calendar,
@@ -617,14 +617,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Google Drive Folder Path Indicator */}
-                      <div
-                        className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate"
-                        title={`Lokasi di Google Drive: ${folderPath}`}
-                      >
-                        <HardDrive className="w-3 h-3 text-indigo-500 shrink-0" />
-                        <span className="truncate">{folderPath}</span>
-                      </div>
+                      {/* Storage Path Indicator - Super Admin Only */}
+                      {currentUser.role === 'admin' && (
+                        <div
+                          className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-150 truncate"
+                          title={`Lokasi Penyimpanan: ${folderPath}`}
+                        >
+                          <Database className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span className="truncate">{folderPath}</span>
+                        </div>
+                      )}
 
                       {doc.keterangan && (
                         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed bg-slate-50/50 p-2 rounded-xl">
@@ -703,7 +705,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-5"
                   >
-                    Nama Berkas & Lokasi Google Drive
+                    {t('thDocName', currentLang)}
                   </SortableHeader>
 
                   <SortableHeader
@@ -713,7 +715,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Sub-Kategori
+                    {t('thSubCategory', currentLang)}
                   </SortableHeader>
 
                   <SortableHeader
@@ -723,7 +725,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Target Distribusi
+                    {t('thDistributionTarget', currentLang)}
                   </SortableHeader>
 
                   <SortableHeader
@@ -733,7 +735,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Pengunggah & Tanggal
+                    {t('thUploaderAndDate', currentLang)}
                   </SortableHeader>
 
                   <SortableHeader
@@ -744,11 +746,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     align="center"
                     className="py-3.5 px-4"
                   >
-                    Ukuran
+                    {t('thFileSize', currentLang)}
                   </SortableHeader>
 
                   <th className="py-3.5 px-5 text-right font-bold uppercase tracking-wider text-[11px] text-slate-600">
-                    Aksi
+                    {t('thAction', currentLang)}
                   </th>
                 </tr>
               </thead>
@@ -789,11 +791,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                               <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate group-hover:text-indigo-500">
                                 {doc.fileName}
                               </p>
-                              {/* Drive Path Badge */}
-                              <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1">
-                                <HardDrive className="w-3 h-3 shrink-0" />
-                                <span className="truncate">{folderPath}</span>
-                              </div>
+                              {/* Storage Path Badge - Super Admin Only */}
+                              {currentUser.role === 'admin' && (
+                                <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1" title="Jalur Penyimpanan Cloud">
+                                  <Database className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{folderPath}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -1072,7 +1076,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     Unggah Dokumen {category} Baru
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Otomatis disimpan ke Google Drive per departemen & terdaftar di Firebase
+                    Penyimpanan cloud aman terpusat per departemen & terdaftar di basis data
                   </p>
                 </div>
               </div>
@@ -1154,9 +1158,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   onChange={(e) => setFileInput(e.target.files?.[0] || null)}
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Penyimpanan Cloud Firestore: <strong>{getFirestoreStoragePath(category, upDept, fileInput ? fileInput.name : undefined)}</strong> (Kompresi otomatis dokumen & arsip)
-                </p>
+                {currentUser.role === 'admin' && (
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Penyimpanan Cloud: <strong>{getFirestoreStoragePath(category, upDept, fileInput ? fileInput.name : undefined)}</strong> (Kompresi otomatis dokumen & arsip)
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1188,10 +1194,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   {isUploading ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Mengunggah ke Drive & Firebase...</span>
+                      <span>{currentLang === 'en' ? 'Uploading...' : 'Menyimpan berkas...'}</span>
                     </>
                   ) : (
-                    <span>Simpan & Unggah ke Drive</span>
+                    <span>{currentLang === 'en' ? 'Upload Document' : 'Simpan & Unggah Dokumen'}</span>
                   )}
                 </button>
               </div>

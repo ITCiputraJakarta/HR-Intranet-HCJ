@@ -20,7 +20,7 @@ export const DEFAULT_BRANDING: AppBranding = {
   appName: 'Intranet HCJ',
   subTitle: 'Portal Dokumen & Evaluasi Kinerja',
   customLogoUrl: null,
-  creatorSignature: '© 2026 Intranet HCJ | Developed by Bagas @2026',
+  creatorSignature: 'Created by Bagas Prasetyo • 2026',
   updatedAt: new Date().toISOString(),
 };
 
@@ -33,7 +33,17 @@ let currentBranding: AppBranding = (() => {
     try {
       const stored = localStorage.getItem(BRANDING_STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_BRANDING, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        // Sanitize old signature variations if cached
+        if (
+          !parsed.creatorSignature ||
+          parsed.creatorSignature.includes('Intranet HCJ') ||
+          parsed.creatorSignature.includes('excellence') ||
+          parsed.creatorSignature.includes('Bagas @')
+        ) {
+          parsed.creatorSignature = 'Created by Bagas Prasetyo • 2026';
+        }
+        return { ...DEFAULT_BRANDING, ...parsed };
       }
     } catch (e) {
       console.warn('Failed to parse cached branding:', e);

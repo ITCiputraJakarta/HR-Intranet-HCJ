@@ -25,6 +25,7 @@ import {
   markNotificationsAsRead,
   addAccessLog,
   clearAllSessionCache,
+  pruneExpiredAnnouncements,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -71,7 +72,7 @@ export default function App() {
   // Connection State
   const [firebaseState, setFirebaseState] = useState<FirebaseConnectionState>('checking');
   const [firebaseErrorMsg, setFirebaseErrorMsg] = useState<string>('');
-  const [modalInitialTab, setModalInitialTab] = useState<'firebase' | 'rules' | 'credentials' | 'drive'>('firebase');
+  const [modalInitialTab, setModalInitialTab] = useState<'firebase' | 'rules' | 'credentials'>('firebase');
 
   // Master Data States with synchronous fallback initialization
   const [documents, setDocuments] = useState<IntranetDocument[]>(() => getDocuments());
@@ -92,6 +93,11 @@ export default function App() {
 
   // Load all data from storage
   const refreshAllData = () => {
+    try {
+      pruneExpiredAnnouncements(7, currentUser || undefined);
+    } catch (e) {
+      console.warn('Pruning check:', e);
+    }
     setDocuments(getDocuments());
     setAnnouncements(getAnnouncements());
     setUsers(getUsers());
@@ -379,7 +385,7 @@ export default function App() {
         />
 
         {/* Dynamic Main Content Area */}
-        <main className="flex-1 min-w-0 pb-16 lg:pb-0">
+        <main className="flex-1 min-w-0 w-full pb-8">
           {activeTab === 'announcements' && (
             <AnnouncementsView
               documents={documents}
@@ -504,12 +510,12 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <footer className="w-full shrink-0 border-t border-slate-200 bg-white py-3.5 mt-auto relative z-10 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">{branding.appName || 'Intranet HCJ'}</span>
-            <span>•</span>
-            <span>{branding.creatorSignature || '© 2026 Intranet HCJ | Developed by Bagas @2026'}</span>
+            <span className="font-bold text-slate-800 tracking-wide text-xs">
+              {branding.creatorSignature || 'JBagas 2026 ttd'}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {isSuperAdmin ? (

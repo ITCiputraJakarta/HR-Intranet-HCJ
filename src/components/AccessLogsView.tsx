@@ -502,7 +502,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-5"
                 >
-                  Waktu (Timestamp)
+                  {t('thTimestamp', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="userName"
@@ -511,7 +511,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4"
                 >
-                  Pengguna / Operator
+                  {t('thUserOperator', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="actionCategory"
@@ -520,7 +520,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4"
                 >
-                  Kategori & Aksi
+                  {t('thCategoryAction', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="target"
@@ -529,7 +529,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4"
                 >
-                  Target / Berkas
+                  {t('thTargetFile', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="status"
@@ -538,9 +538,9 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4 text-center"
                 >
-                  Status
+                  {t('thStatus', currentLang)}
                 </SortableHeader>
-                <th className="py-3.5 px-5 text-right">Detail</th>
+                <th className="py-3.5 px-5 text-right">{t('thDetail', currentLang)}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -663,9 +663,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       {/* Log Detail Inspector Modal */}
       {selectedLog && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedLog(null);
-          }}
+          onClick={() => setSelectedLog(null)}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
         >
           <div
@@ -699,7 +697,17 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">
                     Status
                   </span>
-                  <div className="mt-0.5">{getStatusBadge(selectedLog.status)}</div>
+                  <div
+                    className="mt-0.5 cursor-pointer inline-block hover:opacity-80 transition-opacity"
+                    onClick={() => {
+                      setFilterStatus(selectedLog.status);
+                      setCurrentPage(1);
+                      setSelectedLog(null);
+                    }}
+                    title={`Klik untuk memfilter semua log berstatus ${selectedLog.status}`}
+                  >
+                    {getStatusBadge(selectedLog.status)}
+                  </div>
                 </div>
               </div>
 

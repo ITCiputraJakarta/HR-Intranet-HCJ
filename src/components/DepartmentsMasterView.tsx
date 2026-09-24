@@ -431,7 +431,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="px-4 py-3.5 w-14 text-center">No</th>
+                    <th className="px-4 py-3.5 w-14 text-center">{t('thNo', currentLang)}</th>
                     <SortableHeader
                       field="code"
                       currentSortField={sortField}
@@ -439,7 +439,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                       onSort={handleSort}
                       className="px-4 py-3.5 w-24"
                     >
-                      Kode
+                      {t('thCode', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="name"
@@ -448,7 +448,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                       onSort={handleSort}
                       className="px-4 py-3.5"
                     >
-                      Nama Departemen
+                      {t('thDeptName', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="description"
@@ -457,7 +457,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                       onSort={handleSort}
                       className="px-4 py-3.5 hidden md:table-cell"
                     >
-                      Deskripsi Operasional
+                      {t('thOperationalDesc', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="userCount"
@@ -466,7 +466,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                       onSort={handleSort}
                       className="px-4 py-3.5 text-center w-28"
                     >
-                      Karyawan
+                      {t('thEmployees', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="docCount"
@@ -475,9 +475,9 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                       onSort={handleSort}
                       className="px-4 py-3.5 text-center w-28"
                     >
-                      Dokumen
+                      {t('thDocuments', currentLang)}
                     </SortableHeader>
-                    <th className="px-4 py-3.5 text-center w-40">Status Proteksi & Aksi</th>
+                    <th className="px-4 py-3.5 text-center w-40">{t('thProtectionStatusAction', currentLang)}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

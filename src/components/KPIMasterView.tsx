@@ -521,7 +521,7 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
                       onSort={handleSort}
                       className="py-3 px-5"
                     >
-                      Pilar & Objektif
+                      {t('thPillarObjective', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="weight"
@@ -530,7 +530,7 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
                       onSort={handleSort}
                       className="py-3 px-4 text-center"
                     >
-                      Bobot
+                      {t('thWeight', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="target"
@@ -539,7 +539,7 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
                       onSort={handleSort}
                       className="py-3 px-4"
                     >
-                      Target Standar
+                      {t('thStandardTarget', currentLang)}
                     </SortableHeader>
                     <SortableHeader
                       field="status"
@@ -548,9 +548,9 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
                       onSort={handleSort}
                       className="py-3 px-4 text-center"
                     >
-                      Status
+                      {t('thStatus', currentLang)}
                     </SortableHeader>
-                    <th className="py-3 px-5 text-right">Aksi</th>
+                    <th className="py-3 px-5 text-right">{t('thAction', currentLang)}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

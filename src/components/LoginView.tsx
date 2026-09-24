@@ -467,11 +467,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         {/* Creator Signature Mark */}
         <div className="mt-6 text-center text-xs text-slate-500 font-medium">
-          <p className="font-semibold text-slate-600">
-            {branding.creatorSignature || '© 2026 Intranet HCJ | Developed by Bagas @2026'}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            • Hotel Ciputra Jakarta
+          <p className="font-semibold text-slate-700 tracking-wide">
+            {branding.creatorSignature || 'JBagas 2026 ttd'}
           </p>
         </div>
 

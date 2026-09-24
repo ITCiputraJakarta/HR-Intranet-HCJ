@@ -309,7 +309,7 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
                   onSort={handleSort}
                   className="py-3 px-5"
                 >
-                  Nama Kategori
+                  {t('thCategoryName', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="departemen"
@@ -318,7 +318,7 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
                   onSort={handleSort}
                   className="py-3 px-4"
                 >
-                  Departemen
+                  {t('thDepartment', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="id"
@@ -327,9 +327,9 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
                   onSort={handleSort}
                   className="py-3 px-4"
                 >
-                  ID Kategori
+                  {t('thCategoryID', currentLang)}
                 </SortableHeader>
-                {isPrivileged && <th className="py-3 px-5 text-right">Aksi</th>}
+                {isPrivileged && <th className="py-3 px-5 text-right">{t('thAction', currentLang)}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

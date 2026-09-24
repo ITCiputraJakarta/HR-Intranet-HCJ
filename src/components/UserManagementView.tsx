@@ -499,7 +499,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-5"
                 >
-                  Info Karyawan
+                  {t('thEmployeeInfo', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="departemen"
@@ -508,7 +508,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4"
                 >
-                  Departemen
+                  {t('thDepartment', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="role"
@@ -517,7 +517,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4"
                 >
-                  Peran Akses (Role)
+                  {t('thRole', currentLang)}
                 </SortableHeader>
                 <SortableHeader
                   field="status"
@@ -526,10 +526,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   onSort={handleSort}
                   className="py-3.5 px-4 text-center"
                 >
-                  Status Persetujuan
+                  {t('thApprovalStatus', currentLang)}
                 </SortableHeader>
-                <th className="py-3.5 px-4">Kata Sandi</th>
-                <th className="py-3.5 px-5 text-right">Aksi</th>
+                <th className="py-3.5 px-4">{t('thPassword', currentLang)}</th>
+                <th className="py-3.5 px-5 text-right">{t('thAction', currentLang)}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

@@ -39,6 +39,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
   const [appName, setAppName] = useState(branding.appName);
   const [subTitle, setSubTitle] = useState(branding.subTitle);
+  const [creatorSignature, setCreatorSignature] = useState(branding.creatorSignature || 'Created by Bagas Prasetyo • 2026');
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -51,6 +52,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setBranding(current);
       setAppName(current.appName);
       setSubTitle(current.subTitle);
+      setCreatorSignature(current.creatorSignature || 'Created by Bagas Prasetyo • 2026');
       setFeedback(null);
     }
   }, [isOpen]);
@@ -60,8 +62,14 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   // Super Admin security check
   if (currentUser.role !== 'admin') {
     return (
-      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4">
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 cursor-pointer"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl p-6 max-w-sm w-full text-center space-y-4 cursor-default"
+        >
           <ShieldAlert className="w-12 h-12 text-rose-600 mx-auto" />
           <h3 className="text-base font-bold text-slate-900">Akses Dibatasi</h3>
           <p className="text-xs text-slate-600">
@@ -164,6 +172,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         {
           appName: appName.trim(),
           subTitle: subTitle.trim(),
+          creatorSignature: creatorSignature.trim() || 'Created by Bagas Prasetyo • 2026',
         },
         currentUser.email
       );
@@ -191,8 +200,14 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 cursor-default"
+      >
         {/* Header */}
         <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -344,6 +359,22 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                 placeholder="Portal Dokumen & Evaluasi Kinerja"
                 className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {isId ? 'Tanda Tangan / Signatur Pengembang' : 'Developer Signature'}
+              </label>
+              <input
+                type="text"
+                value={creatorSignature}
+                onChange={(e) => setCreatorSignature(e.target.value)}
+                placeholder="Created by Bagas Prasetyo • 2026"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800 font-mono"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Default: &quot;Created by Bagas Prasetyo • 2026 ttd&quot;
+              </p>
             </div>
 
             <div className="pt-2 flex justify-end gap-2">

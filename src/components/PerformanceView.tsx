@@ -30,6 +30,7 @@ import {
   Send,
   Bell,
   AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { PerformanceAppraisal, User, KPIRowItem, KPIMasterItem, UserRole } from '../types';
 import {
@@ -80,6 +81,14 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
+  // Workflow Modal States (replacing window.confirm / prompt)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionNoteInput, setRevisionNoteInput] = useState('');
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockReasonInput, setUnlockReasonInput] = useState('');
 
   // Role detection
   const isSuperAdmin = currentUser.role === 'admin';
@@ -370,14 +379,15 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   // Workflow Handlers
   const handleSubmitForReview = () => {
     if (!activeForm) return;
-    const confirmed = window.confirm(
-      'Ajukan formulir KPI ini kepada Manajer Departemen untuk dinilai dan disetujui?\nStatus akan berubah menjadi "On Review" dan Manajer Departemen akan menerima pemberitahuan.'
-    );
-    if (!confirmed) return;
+    setShowSubmitConfirm(true);
+  };
 
+  const handleConfirmSubmitForReview = () => {
+    if (!activeForm) return;
     const updated = submitPerformanceForReview(activeForm, currentUser);
     if (updated) {
       setActiveForm(updated);
+      setShowSubmitConfirm(false);
       setActionNotice('Formulir KPI berhasil diajukan. Status kini "On Review", menunggu penilaian Manajer.');
       onRefresh();
     }
@@ -385,11 +395,11 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
   const handleApprove = () => {
     if (!activeForm) return;
-    const confirmed = window.confirm(
-      'Setujui (Approve) formulir KPI ini?\n\nPERHATIAN: Setelah disetujui, formulir akan otomatis TERKUNCI dan tidak dapat diedit lagi oleh Staff maupun Manajer. Hanya Super Admin yang memiliki wewenang untuk membuka kunci kembali.'
-    );
-    if (!confirmed) return;
+    setShowApproveConfirm(true);
+  };
 
+  const handleConfirmApprove = () => {
+    if (!activeForm) return;
     const updated = approvePerformanceItem(
       activeForm,
       currentUser,
@@ -400,6 +410,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     );
     if (updated) {
       setActiveForm(updated);
+      setShowApproveConfirm(false);
       setActionNotice('Formulir KPI telah disetujui (Approved) dan berhasil dikunci.');
       onRefresh();
     }
@@ -407,38 +418,42 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
   const handleRequestRevision = () => {
     if (!activeForm) return;
-    const note = window.prompt(
-      'Masukkan catatan revisi untuk bawahan:',
-      'Mohon lengkapi atau periksa kembali isian capaian aktual KPI.'
-    );
-    if (note === null) return;
+    setRevisionNoteInput('');
+    setShowRevisionModal(true);
+  };
 
+  const handleConfirmRequestRevision = () => {
+    if (!activeForm) return;
+    const note = revisionNoteInput.trim() || 'Mohon lengkapi atau periksa kembali isian capaian aktual KPI.';
     const updated: PerformanceAppraisal = {
       ...activeForm,
       status: 'Draft',
       isLocked: false,
-      managerFeedback: note
-        ? `[REVISI DIMINTA]: ${note}\n\n${activeForm.managerFeedback || ''}`
-        : activeForm.managerFeedback,
+      managerFeedback: `[REVISI DIMINTA]: ${note}\n\n${activeForm.managerFeedback || ''}`,
       updatedAt: new Date().toISOString(),
     };
     savePerformanceItem(updated, currentUser);
     setActiveForm(updated);
+    setShowRevisionModal(false);
+    setRevisionNoteInput('');
     setActionNotice('Formulir dikembalikan ke status Draf untuk direvisi bawahan.');
     onRefresh();
   };
 
   const handleUnlock = () => {
     if (!activeForm || !isSuperAdmin) return;
-    const reason = window.prompt(
-      'Masukkan alasan pembukaan kunci formulir (Super Admin Authorization):',
-      'Penyesuaian evaluasi atau perbaikan data.'
-    );
-    if (reason === null) return;
+    setUnlockReasonInput('');
+    setShowUnlockModal(true);
+  };
 
+  const handleConfirmUnlock = () => {
+    if (!activeForm || !isSuperAdmin) return;
+    const reason = unlockReasonInput.trim() || 'Penyesuaian evaluasi atau perbaikan data.';
     const res = unlockPerformanceItem(activeForm.id, currentUser, reason);
     if (res.success && res.performance) {
       setActiveForm(res.performance);
+      setShowUnlockModal(false);
+      setUnlockReasonInput('');
       setActionNotice('Kunci formulir berhasil dibuka oleh Super Admin. Status dikembalikan ke On Review.');
       onRefresh();
     }
@@ -680,12 +695,12 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
               <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">Pilar & Indikator Objektif</th>
-                    <th className="py-3 px-3 text-center">Bobot</th>
-                    <th className="py-3 px-4">Target Standard</th>
-                    <th className="py-3 px-4 bg-emerald-50 text-emerald-900">Hasil Aktual (Inputan)</th>
-                    <th className="py-3 px-3 text-center bg-amber-50 text-amber-900">Achieved</th>
-                    <th className="py-3 px-3 text-center bg-amber-50 text-amber-900">Skor %</th>
+                    <th className="py-3 px-4">{t('thPillarObjective', currentLang)}</th>
+                    <th className="py-3 px-3 text-center">{t('thWeight', currentLang)}</th>
+                    <th className="py-3 px-4">{t('thStandardTarget', currentLang)}</th>
+                    <th className="py-3 px-4 bg-emerald-50 text-emerald-900">{t('thActualResult', currentLang)}</th>
+                    <th className="py-3 px-3 text-center bg-amber-50 text-amber-900">{t('thAchieved', currentLang)}</th>
+                    <th className="py-3 px-3 text-center bg-amber-50 text-amber-900">{t('thScorePct', currentLang)}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -984,6 +999,230 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
             appraisal={previewAppraisal}
             onClose={() => setPreviewAppraisal(null)}
           />
+        )}
+
+        {/* Modal: Konfirmasi Submit for Review */}
+        {showSubmitConfirm && (
+          <div
+            onClick={() => setShowSubmitConfirm(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
+            >
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Ajukan Form KPI ke Manajer
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Departemen: {activeForm.departemen} • Periode {activeForm.periode} ({activeForm.tipe})
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin mengajukan formulir capaian aktual KPI ini? Status akan berubah menjadi <strong className="text-blue-600">"On Review"</strong> dan Manajer Departemen akan menerima pemberitahuan untuk memeriksa dan memberikan persetujuan.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitConfirm(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmitForReview}
+                  className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-md shadow-indigo-600/20"
+                >
+                  Ya, Ajukan Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Konfirmasi Persetujuan (Approve) & Kunci */}
+        {showApproveConfirm && (
+          <div
+            onClick={() => setShowApproveConfirm(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
+            >
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Persetujuan Akhir & Kunci KPI
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Karyawan: {activeForm.nama} • Nilai: {activeForm.finalGrandTotal.toFixed(2)} ({activeForm.finalGrade})
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>PERINGATAN PENGUNCIAN:</span>
+                </p>
+                <p className="text-[11px] leading-relaxed text-amber-800">
+                  Setelah disetujui, formulir akan otomatis <strong>TERKUNCI</strong> dan tidak dapat diedit lagi oleh Staff maupun Manajer. Hanya Super Admin yang berwenang membuka kunci.
+                </p>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Setujui evaluasi KPI ini dan kirim notifikasi konfirmasi ke karyawan?
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApproveConfirm(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmApprove}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-md shadow-emerald-600/20"
+                >
+                  Setujui & Kunci Permanen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Permintaan Catatan Revisi */}
+        {showRevisionModal && (
+          <div
+            onClick={() => setShowRevisionModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
+            >
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Minta Revisi Form KPI
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Form akan dikembalikan ke status Draf
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Catatan Revisi untuk Karyawan:
+                </label>
+                <textarea
+                  rows={3}
+                  value={revisionNoteInput}
+                  onChange={(e) => setRevisionNoteInput(e.target.value)}
+                  placeholder="Contoh: Mohon lengkapi capaian aktual pilar Operational Speed..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 bg-slate-50"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRevisionModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRequestRevision}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-md shadow-rose-600/20"
+                >
+                  Kirim Permintaan Revisi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Buka Kunci (Super Admin) */}
+        {showUnlockModal && (
+          <div
+            onClick={() => setShowUnlockModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
+            >
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                  <Unlock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Buka Kunci Formulir (Super Admin)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Otorisasi Hak Akses Khusus
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Alasan Pembukaan Kunci:
+                </label>
+                <input
+                  type="text"
+                  value={unlockReasonInput}
+                  onChange={(e) => setUnlockReasonInput(e.target.value)}
+                  placeholder="Contoh: Koreksi perhitungan capaian kuartal"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-600 bg-slate-50"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                Status dokumen akan dikembalikan ke On Review agar data dapat diperbaiki kembali. Tindakan ini akan tercatat dalam Access Log.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmUnlock}
+                  className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-all shadow-md shadow-purple-600/20"
+                >
+                  Buka Kunci Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -1356,7 +1595,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-5"
                   >
-                    Karyawan / Bawahan
+                    {t('thEmployeeSubordinate', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="departemen"
@@ -1365,7 +1604,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Departemen & Jabatan
+                    {t('thDeptPosition', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="periode"
@@ -1374,7 +1613,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center"
                   >
-                    Periode
+                    {t('thPeriod', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="kpiTotalScore"
@@ -1383,11 +1622,11 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center bg-indigo-50/50"
                   >
-                    Skor Capaian KPI (%)
+                    {t('thKPIScore', currentLang)}
                   </SortableHeader>
-                  <th className="py-3.5 px-3 text-center">Skala KPI (1-5)</th>
-                  <th className="py-3.5 px-3 text-center">Sikap (45%)</th>
-                  <th className="py-3.5 px-3 text-center">Disiplin (5%)</th>
+                  <th className="py-3.5 px-3 text-center">{t('thKPIScale', currentLang)}</th>
+                  <th className="py-3.5 px-3 text-center">{t('thBehaviorScore', currentLang)}</th>
+                  <th className="py-3.5 px-3 text-center">{t('thDisciplineScore', currentLang)}</th>
                   <SortableHeader
                     field="finalGrandTotal"
                     currentSortField={sortField}
@@ -1395,7 +1634,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center bg-emerald-50/50"
                   >
-                    Skor Akhir & Grade
+                    {t('thFinalScoreGrade', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="status"
@@ -1404,9 +1643,9 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center"
                   >
-                    Status
+                    {t('thAppraisalStatus', currentLang)}
                   </SortableHeader>
-                  <th className="py-3.5 px-5 text-right">Aksi</th>
+                  <th className="py-3.5 px-5 text-right">{t('thAction', currentLang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1586,7 +1825,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-5"
                   >
-                    Periode & Tipe
+                    {t('thPeriodAndType', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="nama"
@@ -1595,7 +1834,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Karyawan
+                    {t('thEmployee', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="departemen"
@@ -1604,7 +1843,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4"
                   >
-                    Departemen
+                    {t('thDepartment', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="kpiTotalScore"
@@ -1613,7 +1852,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center"
                   >
-                    Capaian KPI
+                    {t('thKPIScore', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="finalGrandTotal"
@@ -1622,7 +1861,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center"
                   >
-                    Skor Akhir
+                    {t('thFinalScore', currentLang)}
                   </SortableHeader>
                   <SortableHeader
                     field="status"
@@ -1631,9 +1870,9 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                     onSort={handleSort}
                     className="py-3.5 px-4 text-center"
                   >
-                    Status
+                    {t('thAppraisalStatus', currentLang)}
                   </SortableHeader>
-                  <th className="py-3.5 px-5 text-right">Aksi</th>
+                  <th className="py-3.5 px-5 text-right">{t('thAction', currentLang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1742,9 +1981,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
       {/* ----------------------------------------------------------------------- */}
       {selectedSubordinate && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedSubordinate(null);
-          }}
+          onClick={() => setSelectedSubordinate(null)}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
         >
           <div
@@ -1856,16 +2093,16 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                   <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                       <tr>
-                        <th className="py-2.5 px-3">Pilar & Objektif</th>
-                        <th className="py-2.5 px-2 text-center">Bobot</th>
-                        <th className="py-2.5 px-3">Target Standar</th>
+                        <th className="py-2.5 px-3">{t('thPillarObjective', currentLang)}</th>
+                        <th className="py-2.5 px-2 text-center">{t('thWeight', currentLang)}</th>
+                        <th className="py-2.5 px-3">{t('thStandardTarget', currentLang)}</th>
                         <th className="py-2.5 px-3 bg-emerald-50 text-emerald-900">
-                          Hasil Aktual (Inputan)
+                          {t('thActualResult', currentLang)}
                         </th>
                         <th className="py-2.5 px-2 text-center bg-amber-50 text-amber-900">
-                          Tercapai
+                          {t('thAchieved', currentLang)}
                         </th>
-                        <th className="py-2.5 px-2 text-center">Skor %</th>
+                        <th className="py-2.5 px-2 text-center">{t('thScorePct', currentLang)}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">

@@ -25,7 +25,10 @@ import {
   Trash2,
   Image,
   FolderSync,
-  Info
+  Info,
+  Lock,
+  Download,
+  Paperclip
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster } from '../types';
 import {
@@ -46,6 +49,77 @@ type AnnouncementSortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc' |
 
 const getFirestoreStoragePath = (category: string, dept: string, fileName: string) => {
   return `Cloud Firestore > ${category} > ${dept} > ${fileName}`;
+};
+
+// Component for Card Banner: displays photo if uploaded, or clean neutral gray box if no photo
+const AnnouncementCardBanner: React.FC<{
+  doc: IntranetDocument;
+  expInfo: { badgeClass: string; label: string };
+  onClick: () => void;
+}> = ({ doc, expInfo, onClick }) => {
+  const [imgError, setImgError] = useState(false);
+
+  const rawUrl = doc.thumbUrl || doc.fileUrl;
+  const isImageValid = Boolean(
+    rawUrl &&
+    !imgError &&
+    !rawUrl.includes('unsplash.com') &&
+    (rawUrl.startsWith('data:image/') ||
+      rawUrl.startsWith('blob:') ||
+      doc.fileType?.startsWith('image/') ||
+      doc.fileName?.match(/\.(jpg|jpeg|png|webp|gif)$/i))
+  );
+
+  return (
+    <div
+      onClick={onClick}
+      className="relative h-48 bg-slate-200 overflow-hidden cursor-pointer flex items-center justify-center group/banner"
+    >
+      {isImageValid ? (
+        <img
+          src={rawUrl}
+          alt={doc.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-slate-200 flex flex-col items-center justify-center text-slate-500 p-4 select-none">
+          <div className="w-12 h-12 rounded-2xl bg-slate-300/80 flex items-center justify-center text-slate-600 mb-2 shadow-2xs group-hover:scale-105 transition-transform">
+            {doc.attachmentName ? (
+              <FileText className="w-6 h-6 text-slate-600" />
+            ) : (
+              <Megaphone className="w-6 h-6 text-slate-600" />
+            )}
+          </div>
+          <span className="text-xs font-bold text-slate-700">
+            {doc.attachmentName ? 'Dokumen Lampiran' : 'Pengumuman'}
+          </span>
+          <span className="text-[10px] text-slate-400 mt-0.5 font-medium">
+            {doc.attachmentName ? doc.attachmentName : 'Tanpa foto sampul'}
+          </span>
+        </div>
+      )}
+
+      {/* Expiration Status Badge */}
+      <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-bold flex items-center gap-1.5 shadow-sm border ${expInfo.badgeClass}`}>
+        <Clock className="w-3 h-3" />
+        <span>{expInfo.label}</span>
+      </div>
+
+      {/* Department Distribution Badge */}
+      <div className="absolute top-3 right-3 shadow-md">
+        <DepartmentBadge department={doc.akses_dept} size="xs" />
+      </div>
+
+      {/* Document attachment indicator on banner */}
+      {doc.attachmentName && isImageValid && (
+        <div className="absolute bottom-2.5 left-3 px-2.5 py-1 rounded-lg bg-slate-900/85 backdrop-blur-md text-white text-[10px] font-bold flex items-center gap-1.5 shadow-xs border border-white/20">
+          <FileText className="w-3 h-3 text-indigo-300" />
+          <span className="truncate max-w-[170px]">{doc.attachmentName}</span>
+        </div>
+      )}
+    </div>
+  );
 };
 
 interface AnnouncementsViewProps {
@@ -80,15 +154,23 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Auto-prune state notification
   const [autoPrunedNotice, setAutoPrunedNotice] = useState<string | null>(null);
 
+  // Permissions & Role Control
+  const isSuperAdmin = currentUser.role === 'admin';
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'hod';
+  const isManagerOrAdmin = isSuperAdmin || isManager;
+  const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
+  const defaultDept = isSuperAdmin ? 'All Departments' : (currentUser.departemen || 'All Departments');
+
   // Upload Form States
   const todayStr = new Date().toISOString().split('T')[0];
   const [upTitle, setUpTitle] = useState('');
-  const [upDept, setUpDept] = useState('All Departments');
+  const [upDept, setUpDept] = useState(defaultDept);
   const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
   const [upEffectiveDate, setUpEffectiveDate] = useState(todayStr);
   const [upExpiryDate, setUpExpiryDate] = useState(todayStr);
-  const [fileInput, setFileInput] = useState<File | null>(null);
+  const [photoInput, setPhotoInput] = useState<File | null>(null);
+  const [docAttachmentInput, setDocAttachmentInput] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
@@ -99,15 +181,15 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [editKet, setEditKet] = useState('');
   const [editEffectiveDate, setEditEffectiveDate] = useState(todayStr);
   const [editExpiryDate, setEditExpiryDate] = useState(todayStr);
-  const [editFileInput, setEditFileInput] = useState<File | null>(null);
+  const [editPhotoInput, setEditPhotoInput] = useState<File | null>(null);
+  const [editDocAttachmentInput, setEditDocAttachmentInput] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
   // Delete Confirm State
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<IntranetDocument | null>(null);
-
-  const isManagerOrAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
-  const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
 
   // Automatically prune announcements older than 7 days (1 week) on view load
   useEffect(() => {
@@ -240,11 +322,14 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const handleOpenEdit = (doc: IntranetDocument) => {
     setEditDoc(doc);
     setEditTitle(doc.title);
-    setEditDept(doc.akses_dept);
+    setEditDept(isSuperAdmin ? doc.akses_dept : (currentUser.departemen || doc.akses_dept));
     setEditKet(doc.keterangan || '');
     setEditEffectiveDate(doc.effectiveDate || (doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr));
     setEditExpiryDate(doc.expiryDate || todayStr);
-    setEditFileInput(null);
+    setEditPhotoInput(null);
+    setEditDocAttachmentInput(null);
+    setRemovePhoto(false);
+    setRemoveAttachment(false);
     setEditError('');
   };
 
@@ -257,6 +342,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       return;
     }
 
+    const targetDept = isSuperAdmin ? editDept : (currentUser.departemen || editDoc.akses_dept);
+
     setIsSavingEdit(true);
     setEditError('');
 
@@ -264,15 +351,21 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       let updatedDoc: IntranetDocument = {
         ...editDoc,
         title: editTitle.trim(),
-        akses_dept: editDept,
+        akses_dept: targetDept,
         keterangan: editKet.trim(),
         effectiveDate: editEffectiveDate,
         expiryDate: editExpiryDate,
         updatedAt: new Date().toISOString(),
       };
 
-      if (editFileInput) {
-        const compressed = await processFileForFirestore(editFileInput);
+      if (removePhoto) {
+        updatedDoc.fileUrl = '';
+        updatedDoc.thumbUrl = '';
+        updatedDoc.previewUrl = '';
+      }
+
+      if (editPhotoInput) {
+        const compressed = await processFileForFirestore(editPhotoInput);
         updatedDoc = {
           ...updatedDoc,
           fileUrl: compressed.dataUrl,
@@ -282,6 +375,24 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           fileName: compressed.fileName,
           fileType: compressed.mimeType,
           fileSize: formatBytes(compressed.compressedSizeBytes),
+        };
+      }
+
+      if (removeAttachment) {
+        updatedDoc.attachmentUrl = undefined;
+        updatedDoc.attachmentName = undefined;
+        updatedDoc.attachmentType = undefined;
+        updatedDoc.attachmentSize = undefined;
+      }
+
+      if (editDocAttachmentInput) {
+        const compressedDoc = await processFileForFirestore(editDocAttachmentInput);
+        updatedDoc = {
+          ...updatedDoc,
+          attachmentUrl: compressedDoc.dataUrl,
+          attachmentName: compressedDoc.fileName,
+          attachmentType: compressedDoc.mimeType,
+          attachmentSize: formatBytes(compressedDoc.compressedSizeBytes),
         };
       }
 
@@ -310,23 +421,38 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       return;
     }
 
+    const targetDept = isSuperAdmin ? upDept : (currentUser.departemen || 'All Departments');
+
     setIsUploading(true);
     setUploadError('');
 
     try {
-      let fileUrl = 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&auto=format&fit=crop';
-      let thumbUrl = fileUrl;
-      let fileName = 'Pengumuman-' + Date.now() + '.jpg';
-      let fileType = 'image/jpeg';
-      let fileSize = '35 KB';
+      let fileUrl = '';
+      let thumbUrl = '';
+      let fileName = '';
+      let fileType = '';
+      let fileSize = '';
 
-      if (fileInput) {
-        const compressed = await processFileForFirestore(fileInput);
-        fileUrl = compressed.dataUrl;
-        thumbUrl = compressed.dataUrl;
-        fileName = compressed.fileName;
-        fileType = compressed.mimeType;
-        fileSize = formatBytes(compressed.compressedSizeBytes);
+      if (photoInput) {
+        const compressedPhoto = await processFileForFirestore(photoInput);
+        fileUrl = compressedPhoto.dataUrl;
+        thumbUrl = compressedPhoto.dataUrl;
+        fileName = compressedPhoto.fileName;
+        fileType = compressedPhoto.mimeType;
+        fileSize = formatBytes(compressedPhoto.compressedSizeBytes);
+      }
+
+      let attachmentUrl: string | undefined = undefined;
+      let attachmentName: string | undefined = undefined;
+      let attachmentType: string | undefined = undefined;
+      let attachmentSize: string | undefined = undefined;
+
+      if (docAttachmentInput) {
+        const compressedDoc = await processFileForFirestore(docAttachmentInput);
+        attachmentUrl = compressedDoc.dataUrl;
+        attachmentName = compressedDoc.fileName;
+        attachmentType = compressedDoc.mimeType;
+        attachmentSize = formatBytes(compressedDoc.compressedSizeBytes);
       }
 
       const newDoc: IntranetDocument = {
@@ -334,15 +460,19 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         title: upTitle.trim(),
         category: 'Pengumuman',
         sub_kategori: upSubcat || 'Umum',
-        akses_dept: upDept,
+        akses_dept: targetDept,
         keterangan: upKet.trim(),
         fileUrl,
         previewUrl: fileUrl,
         downloadUrl: fileUrl,
         thumbUrl,
-        fileName,
-        fileType,
-        fileSize,
+        fileName: fileName || (attachmentName ? attachmentName : 'Pengumuman.txt'),
+        fileType: fileType || (attachmentType ? attachmentType : 'text/plain'),
+        fileSize: fileSize || (attachmentSize ? attachmentSize : '1 KB'),
+        attachmentUrl,
+        attachmentName,
+        attachmentType,
+        attachmentSize,
         uploadedBy: currentUser.nama,
         uploadedByEmail: currentUser.email,
         uploadedAt: new Date().toISOString(),
@@ -354,7 +484,8 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       setShowUploadForm(false);
       setUpTitle('');
       setUpKet('');
-      setFileInput(null);
+      setPhotoInput(null);
+      setDocAttachmentInput(null);
       onRefresh();
     } catch (err: any) {
       setUploadError(err?.message || 'Gagal mengunggah pengumuman ke penyimpanan.');
@@ -574,7 +705,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           )}
 
           <form onSubmit={handleUploadSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Judul Pengumuman *
@@ -592,34 +723,83 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Distribusi Departemen
+                  Target Distribusi Departemen *
                 </label>
-                <select
-                  id="up-announcement-dept"
-                  value={upDept}
-                  onChange={(e) => setUpDept(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
-                >
-                  <option value="All Departments">All Departments (Semua Karyawan)</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                {isSuperAdmin ? (
+                  <select
+                    id="up-announcement-dept"
+                    value={upDept}
+                    onChange={(e) => setUpDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                  >
+                    <option value="All Departments">All Departments (Semua Karyawan)</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 font-bold text-slate-800 flex items-center justify-between shadow-2xs">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="truncate">{currentUser.departemen || 'Departemen Anda'}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shrink-0">
+                      Khusus Departemen
+                    </span>
+                  </div>
+                )}
+                {!isSuperAdmin && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Sebagai Manager, pengumuman otomatis hanya dirilis untuk departemen Anda.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Foto Sampul & Dokumen Lampiran Tambahan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              {/* Foto / Gambar Sampul */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Image className="w-4 h-4 text-indigo-600" />
+                    <span>Foto / Banner Sampul (Opsional)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">JPG, PNG, WebP</span>
+                </div>
+                <input
+                  id="up-announcement-photo"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPhotoInput(e.target.files?.[0] || null)}
+                  className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
+                />
+                <p className="text-[10px] text-slate-500">
+                  Jika tidak diunggah foto, pratinjau kartu otomatis abu-abu netral tanpa foto acak.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Foto Banner / Lampiran Berkas
-                </label>
+              {/* Dokumen Lampiran Tambahan */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-indigo-600" />
+                    <span>Dokumen Lampiran (Opsional)</span>
+                  </label>
+                  <span className="text-[10px] text-indigo-600 font-mono">PDF, Word, Excel</span>
+                </div>
                 <input
-                  id="up-announcement-file"
+                  id="up-announcement-doc"
                   type="file"
-                  accept="image/*,.pdf,.doc,.docx"
-                  onChange={(e) => setFileInput(e.target.files?.[0] || null)}
-                  className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                  onChange={(e) => setDocAttachmentInput(e.target.files?.[0] || null)}
+                  className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
                 />
+                <p className="text-[10px] text-indigo-700">
+                  Unggah berkas SOP, memo dinas, atau formulir yang dapat langsung diunduh karyawan.
+                </p>
               </div>
             </div>
 
@@ -733,31 +913,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 >
                   <div>
                     {/* Card Image Banner */}
-                    <div
+                    <AnnouncementCardBanner
+                      doc={doc}
+                      expInfo={expInfo}
                       onClick={() => onOpenPreview(doc)}
-                      className="relative h-48 bg-slate-900 overflow-hidden cursor-pointer"
-                    >
-                      <img
-                        src={doc.thumbUrl || doc.fileUrl}
-                        alt={doc.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90 group-hover:opacity-100"
-                        onError={(e: any) => {
-                          e.target.src =
-                            'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop';
-                        }}
-                      />
-
-                      {/* Expiration Status Badge */}
-                      <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-bold flex items-center gap-1.5 shadow-sm border ${expInfo.badgeClass}`}>
-                        <Clock className="w-3 h-3" />
-                        <span>{expInfo.label}</span>
-                      </div>
-
-                      {/* Department Distribution Badge */}
-                      <div className="absolute top-3 right-3 shadow-md">
-                        <DepartmentBadge department={doc.akses_dept} size="xs" />
-                      </div>
-                    </div>
+                    />
 
                     {/* Card Content */}
                     <div className="p-5 space-y-3">
@@ -772,6 +932,35 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                           {doc.keterangan || 'Tidak ada catatan tambahan untuk pengumuman ini.'}
                         </p>
                       </div>
+
+                      {/* Document Attachment Widget */}
+                      {doc.attachmentName && (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                            <div className="truncate">
+                              <span className="text-[10px] uppercase font-bold text-indigo-700 block">
+                                Lampiran Dokumen
+                              </span>
+                              <span className="font-bold text-slate-800 text-[11px] truncate block">
+                                {doc.attachmentName}
+                              </span>
+                            </div>
+                          </div>
+                          {doc.attachmentUrl && (
+                            <a
+                              href={doc.attachmentUrl}
+                              download={doc.attachmentName}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                              title="Unduh Berkas Lampiran"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Unduh</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
 
                       {/* Expiration Dates Info */}
                       <div className="flex items-center justify-between text-[10px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-150">
@@ -904,16 +1093,41 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         className="pl-6 py-4 cursor-pointer"
                         onClick={() => onOpenPreview(doc)}
                       >
-                        <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                          {doc.title}
-                        </div>
-                        {doc.keterangan && (
-                          <div className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
-                            {doc.keterangan}
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0 flex items-center justify-center border border-slate-200">
+                            {doc.thumbUrl &&
+                            !doc.thumbUrl.includes('unsplash.com') &&
+                            (doc.fileType?.startsWith('image/') || doc.thumbUrl.startsWith('data:image/')) ? (
+                              <img src={doc.thumbUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-500">
+                                {doc.attachmentName ? (
+                                  <FileText className="w-4 h-4 text-slate-600" />
+                                ) : (
+                                  <Megaphone className="w-4 h-4 text-slate-500" />
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )}
+                          <div className="truncate max-w-sm">
+                            <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                              {doc.title}
+                            </div>
+                            {doc.attachmentName && (
+                              <div className="flex items-center gap-1 text-[10px] text-indigo-700 font-semibold mt-0.5">
+                                <FileText className="w-3 h-3 shrink-0" />
+                                <span className="truncate">Lampiran: {doc.attachmentName}</span>
+                              </div>
+                            )}
+                            {doc.keterangan && (
+                              <div className="text-slate-500 text-[11px] line-clamp-1 mt-0.5">
+                                {doc.keterangan}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         {currentUser.role === 'admin' && (
-                          <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1" title="Jalur Penyimpanan Cloud">
+                          <div className="flex items-center gap-1 text-[10px] text-indigo-600/80 font-mono mt-1.5 ml-13" title="Jalur Penyimpanan Cloud">
                             <Database className="w-3 h-3 shrink-0" />
                             <span className="truncate">{folderPath}</span>
                           </div>
@@ -1038,40 +1252,67 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Distribusi Departemen
+                  Target Distribusi Departemen *
                 </label>
-                <select
-                  value={editDept}
-                  onChange={(e) => setEditDept(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
-                >
-                  <option value="All Departments">All Departments (Semua Karyawan)</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                {isSuperAdmin ? (
+                  <select
+                    value={editDept}
+                    onChange={(e) => setEditDept(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white font-medium"
+                  >
+                    <option value="All Departments">All Departments (Semua Karyawan)</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 font-bold text-slate-800 flex items-center justify-between shadow-2xs">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="truncate">{currentUser.departemen || editDoc.akses_dept}</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 shrink-0">
+                      Khusus Departemen Anda
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Upload Ganti Foto / File */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2">
+              {/* Upload Ganti Foto / Banner */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-amber-950">Ganti Foto / Banner (Opsional)</span>
-                  <span className="text-[10px] text-amber-700 font-mono">Berkas: {editDoc.fileName}</span>
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Image className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Foto / Banner Sampul</span>
+                  </span>
+                  {editDoc.fileUrl && !removePhoto && (
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Ada Foto Tersimpan
+                    </span>
+                  )}
+                  {(!editDoc.fileUrl || removePhoto) && (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Tanpa Foto (Abu-abu)
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
-                    accept="image/*,.pdf,.doc,.docx"
-                    onChange={(e) => setEditFileInput(e.target.files?.[0] || null)}
+                    accept="image/*"
+                    onChange={(e) => {
+                      setEditPhotoInput(e.target.files?.[0] || null);
+                      setRemovePhoto(false);
+                    }}
                     className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                   />
-                  {editFileInput && (
+                  {editPhotoInput && (
                     <button
                       type="button"
-                      onClick={() => setEditFileInput(null)}
+                      onClick={() => setEditPhotoInput(null)}
                       className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
                       title="Batalkan foto baru"
                     >
@@ -1079,9 +1320,86 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </button>
                   )}
                 </div>
-                {currentUser.role === 'admin' && (
-                  <p className="text-[10px] text-amber-800">
-                    Penyimpanan Cloud: <strong>{driveConfig.photosFolder}</strong>
+
+                {editDoc.fileUrl && !removePhoto && !editPhotoInput && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-slate-500 truncate max-w-xs font-mono">
+                      {editDoc.fileName || 'Foto Sampul'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRemovePhoto(true)}
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline"
+                    >
+                      Hapus Foto (Ubah jadi Abu-abu)
+                    </button>
+                  </div>
+                )}
+                {removePhoto && (
+                  <p className="text-[10px] text-amber-700 font-semibold">
+                    Foto akan dihapus. Kartu pengumuman akan tampil abu-abu tanpa foto.
+                  </p>
+                )}
+              </div>
+
+              {/* Upload Ganti / Tambah Dokumen Lampiran */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-200 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Dokumen Lampiran Tambahan</span>
+                  </span>
+                  {editDoc.attachmentName && !removeAttachment && (
+                    <span className="text-[10px] text-indigo-700 font-bold bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-300">
+                      Ada Lampiran
+                    </span>
+                  )}
+                  {(!editDoc.attachmentName || removeAttachment) && (
+                    <span className="text-[10px] text-slate-400">
+                      Belum Ada Lampiran
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={(e) => {
+                      setEditDocAttachmentInput(e.target.files?.[0] || null);
+                      setRemoveAttachment(false);
+                    }}
+                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
+                  />
+                  {editDocAttachmentInput && (
+                    <button
+                      type="button"
+                      onClick={() => setEditDocAttachmentInput(null)}
+                      className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
+                      title="Batalkan dokumen baru"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {editDoc.attachmentName && !removeAttachment && !editDocAttachmentInput && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-slate-600 truncate max-w-xs font-mono">
+                      Lampiran saat ini: {editDoc.attachmentName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRemoveAttachment(true)}
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline"
+                    >
+                      Hapus Lampiran
+                    </button>
+                  </div>
+                )}
+                {removeAttachment && (
+                  <p className="text-[10px] text-amber-700 font-semibold">
+                    Lampiran dokumen akan dihapus saat disimpan.
                   </p>
                 )}
               </div>

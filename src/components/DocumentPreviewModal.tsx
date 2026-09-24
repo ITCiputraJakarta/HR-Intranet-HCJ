@@ -16,7 +16,8 @@ import {
   Upload,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Megaphone
 } from 'lucide-react';
 import { IntranetDocument, User } from '../types';
 import { addAccessLog, deleteDocument, updateDocument, getDepartments } from '../lib/storage';
@@ -138,12 +139,15 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     onClose();
   };
 
-  const isImage =
-    doc.fileType.startsWith('image/') ||
-    doc.fileName.endsWith('.jpg') ||
-    doc.fileName.endsWith('.png') ||
-    doc.fileName.endsWith('.jpeg') ||
-    doc.fileName.endsWith('.webp');
+  const isImage = Boolean(
+    doc.fileUrl &&
+      (doc.fileType?.startsWith('image/') ||
+        doc.fileName?.endsWith('.jpg') ||
+        doc.fileName?.endsWith('.png') ||
+        doc.fileName?.endsWith('.jpeg') ||
+        doc.fileName?.endsWith('.webp') ||
+        doc.fileUrl.startsWith('data:image/'))
+  );
 
   return (
     <div
@@ -196,13 +200,27 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           )}
 
           {/* Preview Canvas (Image / Document Box) */}
-          <div className="rounded-2xl overflow-hidden bg-slate-950/5 border border-slate-200 flex items-center justify-center min-h-[240px] max-h-[360px]">
+          <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center min-h-[220px] max-h-[360px]">
             {isImage ? (
               <img
                 src={doc.fileUrl}
                 alt={doc.title}
                 className="w-full h-full max-h-[360px] object-contain"
               />
+            ) : doc.category === 'Pengumuman' ? (
+              <div className="p-8 text-center space-y-3 w-full bg-slate-200 flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-slate-300 text-slate-600 flex items-center justify-center shadow-xs">
+                  {doc.attachmentName ? <FileText className="w-8 h-8" /> : <Megaphone className="w-8 h-8" />}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-700 text-sm">Pengumuman Tanpa Gambar Sampul</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {doc.attachmentName
+                      ? `Tersedia berkas lampiran: ${doc.attachmentName}`
+                      : 'Tampilan netral abu-abu tanpa foto'}
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="p-8 text-center space-y-3">
                 <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center mx-auto shadow-sm">
@@ -214,16 +232,50 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     Format: {doc.fileType || 'Dokumen PDF / Berkas Digital'} • {doc.fileSize || '1.5 MB'}
                   </p>
                 </div>
-                <button
-                  onClick={() => window.open(doc.fileUrl, '_blank')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow-sm"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Buka Viewer Lengkap</span>
-                </button>
+                {doc.fileUrl && (
+                  <a
+                    href={doc.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow-sm"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Buka Viewer Lengkap</span>
+                  </a>
+                )}
               </div>
             )}
           </div>
+
+          {/* Lampiran Dokumen Tambahan */}
+          {doc.attachmentUrl && (
+            <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3 truncate">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="truncate">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 block">
+                    Dokumen Lampiran Tambahan
+                  </span>
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    {doc.attachmentName || 'Dokumen Lampiran'}
+                  </p>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {doc.attachmentType || 'Dokumen'} {doc.attachmentSize ? `• ${doc.attachmentSize}` : ''}
+                  </span>
+                </div>
+              </div>
+              <a
+                href={doc.attachmentUrl}
+                download={doc.attachmentName || 'Lampiran'}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+              >
+                <Download className="w-4 h-4" />
+                <span>Unduh Dokumen</span>
+              </a>
+            </div>
+          )}
 
           {/* Details / Edit Form */}
           {!isEditing ? (
@@ -415,13 +467,17 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => window.open(doc.fileUrl, '_blank')}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Drive Link</span>
-            </button>
+            {doc.fileUrl && (
+              <a
+                href={doc.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Buka Berkas</span>
+              </a>
+            )}
             <button
               onClick={handleDownload}
               className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm shadow-indigo-600/20"

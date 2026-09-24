@@ -36,6 +36,10 @@ export interface IntranetDocument {
   updatedAt?: string;
   effectiveDate?: string; // Tanggal mulai berlaku pengumuman (YYYY-MM-DD, default hari ini saat submit)
   expiryDate?: string;    // Tanggal kedaluwarsa pengumuman (YYYY-MM-DD, otomatis terhapus setelah melewati tanggal ini)
+  attachmentUrl?: string; // URL data/file untuk dokumen lampiran tambahan
+  attachmentName?: string;
+  attachmentType?: string;
+  attachmentSize?: string;
   driveFileId?: string;
   driveFolderPath?: string;
 }

@@ -1143,7 +1143,6 @@ export function sendPushNotification(params: {
       try {
         new Notification(params.title, {
           body: params.message,
-          icon: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100&auto=format&fit=crop',
         });
       } catch (e) {
         console.warn('Native notification error:', e);

@@ -271,7 +271,7 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       batch.set(doc(db, NOTIFS_COL, n.id), n);
     });
 
-    // 8. Seed Default System Config (Firestore Native Storage settings)
+    // 8. Seed Default System Config (Firestore Native Storage settings & Branding)
     batch.set(doc(db, CONFIG_COL, 'storage_settings'), {
       id: 'storage_settings',
       provider: 'firestore',
@@ -280,6 +280,19 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       autoSyncEnabled: true,
       updatedAt: new Date().toISOString(),
     });
+
+    batch.set(
+      doc(db, CONFIG_COL, 'app_branding'),
+      {
+        appName: 'Intranet HCJ',
+        subTitle: 'Portal Dokumen & Evaluasi Kinerja',
+        customLogoUrl: null,
+        creatorSignature: 'JBagas 2026 ttd',
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'system',
+      },
+      { merge: true }
+    );
 
     await batch.commit();
     notifyFirebaseState('connected');
@@ -534,6 +547,39 @@ export async function firestoreDeleteUser(userId: string): Promise<void> {
   } catch (err) {
     console.warn('firestoreDeleteUser error:', err);
   }
+}
+
+export async function firestoreFetchUsers(): Promise<User[]> {
+  if (!isFirebaseConfigured()) return [];
+  try {
+    const snap = await getDocs(collection(db, USERS_COL));
+    const items: User[] = [];
+    snap.forEach((d) => {
+      const u = d.data() as User;
+      if (u && u.email) items.push(u);
+    });
+    return items;
+  } catch (err) {
+    console.warn('firestoreFetchUsers error:', err);
+    return [];
+  }
+}
+
+export async function firestoreFindUserByEmail(email: string): Promise<User | null> {
+  if (!isFirebaseConfigured()) return null;
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const snap = await getDocs(collection(db, USERS_COL));
+    for (const d of snap.docs) {
+      const u = d.data() as User;
+      if (u && u.email && u.email.trim().toLowerCase() === cleanEmail) {
+        return u;
+      }
+    }
+  } catch (err) {
+    console.warn('firestoreFindUserByEmail error:', err);
+  }
+  return null;
 }
 
 /**

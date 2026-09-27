@@ -13,10 +13,11 @@ import {
   Clock
 } from 'lucide-react';
 import { User, UserRole } from '../types';
-import { getUsers, registerUser, addAccessLog, getDepartments } from '../lib/storage';
+import { getUsers, saveUsers, registerUser, addAccessLog, getDepartments } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
+import { subscribeToUsers, firestoreFindUserByEmail } from '../lib/firestoreService';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
@@ -37,6 +38,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Register form state
   const [regName, setRegName] = useState('');
@@ -53,11 +55,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
   useEffect(() => {
-    const unsub = subscribeToAppBranding((b) => setBranding(b));
-    return () => unsub();
+    const unsubBranding = subscribeToAppBranding((b) => setBranding(b));
+    const unsubUsers = subscribeToUsers((newUsers) => {
+      saveUsers(newUsers);
+    });
+    return () => {
+      unsubBranding();
+      unsubUsers();
+    };
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -69,63 +77,107 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
-    const users = getUsers();
-    const cleanEmail = email.trim().toLowerCase();
-    const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    setIsLoggingIn(true);
 
-    if (!found) {
-      setErrorMessage(t('errEmailNotRegistered', currentLang));
-      loginCaptchaRef.current?.reset();
-      addAccessLog({
-        user: null,
-        actionCategory: 'AUTH',
-        action: 'Login Gagal - Email Tidak Ditemukan',
-        target: cleanEmail,
-        status: 'FAILED',
-        details: 'Percobaan login dengan email yang tidak terdaftar.',
-      });
-      return;
-    }
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      let users = getUsers();
+      let found = users.find((u) => u.email.toLowerCase() === cleanEmail);
 
-    if (found.password && found.password !== password) {
-      setErrorMessage(t('errWrongPassword', currentLang));
-      loginCaptchaRef.current?.reset();
+      // If user not found in local cache, query Firestore directly for real-time sync across devices
+      if (!found) {
+        try {
+          const remoteUser = await firestoreFindUserByEmail(cleanEmail);
+          if (remoteUser) {
+            found = remoteUser;
+            users = [...users.filter((u) => u.id !== remoteUser.id), remoteUser];
+            saveUsers(users);
+          }
+        } catch (fetchErr) {
+          console.debug('Firestore direct user lookup error:', fetchErr);
+        }
+      }
+
+      if (!found) {
+        setErrorMessage(t('errEmailNotRegistered', currentLang));
+        loginCaptchaRef.current?.reset();
+        addAccessLog({
+          user: null,
+          actionCategory: 'AUTH',
+          action: 'Login Gagal - Email Tidak Ditemukan',
+          target: cleanEmail,
+          status: 'FAILED',
+          details: 'Percobaan login dengan email yang tidak terdaftar.',
+        });
+        return;
+      }
+
+      // If credentials don't match local cache, do a fresh sync from Firestore before failing
+      if (found.password && found.password !== password) {
+        try {
+          const freshUser = await firestoreFindUserByEmail(cleanEmail);
+          if (freshUser && freshUser.password === password) {
+            found = freshUser;
+            users = [...users.filter((u) => u.id !== freshUser.id), freshUser];
+            saveUsers(users);
+          }
+        } catch (e) {}
+      }
+
+      if (found.password && found.password !== password) {
+        setErrorMessage(t('errWrongPassword', currentLang));
+        loginCaptchaRef.current?.reset();
+        addAccessLog({
+          user: found,
+          actionCategory: 'AUTH',
+          action: 'Login Gagal - Kata Sandi Salah',
+          target: cleanEmail,
+          status: 'FAILED',
+          details: 'Kata sandi tidak sesuai dengan data terdaftar.',
+        });
+        return;
+      }
+
+      // If status is not approved, re-check Firestore to ensure Super Admin's remote approval is applied
+      if (found.status !== 'Approved') {
+        try {
+          const freshUser = await firestoreFindUserByEmail(cleanEmail);
+          if (freshUser && freshUser.status === 'Approved') {
+            found = freshUser;
+            users = [...users.filter((u) => u.id !== freshUser.id), freshUser];
+            saveUsers(users);
+          }
+        } catch (e) {}
+      }
+
+      if (found.status !== 'Approved') {
+        setErrorMessage(t('errAccountPending', currentLang));
+        loginCaptchaRef.current?.reset();
+        addAccessLog({
+          user: found,
+          actionCategory: 'AUTH',
+          action: 'Login Ditolak - Akun Belum Disetujui',
+          target: cleanEmail,
+          status: 'FAILED',
+          details: 'Akun masih berstatus Pending dan belum diverifikasi Super Admin.',
+        });
+        return;
+      }
+
+      // Success login
       addAccessLog({
         user: found,
         actionCategory: 'AUTH',
-        action: 'Login Gagal - Kata Sandi Salah',
-        target: cleanEmail,
-        status: 'FAILED',
-        details: 'Kata sandi tidak sesuai dengan data terdaftar.',
+        action: 'Login Berhasil',
+        target: found.email,
+        status: 'SUCCESS',
+        details: `User ${found.nama} (${found.role}) berhasil masuk ke portal Intranet HCJ.`,
       });
-      return;
+
+      onLoginSuccess(found);
+    } finally {
+      setIsLoggingIn(false);
     }
-
-    if (found.status !== 'Approved') {
-      setErrorMessage(t('errAccountPending', currentLang));
-      loginCaptchaRef.current?.reset();
-      addAccessLog({
-        user: found,
-        actionCategory: 'AUTH',
-        action: 'Login Ditolak - Akun Belum Disetujui',
-        target: cleanEmail,
-        status: 'FAILED',
-        details: 'Akun masih berstatus Pending dan belum diverifikasi Super Admin.',
-      });
-      return;
-    }
-
-    // Success login
-    addAccessLog({
-      user: found,
-      actionCategory: 'AUTH',
-      action: 'Login Berhasil',
-      target: found.email,
-      status: 'SUCCESS',
-      details: `User ${found.nama} (${found.role}) berhasil masuk ke portal Intranet HCJ.`,
-    });
-
-    onLoginSuccess(found);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -349,10 +401,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <button
                 type="submit"
                 id="btn-login-submit"
-                className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 shadow-md shadow-indigo-600/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+                disabled={isLoggingIn}
+                className="w-full mt-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 shadow-md shadow-indigo-600/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
               >
-                <span>{t('loginSubmitBtn', currentLang)}</span>
-                <ArrowRight className="w-4 h-4" />
+                {isLoggingIn ? (
+                  <span>Memverifikasi akun...</span>
+                ) : (
+                  <>
+                    <span>{t('loginSubmitBtn', currentLang)}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
           ) : (

@@ -340,7 +340,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="pt-1 px-1 text-center">
           <p className="text-[11px] text-slate-400 font-bold tracking-wide">
-            {branding.creatorSignature || 'Created by Bagas Prasetyo • 2026'}
+            {branding.creatorSignature || 'JBagas 2026 ttd'}
           </p>
         </div>
       </div>

@@ -20,7 +20,7 @@ export const DEFAULT_BRANDING: AppBranding = {
   appName: 'Intranet HCJ',
   subTitle: 'Portal Dokumen & Evaluasi Kinerja',
   customLogoUrl: null,
-  creatorSignature: 'Created by Bagas Prasetyo • 2026',
+  creatorSignature: 'JBagas 2026 ttd',
   updatedAt: new Date().toISOString(),
 };
 
@@ -40,7 +40,7 @@ let currentBranding: AppBranding = (() => {
           customLogoUrl: parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
           creatorSignature: parsed.creatorSignature || DEFAULT_BRANDING.creatorSignature,
           updatedAt: parsed.updatedAt || DEFAULT_BRANDING.updatedAt,
-          updatedBy: parsed.updatedBy,
+          updatedBy: parsed.updatedBy || '',
         };
       }
     } catch (e) {
@@ -69,6 +69,39 @@ function notifySubscribers(updated: AppBranding) {
 // Global active Firestore listener
 let isListenerActive = false;
 
+/**
+ * Fetch latest branding from Firestore directly (one-time getDoc)
+ */
+export async function fetchAppBrandingFromFirestore(): Promise<AppBranding> {
+  if (!isFirebaseConfigured()) return currentBranding;
+  try {
+    const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data() as Partial<AppBranding>;
+      const updated: AppBranding = {
+        appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
+        subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
+        customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
+        creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
+        updatedAt: data.updatedAt || new Date().toISOString(),
+        updatedBy: data.updatedBy || '',
+      };
+      currentBranding = updated;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
+        } catch (e) {}
+      }
+      notifySubscribers(updated);
+      return updated;
+    }
+  } catch (err) {
+    console.debug('Direct branding fetch notice:', err);
+  }
+  return currentBranding;
+}
+
 export function initBrandingFirestoreSync(): void {
   if (isListenerActive || !isFirebaseConfigured()) return;
   try {
@@ -84,7 +117,7 @@ export function initBrandingFirestoreSync(): void {
             customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
             creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
             updatedAt: data.updatedAt || new Date().toISOString(),
-            updatedBy: data.updatedBy || currentBranding.updatedBy,
+            updatedBy: data.updatedBy || '',
           };
           currentBranding = updated;
           if (typeof window !== 'undefined') {
@@ -105,15 +138,17 @@ export function initBrandingFirestoreSync(): void {
   }
 }
 
-// Fetch initial branding once immediately
+// Fetch initial branding once immediately on script load
 if (typeof window !== 'undefined') {
   initBrandingFirestoreSync();
+  fetchAppBrandingFromFirestore().catch(() => {});
 }
 
 export function subscribeToAppBranding(callback: (branding: AppBranding) => void): () => void {
   listeners.push(callback);
   callback(currentBranding);
   initBrandingFirestoreSync();
+  fetchAppBrandingFromFirestore().catch(() => {});
 
   return () => {
     const idx = listeners.indexOf(callback);
@@ -126,13 +161,12 @@ export async function saveAppBranding(
   actorEmail?: string
 ): Promise<AppBranding> {
   const updated: AppBranding = {
-    ...currentBranding,
-    ...newBranding,
-    appName: newBranding.appName !== undefined ? newBranding.appName.trim() : currentBranding.appName,
-    subTitle: newBranding.subTitle !== undefined ? newBranding.subTitle.trim() : currentBranding.subTitle,
-    creatorSignature: newBranding.creatorSignature !== undefined ? newBranding.creatorSignature.trim() : currentBranding.creatorSignature,
+    appName: newBranding.appName !== undefined ? newBranding.appName.trim() : (currentBranding.appName || DEFAULT_BRANDING.appName),
+    subTitle: newBranding.subTitle !== undefined ? newBranding.subTitle.trim() : (currentBranding.subTitle || DEFAULT_BRANDING.subTitle),
+    customLogoUrl: newBranding.customLogoUrl !== undefined ? newBranding.customLogoUrl : (currentBranding.customLogoUrl || null),
+    creatorSignature: newBranding.creatorSignature !== undefined ? newBranding.creatorSignature.trim() : (currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature),
     updatedAt: new Date().toISOString(),
-    updatedBy: actorEmail || currentBranding.updatedBy,
+    updatedBy: actorEmail || currentBranding.updatedBy || '',
   };
 
   currentBranding = updated;
@@ -148,13 +182,22 @@ export async function saveAppBranding(
   // Broadcast to local subscribers immediately
   notifySubscribers(updated);
 
-  // Sync to Firestore
+  // Sync to Firestore without any undefined fields
   if (isFirebaseConfigured()) {
     try {
       const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
-      await setDoc(docRef, updated, { merge: true });
-    } catch (err) {
-      console.warn('Firestore branding save error:', err);
+      const cleanPayload: Record<string, any> = {
+        appName: updated.appName,
+        subTitle: updated.subTitle,
+        customLogoUrl: updated.customLogoUrl,
+        creatorSignature: updated.creatorSignature,
+        updatedAt: updated.updatedAt,
+        updatedBy: updated.updatedBy || '',
+      };
+      await setDoc(docRef, cleanPayload, { merge: true });
+    } catch (err: any) {
+      console.error('Firestore branding save error:', err);
+      throw new Error(`Gagal menyimpan ke Firestore: ${err?.message || 'Izin ditolak atau masalah jaringan'}`);
     }
   }
 

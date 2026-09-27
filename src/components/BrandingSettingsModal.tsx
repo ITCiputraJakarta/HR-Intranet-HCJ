@@ -27,6 +27,7 @@ interface BrandingSettingsModalProps {
   onClose: () => void;
   currentUser: User;
   currentLang?: Language;
+  onBrandingSaved?: () => void;
 }
 
 export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
@@ -34,12 +35,13 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   onClose,
   currentUser,
   currentLang = 'id',
+  onBrandingSaved,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
   const [appName, setAppName] = useState(branding.appName);
   const [subTitle, setSubTitle] = useState(branding.subTitle);
-  const [creatorSignature, setCreatorSignature] = useState(branding.creatorSignature || 'Created by Bagas Prasetyo • 2026');
+  const [creatorSignature, setCreatorSignature] = useState(branding.creatorSignature || 'JBagas 2026 ttd');
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -52,7 +54,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setBranding(current);
       setAppName(current.appName);
       setSubTitle(current.subTitle);
-      setCreatorSignature(current.creatorSignature || 'Created by Bagas Prasetyo • 2026');
+      setCreatorSignature(current.creatorSignature || 'JBagas 2026 ttd');
       setFeedback(null);
     }
   }, [isOpen]);
@@ -106,8 +108,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setFeedback({
         type: 'success',
         text: isId
-          ? 'Logo baru berhasil diunggah dan dikompresi ke format ultra-ringan!'
-          : 'New logo uploaded and compressed to lightweight format!',
+          ? 'Logo baru berhasil diunggah dan tersinkron ke Cloud Firestore untuk seluruh perangkat & pengguna!'
+          : 'New logo uploaded and synced to Cloud Firestore across all devices!',
       });
 
       addAccessLog({
@@ -116,8 +118,10 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         action: 'Update Logo Portal HCJ',
         target: file.name,
         status: 'SUCCESS',
-        details: `Super Admin ${currentUser.nama} memperbarui logo portal Intranet HCJ.`,
+        details: `Super Admin ${currentUser.nama} memperbarui logo portal Intranet HCJ di Cloud Firestore.`,
       });
+
+      onBrandingSaved?.();
     } catch (err: any) {
       console.error('Upload logo error:', err);
       setFeedback({
@@ -144,7 +148,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setBranding((prev) => ({ ...prev, customLogoUrl: null }));
       setFeedback({
         type: 'success',
-        text: isId ? 'Logo dikembalikan ke default.' : 'Logo reset to default.',
+        text: isId ? 'Logo dikembalikan ke default dan disinkronkan ke Firestore.' : 'Logo reset to default and synced to Firestore.',
       });
 
       addAccessLog({
@@ -153,8 +157,10 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         action: 'Reset Logo Portal HCJ',
         target: 'Default Hotel Icon',
         status: 'SUCCESS',
-        details: `Super Admin ${currentUser.nama} mereset logo portal ke default icon.`,
+        details: `Super Admin ${currentUser.nama} mereset logo portal ke default icon di Firestore.`,
       });
+
+      onBrandingSaved?.();
     } catch (err: any) {
       setFeedback({ type: 'error', text: err?.message || 'Gagal reset logo.' });
     } finally {
@@ -172,7 +178,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         {
           appName: appName.trim(),
           subTitle: subTitle.trim(),
-          creatorSignature: creatorSignature.trim() || 'Created by Bagas Prasetyo • 2026',
+          creatorSignature: creatorSignature.trim() || 'JBagas 2026 ttd',
         },
         currentUser.email
       );
@@ -180,8 +186,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setFeedback({
         type: 'success',
         text: isId
-          ? 'Identitas portal berhasil disimpan dan disinkronkan ke seluruh sistem!'
-          : 'Portal branding successfully saved and synced across system!',
+          ? 'Identitas portal & signatur berhasil disimpan dan disinkronkan ke seluruh sistem Firestore!'
+          : 'Portal branding and signature saved and synced across system via Firestore!',
       });
 
       addAccessLog({
@@ -190,8 +196,10 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         action: 'Update Identitas Portal HCJ',
         target: appName.trim(),
         status: 'SUCCESS',
-        details: `Nama portal diubah menjadi "${appName.trim()}" oleh Super Admin.`,
+        details: `Identitas portal diubah: Nama "${appName.trim()}", Signatur "${creatorSignature.trim() || 'JBagas 2026 ttd'}" oleh Super Admin.`,
       });
+
+      onBrandingSaved?.();
     } catch (err: any) {
       setFeedback({ type: 'error', text: err?.message || 'Gagal menyimpan nama portal.' });
     } finally {
@@ -369,11 +377,11 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                 type="text"
                 value={creatorSignature}
                 onChange={(e) => setCreatorSignature(e.target.value)}
-                placeholder="Created by Bagas Prasetyo • 2026"
+                placeholder="JBagas 2026 ttd"
                 className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800 font-mono"
               />
               <p className="text-[11px] text-slate-400 mt-1">
-                Default: &quot;Created by Bagas Prasetyo • 2026 ttd&quot;
+                Default: &quot;JBagas 2026 ttd&quot;
               </p>
             </div>
 

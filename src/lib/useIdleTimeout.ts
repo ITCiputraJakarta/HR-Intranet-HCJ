@@ -44,22 +44,25 @@ export function useIdleTimeout(
   onTimeout: () => void
 ): { resetTimer: () => void } {
   const lastActivityRef = useRef<number>(Date.now());
+  const lastWrittenToStorageRef = useRef<number>(Date.now());
   const onTimeoutRef = useRef(onTimeout);
   onTimeoutRef.current = onTimeout;
 
   const resetTimer = useCallback(() => {
     const now = Date.now();
     lastActivityRef.current = now;
+    lastWrittenToStorageRef.current = now;
     recordUserActivity();
   }, []);
 
   const handleActivity = useCallback(() => {
     const now = Date.now();
-    // Throttle localStorage updates to avoid thrashing
-    if (now - lastActivityRef.current > 2000) {
+    lastActivityRef.current = now;
+    // Throttle localStorage updates every 1.5 seconds
+    if (now - lastWrittenToStorageRef.current > 1500) {
+      lastWrittenToStorageRef.current = now;
       recordUserActivity();
     }
-    lastActivityRef.current = now;
   }, []);
 
   useEffect(() => {
@@ -71,14 +74,31 @@ export function useIdleTimeout(
       return;
     }
 
-    // User is active on page reload; keep them logged in!
+    // User is active on page reload / navigation; keep session alive!
     recordUserActivity();
     lastActivityRef.current = Date.now();
+    lastWrittenToStorageRef.current = Date.now();
 
-    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'];
+    const activityEvents = [
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'scroll',
+      'touchstart',
+      'click',
+      'wheel',
+    ];
+
     activityEvents.forEach((ev) => {
       window.addEventListener(ev, handleActivity, { passive: true });
     });
+
+    const handleBeforeUnload = () => {
+      recordUserActivity();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
 
     const intervalId = setInterval(() => {
       const now = Date.now();
@@ -86,12 +106,14 @@ export function useIdleTimeout(
       if (elapsed >= IDLE_TIMEOUT_MS) {
         onTimeoutRef.current();
       }
-    }, 2000);
+    }, 1500);
 
     return () => {
       activityEvents.forEach((ev) => {
         window.removeEventListener(ev, handleActivity);
       });
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
       clearInterval(intervalId);
     };
   }, [isLoggedIn, handleActivity]);

@@ -167,13 +167,14 @@ export function setCurrentUser(user: User | null): void {
 }
 
 /**
- * Hapus seluruh cache dan data tersimpan di browser saat pengguna logout.
+ * Hapus sesi pengguna saat logout tanpa menghapus identitas branding portal atau konfigurasi sistem.
  * Memastikan sesi benar-benar bersih tanpa jejak data role sebelumnya.
  */
 export function clearAllSessionCache(): void {
   try {
     if (typeof window !== 'undefined') {
-      localStorage.clear();
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem('ciputra_intra_last_active_v1');
       sessionStorage.clear();
     }
   } catch (e) {

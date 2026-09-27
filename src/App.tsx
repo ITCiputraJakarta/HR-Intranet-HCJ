@@ -110,6 +110,7 @@ export default function App() {
     setNotifications(getNotifications());
     setPerformances(getPerformances());
     setConfig(getSpreadsheetConfig());
+    setBranding(getAppBranding());
   };
 
   useEffect(() => {
@@ -531,7 +532,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-800 tracking-wide text-xs">
-              {branding.creatorSignature || 'Created by Bagas Prasetyo • 2026'}
+              {branding.creatorSignature || 'JBagas 2026 ttd'}
             </span>
           </div>
           <div className="flex items-center gap-3">

@@ -120,7 +120,7 @@ export const translations = {
     errCaptchaInvalid: 'Kode captcha tidak cocok atau belum diisi. Silakan coba lagi.',
     successRegistered: 'Pendaftaran berhasil! Akun Anda telah dicatat dengan status Pending dan menunggu persetujuan Super Admin.',
     customLogoLabel: 'Logo Portal Khusus',
-    creatorSignatureText: 'Created by Bagas Prasetyo • 2026',
+    creatorSignatureText: 'JBagas 2026 ttd',
 
     // Table Headers Translations
     thNoticeTitle: 'Judul & Pengumuman',

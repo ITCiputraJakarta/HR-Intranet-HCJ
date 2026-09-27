@@ -27,8 +27,6 @@ import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/bran
 interface NavbarProps {
   currentUser: User;
   onLogout: () => void;
-  onSwitchUser?: (user: User) => void;
-  onRoleSwitch?: (user: User) => void;
   allUsers?: User[];
   notifications?: PushNotification[];
   unreadCount?: number;
@@ -47,8 +45,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onLogout,
-  onSwitchUser,
-  onRoleSwitch,
   allUsers = [],
   notifications = [],
   unreadCount: propUnreadCount,
@@ -466,35 +462,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
 
-                  {/* Role Switcher for Testing (Super Admin only) */}
-                  {currentUser.role === 'admin' && onRoleSwitch && safeAllUsers.length > 0 && (
-                    <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-2 mb-1.5">
-                        Simulasi Hak Akses Akun:
-                      </span>
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {safeAllUsers.slice(0, 5).map((u) => (
-                          <button
-                            key={u.id}
-                            onClick={() => {
-                              onRoleSwitch(u);
-                              setShowUserDropdown(false);
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 text-xs rounded-xl flex items-center justify-between ${
-                              u.id === currentUser.id
-                                ? 'bg-indigo-100/70 text-indigo-900 font-bold'
-                                : 'hover:bg-slate-200/60 text-slate-700'
-                            }`}
-                          >
-                            <span className="truncate">{u.nama}</span>
-                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-white font-semibold text-slate-600">
-                              {u.role}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="p-1">
                     <button

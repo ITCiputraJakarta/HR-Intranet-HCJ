@@ -121,6 +121,9 @@ export const translations = {
     successRegistered: 'Pendaftaran berhasil! Akun Anda telah dicatat dengan status Pending dan menunggu persetujuan Super Admin.',
     customLogoLabel: 'Logo Portal Khusus',
     creatorSignatureText: 'JBagas 2026 ttd',
+    signInWithGoogle: 'Masuk dengan Akun Google',
+    orContinueWithEmail: 'atau masuk dengan email & kata sandi',
+    googleSignInLoading: 'Menghubungkan ke Akun Google...',
 
     // Table Headers Translations
     thNoticeTitle: 'Judul & Pengumuman',
@@ -299,6 +302,9 @@ export const translations = {
     successRegistered: 'Registration successful! Your account is now Pending approval by Super Admin.',
     customLogoLabel: 'Custom Portal Logo',
     creatorSignatureText: 'JBagas 2026 ttd',
+    signInWithGoogle: 'Sign in with Google',
+    orContinueWithEmail: 'or continue with email & password',
+    googleSignInLoading: 'Connecting to Google Account...',
 
     // Table Headers Translations
     thNoticeTitle: 'Notice & Announcement',

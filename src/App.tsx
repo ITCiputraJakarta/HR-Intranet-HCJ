@@ -276,13 +276,6 @@ export default function App() {
     setNotifications([]);
   };
 
-  const handleRoleSwitch = (newUser: User) => {
-    setCurrentUser(newUser);
-    setUserState(newUser);
-    recordUserActivity();
-    refreshAllData();
-  };
-
   const handleClearNotifications = () => {
     markNotificationsAsRead();
     setNotifications(getNotifications());
@@ -349,7 +342,6 @@ export default function App() {
         onOpenBranding={() => setShowBrandingModal(true)}
         onOpenConfig={() => setShowFirestoreModal(true)}
         onOpenFirestoreModal={() => setShowFirestoreModal(true)}
-        onRoleSwitch={handleRoleSwitch}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

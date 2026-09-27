@@ -1,4 +1,6 @@
+// Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
 import {
   getFirestore,
   initializeFirestore,
@@ -7,8 +9,6 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
-import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
-import bundledConfig from '../../firebase-applet-config.json';
 
 export interface FirebaseAppConfig {
   apiKey: string;
@@ -23,27 +23,31 @@ export interface FirebaseAppConfig {
   recaptchaSiteKey?: string;
 }
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+export const DEFAULT_FIREBASE_CONFIG: FirebaseAppConfig = {
+  apiKey: 'AIzaSyCbWSyLab5imSjZNI4mYH_KDDII1a4hayI',
+  authDomain: 'hr-intranet-31ff4.firebaseapp.com',
+  projectId: 'hr-intranet-31ff4',
+  storageBucket: 'hr-intranet-31ff4.firebasestorage.app',
+  messagingSenderId: '282386309612',
+  appId: '1:282386309612:web:69a16c4854b378808ae0c9',
+  measurementId: 'G-Q62YDK838M',
+  firestoreDatabaseId: '(default)',
+};
+
 const LOCAL_STORAGE_CUSTOM_CONFIG_KEY = 'ciputra_custom_firebase_config_v1';
 
 export function getStoredFirebaseConfig(): FirebaseAppConfig {
   if (typeof window !== 'undefined') {
     try {
-      // Remove any legacy/stale custom config that points to an old project or wrong databaseId
-      const stored = localStorage.getItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (
-          parsed.projectId !== bundledConfig.projectId ||
-          parsed.firestoreDatabaseId !== bundledConfig.firestoreDatabaseId
-        ) {
-          localStorage.removeItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
-        }
-      }
+      // Clear any stale custom config that had a mismatched databaseId so hr-intranet-31ff4 connects cleanly to (default)
+      localStorage.removeItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
     } catch {
       // Ignore storage errors
     }
   }
-  return bundledConfig as FirebaseAppConfig;
+  return DEFAULT_FIREBASE_CONFIG;
 }
 
 export function saveStoredFirebaseConfig(config: Partial<FirebaseAppConfig>): void {
@@ -62,10 +66,26 @@ export function resetStoredFirebaseConfig(): void {
 
 export const firebaseConfig: FirebaseAppConfig = getStoredFirebaseConfig();
 
-// Initialize Firebase App safely
+// Initialize Firebase
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with auto-detect long polling so writes never hang on corporate/iframe networks
+// Initialize Firebase Analytics safely in browser environment
+export let analytics: Analytics | null = null;
+if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  try {
+    isSupported()
+      .then((supported) => {
+        if (supported) {
+          analytics = getAnalytics(app);
+        }
+      })
+      .catch(() => {});
+  } catch {
+    // Ignore analytics errors in restricted iframe/local environments
+  }
+}
+
+// Initialize Cloud Firestore on the default database of hr-intranet-31ff4 with auto-detect long polling
 function createFirestoreInstance(): Firestore {
   const targetDbId =
     firebaseConfig.firestoreDatabaseId &&
@@ -100,27 +120,6 @@ async function testConnection() {
 }
 if (typeof window !== 'undefined') {
   testConnection();
-}
-
-// Initialize Firebase Analytics safely (only when a valid Google Analytics Measurement ID is provided)
-export let analytics: Analytics | null = null;
-if (
-  typeof window !== 'undefined' &&
-  firebaseConfig.measurementId &&
-  firebaseConfig.measurementId.trim() !== '' &&
-  firebaseConfig.measurementId.startsWith('G-')
-) {
-  try {
-    isSupported()
-      .then((supported) => {
-        if (supported && firebaseConfig.measurementId?.startsWith('G-')) {
-          analytics = getAnalytics(app);
-        }
-      })
-      .catch(() => {});
-  } catch {
-    // Ignore analytics errors in preview or local environments
-  }
 }
 
 export const firestoreDatabaseId = firebaseConfig.firestoreDatabaseId || '(default)';

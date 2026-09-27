@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  Firestore,
+  doc,
+  getDocFromServer
+} from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
 import bundledConfig from '../../firebase-applet-config.json';
@@ -22,15 +28,19 @@ const LOCAL_STORAGE_CUSTOM_CONFIG_KEY = 'ciputra_custom_firebase_config_v1';
 export function getStoredFirebaseConfig(): FirebaseAppConfig {
   if (typeof window !== 'undefined') {
     try {
+      // Remove any legacy/stale custom config that points to an old project or wrong databaseId
       const stored = localStorage.getItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.projectId && parsed.apiKey) {
-          return { ...bundledConfig, ...parsed };
+        if (
+          parsed.projectId !== bundledConfig.projectId ||
+          parsed.firestoreDatabaseId !== bundledConfig.firestoreDatabaseId
+        ) {
+          localStorage.removeItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
         }
       }
-    } catch (e) {
-      console.warn('Failed to parse custom firebase config:', e);
+    } catch {
+      // Ignore storage errors
     }
   }
   return bundledConfig as FirebaseAppConfig;
@@ -55,16 +65,42 @@ export const firebaseConfig: FirebaseAppConfig = getStoredFirebaseConfig();
 // Initialize Firebase App safely
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore using the configured database ID or default
-export const db: Firestore =
-  firebaseConfig.firestoreDatabaseId &&
-  firebaseConfig.firestoreDatabaseId !== '(default)' &&
-  firebaseConfig.firestoreDatabaseId.trim() !== ''
-    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-    : getFirestore(app);
+// Initialize Firestore with auto-detect long polling so writes never hang on corporate/iframe networks
+function createFirestoreInstance(): Firestore {
+  const targetDbId =
+    firebaseConfig.firestoreDatabaseId &&
+    firebaseConfig.firestoreDatabaseId !== '(default)' &&
+    firebaseConfig.firestoreDatabaseId.trim() !== ''
+      ? firebaseConfig.firestoreDatabaseId
+      : undefined;
+
+  try {
+    return targetDbId
+      ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, targetDbId)
+      : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  } catch {
+    return targetDbId ? getFirestore(app, targetDbId) : getFirestore(app);
+  }
+}
+
+export const db: Firestore = createFirestoreInstance();
 
 // Initialize Firebase Authentication
 export const auth: Auth = getAuth(app);
+
+// Validate connection to Firestore on boot
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'systemConfig', 'app_branding'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 // Initialize Firebase Analytics safely (only when a valid Google Analytics Measurement ID is provided)
 export let analytics: Analytics | null = null;

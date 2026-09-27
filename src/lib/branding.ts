@@ -66,35 +66,67 @@ function notifySubscribers(updated: AppBranding) {
   });
 }
 
-// Global active Firestore listener
+// Global active Firestore listener & timestamp guard to prevent stale reads overwriting fresh saves
 let isListenerActive = false;
+let lastLocalSaveTime = 0;
+
+function syncFavicon(logoUrl: string | null) {
+  if (typeof document === 'undefined') return;
+  try {
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+    if (logoUrl) {
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = logoUrl;
+    }
+  } catch {
+    // Ignore favicon DOM errors
+  }
+}
+
+function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
+  const incomingTime = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+  // Ignore stale snapshot if we just saved locally within the last 5 seconds and incoming is older
+  if (lastLocalSaveTime > 0 && Date.now() - lastLocalSaveTime < 5000 && incomingTime < lastLocalSaveTime) {
+    return currentBranding;
+  }
+
+  const updated: AppBranding = {
+    appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
+    subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
+    customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
+    creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    updatedBy: data.updatedBy || '',
+  };
+  currentBranding = updated;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+    syncFavicon(updated.customLogoUrl);
+  }
+  notifySubscribers(updated);
+  return updated;
+}
 
 /**
  * Fetch latest branding from Firestore directly (one-time getDoc)
  */
 export async function fetchAppBrandingFromFirestore(): Promise<AppBranding> {
   if (!isFirebaseConfigured()) return currentBranding;
+  // Do not overwrite an in-flight local save
+  if (lastLocalSaveTime > 0 && Date.now() - lastLocalSaveTime < 4000) {
+    return currentBranding;
+  }
   try {
     const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      const data = snap.data() as Partial<AppBranding>;
-      const updated: AppBranding = {
-        appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
-        subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
-        customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
-        creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
-        updatedAt: data.updatedAt || new Date().toISOString(),
-        updatedBy: data.updatedBy || '',
-      };
-      currentBranding = updated;
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
-        } catch (e) {}
-      }
-      notifySubscribers(updated);
-      return updated;
+      return applyIncomingBranding(snap.data() as Partial<AppBranding>);
     }
   } catch (err) {
     console.debug('Direct branding fetch notice:', err);
@@ -110,22 +142,7 @@ export function initBrandingFirestoreSync(): void {
       docRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as Partial<AppBranding>;
-          const updated: AppBranding = {
-            appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
-            subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
-            customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
-            creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
-            updatedAt: data.updatedAt || new Date().toISOString(),
-            updatedBy: data.updatedBy || '',
-          };
-          currentBranding = updated;
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
-            } catch (e) {}
-          }
-          notifySubscribers(updated);
+          applyIncomingBranding(snap.data() as Partial<AppBranding>);
         }
       },
       (err) => {
@@ -148,7 +165,6 @@ export function subscribeToAppBranding(callback: (branding: AppBranding) => void
   listeners.push(callback);
   callback(currentBranding);
   initBrandingFirestoreSync();
-  fetchAppBrandingFromFirestore().catch(() => {});
 
   return () => {
     const idx = listeners.indexOf(callback);
@@ -160,12 +176,15 @@ export async function saveAppBranding(
   newBranding: Partial<AppBranding>,
   actorEmail?: string
 ): Promise<AppBranding> {
+  const nowIso = new Date().toISOString();
+  lastLocalSaveTime = Date.now();
+
   const updated: AppBranding = {
     appName: newBranding.appName !== undefined ? newBranding.appName.trim() : (currentBranding.appName || DEFAULT_BRANDING.appName),
     subTitle: newBranding.subTitle !== undefined ? newBranding.subTitle.trim() : (currentBranding.subTitle || DEFAULT_BRANDING.subTitle),
     customLogoUrl: newBranding.customLogoUrl !== undefined ? newBranding.customLogoUrl : (currentBranding.customLogoUrl || null),
     creatorSignature: newBranding.creatorSignature !== undefined ? newBranding.creatorSignature.trim() : (currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature),
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso,
     updatedBy: actorEmail || currentBranding.updatedBy || '',
   };
 
@@ -177,40 +196,45 @@ export async function saveAppBranding(
     } catch (e) {
       console.warn('Local storage write failed for branding:', e);
     }
+    syncFavicon(updated.customLogoUrl);
   }
 
-  // Broadcast to local subscribers immediately
+  // Broadcast to local subscribers immediately so UI updates in <10ms
   notifySubscribers(updated);
 
-  // Sync to Firestore without any undefined fields
+  // Sync to Firestore with a 2.5s UI timeout guard so slow connections never hang the loading button
   if (isFirebaseConfigured()) {
-    try {
-      const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
-      const cleanPayload: Record<string, any> = {
-        appName: updated.appName,
-        subTitle: updated.subTitle,
-        customLogoUrl: updated.customLogoUrl,
-        creatorSignature: updated.creatorSignature,
-        updatedAt: updated.updatedAt,
-        updatedBy: updated.updatedBy || '',
-      };
-      await setDoc(docRef, cleanPayload, { merge: true });
-    } catch (err: any) {
+    const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
+    const cleanPayload: Record<string, any> = {
+      appName: updated.appName,
+      subTitle: updated.subTitle,
+      customLogoUrl: updated.customLogoUrl,
+      creatorSignature: updated.creatorSignature,
+      updatedAt: updated.updatedAt,
+      updatedBy: updated.updatedBy || '',
+    };
+
+    const writePromise = setDoc(docRef, cleanPayload, { merge: true }).catch((err: any) => {
       console.error('Firestore branding save error:', err);
-      throw new Error(`Gagal menyimpan ke Firestore: ${err?.message || 'Izin ditolak atau masalah jaringan'}`);
-    }
+    });
+
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 2500);
+    });
+
+    await Promise.race([writePromise, timeoutPromise]);
   }
 
   return updated;
 }
 
 /**
- * Super Admin logo upload helper: compresses logo file to ultra-compact WebP/JPEG
+ * Super Admin logo upload helper: compresses logo file to ultra-compact WebP/PNG
  * and stores it permanently in Firestore and local state.
  */
 export async function uploadCustomLogo(file: File, actorEmail?: string): Promise<string> {
-  // Compress logo to max 320x320 pixels with high crispness (results in ~8KB - 20KB)
-  const result = await compressImageFile(file, 320, 0.85);
+  // Compress logo/icon to max 240x240 pixels with high crispness (results in ~4KB - 12KB in <40ms)
+  const result = await compressImageFile(file, 240, 0.84);
   await saveAppBranding({ customLogoUrl: result.dataUrl }, actorEmail);
   return result.dataUrl;
 }

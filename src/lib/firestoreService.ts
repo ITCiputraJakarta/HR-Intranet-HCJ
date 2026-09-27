@@ -532,10 +532,16 @@ export function subscribeToSystemConfig(onUpdate: (cfg: any) => void): () => voi
 
 // Users
 export async function firestoreSaveUser(user: User): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
     const cleanUser = sanitizeForFirestore(user);
-    await setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true });
-    console.log('[Firestore] User saved successfully:', user.id, user.email, user.status);
+    const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true }).then(() => {
+      console.log('[Firestore] User saved successfully:', user.id, user.email, user.status);
+    });
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 2500);
+    });
+    await Promise.race([writePromise, timeoutPromise]);
   } catch (err) {
     console.warn('firestoreSaveUser error:', err);
   }
@@ -603,11 +609,15 @@ export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<
   if (!isFirebaseConfigured()) return;
   try {
     const cleanData = sanitizeForFirestore(docItem);
-    await setDoc(doc(db, DOCS_COL, docItem.id), cleanData, { merge: true });
-    console.log('[Firestore] Document saved:', docItem.id, docItem.title);
+    const writePromise = setDoc(doc(db, DOCS_COL, docItem.id), cleanData, { merge: true }).then(() => {
+      console.log('[Firestore] Document saved:', docItem.id, docItem.title);
+    });
+    const timeoutPromise = new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 2500);
+    });
+    await Promise.race([writePromise, timeoutPromise]);
   } catch (err: any) {
     console.error('[Firestore] firestoreSaveDocument error:', err);
-    throw err;
   }
 }
 

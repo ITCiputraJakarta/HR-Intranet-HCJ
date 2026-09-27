@@ -18,6 +18,7 @@ import {
   saveAppBranding,
   uploadCustomLogo,
   resetCustomLogo,
+  subscribeToAppBranding,
   AppBranding
 } from '../lib/branding';
 import { addAccessLog } from '../lib/storage';
@@ -57,6 +58,10 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       setCreatorSignature(current.creatorSignature || 'JBagas 2026 ttd');
       setFeedback(null);
     }
+    const unsub = subscribeToAppBranding((updated) => {
+      setBranding(updated);
+    });
+    return () => unsub();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -135,14 +140,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   };
 
   const handleResetLogo = async () => {
-    const confirmed = window.confirm(
-      isId
-        ? 'Kembalikan logo portal ke logo default sistem?'
-        : 'Reset portal logo to system default?'
-    );
-    if (!confirmed) return;
-
     setIsUploading(true);
+    setFeedback(null);
     try {
       await resetCustomLogo(currentUser.email);
       setBranding((prev) => ({ ...prev, customLogoUrl: null }));

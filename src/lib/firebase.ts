@@ -66,21 +66,24 @@ export const db: Firestore =
 // Initialize Firebase Authentication
 export const auth: Auth = getAuth(app);
 
-// Initialize Firebase Analytics safely (when supported in browser context)
+// Initialize Firebase Analytics safely (only when a valid Google Analytics Measurement ID is provided)
 export let analytics: Analytics | null = null;
-if (typeof window !== 'undefined') {
+if (
+  typeof window !== 'undefined' &&
+  firebaseConfig.measurementId &&
+  firebaseConfig.measurementId.trim() !== '' &&
+  firebaseConfig.measurementId.startsWith('G-')
+) {
   try {
     isSupported()
       .then((supported) => {
-        if (supported) {
+        if (supported && firebaseConfig.measurementId?.startsWith('G-')) {
           analytics = getAnalytics(app);
         }
       })
-      .catch((err) => {
-        console.debug('Firebase Analytics initialization skipped:', err);
-      });
-  } catch (err) {
-    console.debug('Firebase Analytics error ignored:', err);
+      .catch(() => {});
+  } catch {
+    // Ignore analytics errors in preview or local environments
   }
 }
 

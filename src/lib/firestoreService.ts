@@ -316,6 +316,67 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
 }
 
 // =========================================================================
+// DELETED IDS TOMBSTONE REGISTRY & PENDING WRITE GUARD
+// =========================================================================
+
+const DELETED_IDS_STORAGE_KEY = 'ciputra_deleted_ids_v1';
+let memoryDeletedIds: Set<string> | null = null;
+const pendingDocumentSaves = new Map<string, { doc: IntranetDocument; timestamp: number }>();
+const reassembledChunkCache = new Map<string, { fileUrl?: string; attachmentUrl?: string }>();
+
+function getDeletedIdsSet(): Set<string> {
+  if (memoryDeletedIds) return memoryDeletedIds;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          memoryDeletedIds = new Set(parsed);
+          return memoryDeletedIds;
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
+  memoryDeletedIds = new Set<string>();
+  return memoryDeletedIds;
+}
+
+export function markFirestoreIdDeleted(id: string): void {
+  if (!id) return;
+  const set = getDeletedIdsSet();
+  set.add(id);
+  pendingDocumentSaves.delete(id);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+
+export function unmarkFirestoreIdDeleted(id: string): void {
+  if (!id) return;
+  const set = getDeletedIdsSet();
+  if (set.has(id)) {
+    set.delete(id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+      } catch {}
+    }
+  }
+}
+
+export function isFirestoreIdDeleted(id: string): boolean {
+  if (!id) return false;
+  return getDeletedIdsSet().has(id);
+}
+
+// =========================================================================
 // REAL-TIME FIRESTORE SUBSCRIPTIONS
 // =========================================================================
 
@@ -337,10 +398,18 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void): () => void 
       q,
       (snapshot) => {
         const items: User[] = [];
-        snapshot.forEach((d) => items.push(d.data() as User));
-        if (items.length > 0) {
+        snapshot.forEach((d) => {
+          const data = d.data() as User;
+          const id = data.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...data, id });
+          }
+        });
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
-          onUpdate(items);
+          if (items.length > 0) {
+            onUpdate(items);
+          }
         }
       },
       (err) => handleSubscriptionError('Users', err)
@@ -351,23 +420,123 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void): () => void 
   }
 }
 
+async function hydrateChunkedDocument(docItem: any): Promise<IntranetDocument> {
+  const cacheKey = `${docItem.id}_${docItem.updatedAt || docItem.uploadedAt || ''}`;
+  const cached = reassembledChunkCache.get(cacheKey);
+  if (cached) {
+    const fileUrl = cached.fileUrl || docItem.fileUrl || '';
+    const attachmentUrl = cached.attachmentUrl || docItem.attachmentUrl;
+    return {
+      ...docItem,
+      fileUrl,
+      previewUrl: fileUrl || docItem.previewUrl || '',
+      downloadUrl: fileUrl || docItem.downloadUrl || '',
+      thumbUrl: docItem.thumbUrl || (docItem.fileType?.startsWith('image/') ? fileUrl : ''),
+      ...(attachmentUrl ? { attachmentUrl } : {}),
+    };
+  }
+
+  try {
+    const chunksSnap = await getDocs(collection(db, DOCS_COL, docItem.id, 'chunks'));
+    if (!chunksSnap.empty) {
+      const fileChunks: { index: number; data: string }[] = [];
+      const attChunks: { index: number; data: string }[] = [];
+      chunksSnap.forEach((c) => {
+        const cData = c.data();
+        if (cData.field === 'attachmentUrl') {
+          attChunks.push({ index: Number(cData.index || 0), data: String(cData.data || '') });
+        } else {
+          fileChunks.push({ index: Number(cData.index || 0), data: String(cData.data || '') });
+        }
+      });
+
+      fileChunks.sort((a, b) => a.index - b.index);
+      attChunks.sort((a, b) => a.index - b.index);
+
+      const fullFileUrl = fileChunks.length > 0 ? fileChunks.map((c) => c.data).join('') : (docItem.fileUrl || '');
+      const fullAttUrl = attChunks.length > 0 ? attChunks.map((c) => c.data).join('') : docItem.attachmentUrl;
+
+      reassembledChunkCache.set(cacheKey, {
+        fileUrl: fullFileUrl,
+        attachmentUrl: fullAttUrl,
+      });
+
+      return {
+        ...docItem,
+        fileUrl: fullFileUrl,
+        previewUrl: fullFileUrl || docItem.previewUrl || '',
+        downloadUrl: fullFileUrl || docItem.downloadUrl || '',
+        thumbUrl: docItem.thumbUrl || (docItem.fileType?.startsWith('image/') ? fullFileUrl : ''),
+        ...(fullAttUrl ? { attachmentUrl: fullAttUrl } : {}),
+      };
+    }
+  } catch (e) {
+    console.warn('[Firestore] Failed to hydrate document chunks:', docItem.id, e);
+  }
+
+  const fallbackUrl = docItem.fileUrl || '';
+  return {
+    ...docItem,
+    previewUrl: docItem.previewUrl || fallbackUrl,
+    downloadUrl: docItem.downloadUrl || fallbackUrl,
+    thumbUrl: docItem.thumbUrl || (docItem.fileType?.startsWith('image/') ? fallbackUrl : ''),
+  };
+}
+
 export function subscribeToDocuments(onUpdate: (docs: IntranetDocument[]) => void): () => void {
   if (!isFirebaseConfigured()) return () => {};
   try {
     const q = collection(db, DOCS_COL);
     return onSnapshot(
       q,
-      (snapshot) => {
-        const items: IntranetDocument[] = [];
+      async (snapshot) => {
+        const rawItems: any[] = [];
         snapshot.forEach((d) => {
-          const item = d.data() as IntranetDocument;
-          if (item && item.id) {
-            items.push(item);
+          const item = d.data() as any;
+          const id = item?.id || d.id;
+          if (item && id && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            rawItems.push({ ...item, id });
           }
         });
-        items.sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+
+        const hydratedItems: IntranetDocument[] = await Promise.all(
+          rawItems.map(async (item) => {
+            if (item.isChunkedFile || item.isChunkedAttachment) {
+              return hydrateChunkedDocument(item);
+            }
+            const fileUrl = item.fileUrl || item.downloadUrl || item.previewUrl || '';
+            return {
+              ...item,
+              fileUrl,
+              previewUrl: item.previewUrl || fileUrl,
+              downloadUrl: item.downloadUrl || fileUrl,
+              thumbUrl: item.thumbUrl || (item.fileType?.startsWith('image/') ? fileUrl : ''),
+            } as IntranetDocument;
+          })
+        );
+
+        // Merge any in-flight/recently saved local documents so newly uploaded SOP/Formulir never disappear while syncing
+        const now = Date.now();
+        const existingIds = new Set(hydratedItems.map((i) => i.id));
+        pendingDocumentSaves.forEach((entry, docId) => {
+          if (now - entry.timestamp > 15000) {
+            pendingDocumentSaves.delete(docId);
+          } else if (!isFirestoreIdDeleted(docId) && !existingIds.has(docId)) {
+            hydratedItems.push(entry.doc);
+          } else if (existingIds.has(docId)) {
+            // Ensure local full fileUrl is preserved if chunk upload is still finishing
+            const idx = hydratedItems.findIndex((i) => i.id === docId);
+            if (idx !== -1 && !hydratedItems[idx].fileUrl && entry.doc.fileUrl) {
+              hydratedItems[idx] = entry.doc;
+            }
+          }
+        });
+
+        hydratedItems.sort(
+          (a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
+        );
         notifyFirebaseState('connected');
-        onUpdate(items);
+        onUpdate(hydratedItems);
       },
       (err) => handleSubscriptionError('Docs', err)
     );
@@ -377,19 +546,29 @@ export function subscribeToDocuments(onUpdate: (docs: IntranetDocument[]) => voi
   }
 }
 
+const THREE_MONTHS_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 hari (3 bulan)
+
 export function subscribeToAccessLogs(onUpdate: (logs: AccessLog[]) => void): () => void {
   try {
-    const q = query(collection(db, LOGS_COL), limit(250));
+    const q = query(collection(db, LOGS_COL), limit(500));
     return onSnapshot(
       q,
       (snapshot) => {
+        const now = Date.now();
         const items: AccessLog[] = [];
-        snapshot.forEach((d) => items.push(d.data() as AccessLog));
+        snapshot.forEach((d) => {
+          const log = { ...(d.data() as AccessLog), id: (d.data() as AccessLog).id || d.id };
+          const logTime = new Date(log.timestamp).getTime();
+          if (!isNaN(logTime) && now - logTime > THREE_MONTHS_RETENTION_MS) {
+            // Auto-delete logs older than 3 months from Firestore so storage never fills up
+            deleteDoc(doc(db, LOGS_COL, d.id)).catch(() => {});
+          } else if (!isFirestoreIdDeleted(log.id)) {
+            items.push(log);
+          }
+        });
         items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        if (items.length > 0) {
-          notifyFirebaseState('connected');
-          onUpdate(items);
-        }
+        notifyFirebaseState('connected');
+        onUpdate(items);
       },
       (err) => handleSubscriptionError('Logs', err)
     );
@@ -406,11 +585,19 @@ export function subscribeToDepartments(onUpdate: (depts: DepartmentMaster[]) => 
       q,
       (snapshot) => {
         const items: DepartmentMaster[] = [];
-        snapshot.forEach((d) => items.push(d.data() as DepartmentMaster));
+        snapshot.forEach((d) => {
+          const item = d.data() as DepartmentMaster;
+          const id = item.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...item, id });
+          }
+        });
         items.sort((a, b) => a.name.localeCompare(b.name));
-        if (items.length > 0) {
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
-          onUpdate(items);
+          if (items.length > 0) {
+            onUpdate(items);
+          }
         }
       },
       (err) => handleSubscriptionError('Depts', err)
@@ -428,8 +615,14 @@ export function subscribeToCategories(onUpdate: (cats: CategoryMaster[]) => void
       q,
       (snapshot) => {
         const items: CategoryMaster[] = [];
-        snapshot.forEach((d) => items.push(d.data() as CategoryMaster));
-        if (items.length > 0) {
+        snapshot.forEach((d) => {
+          const item = d.data() as CategoryMaster;
+          const id = item.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...item, id });
+          }
+        });
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
           onUpdate(items);
         }
@@ -449,8 +642,14 @@ export function subscribeToKPIs(onUpdate: (kpis: KPIMasterItem[]) => void): () =
       q,
       (snapshot) => {
         const items: KPIMasterItem[] = [];
-        snapshot.forEach((d) => items.push(d.data() as KPIMasterItem));
-        if (items.length > 0) {
+        snapshot.forEach((d) => {
+          const item = d.data() as KPIMasterItem;
+          const id = item.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...item, id });
+          }
+        });
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
           onUpdate(items);
         }
@@ -470,9 +669,15 @@ export function subscribeToPerformances(onUpdate: (perfs: PerformanceAppraisal[]
       q,
       (snapshot) => {
         const items: PerformanceAppraisal[] = [];
-        snapshot.forEach((d) => items.push(d.data() as PerformanceAppraisal));
+        snapshot.forEach((d) => {
+          const item = d.data() as PerformanceAppraisal;
+          const id = item.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...item, id });
+          }
+        });
         items.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-        if (items.length > 0) {
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
           onUpdate(items);
         }
@@ -492,9 +697,15 @@ export function subscribeToNotifications(onUpdate: (notifs: PushNotification[]) 
       q,
       (snapshot) => {
         const items: PushNotification[] = [];
-        snapshot.forEach((d) => items.push(d.data() as PushNotification));
+        snapshot.forEach((d) => {
+          const item = d.data() as PushNotification;
+          const id = item.id || d.id;
+          if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+            items.push({ ...item, id });
+          }
+        });
         items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        if (items.length > 0) {
+        if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
           onUpdate(items);
         }
@@ -533,6 +744,7 @@ export function subscribeToSystemConfig(onUpdate: (cfg: any) => void): () => voi
 // Users
 export async function firestoreSaveUser(user: User): Promise<void> {
   if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(user.id);
   try {
     const cleanUser = sanitizeForFirestore(user);
     const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true }).then(() => {
@@ -548,6 +760,8 @@ export async function firestoreSaveUser(user: User): Promise<void> {
 }
 
 export async function firestoreDeleteUser(userId: string): Promise<void> {
+  markFirestoreIdDeleted(userId);
+  if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, USERS_COL, userId));
   } catch (err) {
@@ -562,7 +776,10 @@ export async function firestoreFetchUsers(): Promise<User[]> {
     const items: User[] = [];
     snap.forEach((d) => {
       const u = d.data() as User;
-      if (u && u.email) items.push(u);
+      const id = u.id || d.id;
+      if (u && u.email && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        items.push({ ...u, id });
+      }
     });
     return items;
   } catch (err) {
@@ -578,8 +795,15 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
     const snap = await getDocs(collection(db, USERS_COL));
     for (const d of snap.docs) {
       const u = d.data() as User;
-      if (u && u.email && u.email.trim().toLowerCase() === cleanEmail) {
-        return u;
+      const id = u.id || d.id;
+      if (
+        u &&
+        u.email &&
+        u.email.trim().toLowerCase() === cleanEmail &&
+        !isFirestoreIdDeleted(id) &&
+        !isFirestoreIdDeleted(d.id)
+      ) {
+        return { ...u, id };
       }
     }
   } catch (err) {
@@ -604,13 +828,90 @@ export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Rec
   return result;
 }
 
-// Documents (Firestore Native Storage)
+const CHUNK_SIZE_CHARS = 550000; // ~550KB per chunk document, well below Firestore's 1MB limit
+
+async function saveDocumentWithChunksToFirestore(docItem: IntranetDocument): Promise<void> {
+  const rawFileUrl = docItem.fileUrl || docItem.downloadUrl || docItem.previewUrl || '';
+  const rawAttUrl = docItem.attachmentUrl || '';
+
+  const isChunkedFile = rawFileUrl.length > CHUNK_SIZE_CHARS;
+  const isChunkedAttachment = rawAttUrl.length > 300000;
+
+  // Deduplicate previewUrl, downloadUrl, thumbUrl in Firestore so Base64 payload is never tripled!
+  const firestorePayload: Record<string, any> = {
+    ...sanitizeForFirestore(docItem),
+    fileUrl: isChunkedFile ? '' : rawFileUrl,
+    previewUrl: rawFileUrl.startsWith('data:') ? '' : (docItem.previewUrl || ''),
+    downloadUrl: rawFileUrl.startsWith('data:') ? '' : (docItem.downloadUrl || ''),
+    thumbUrl: rawFileUrl.startsWith('data:') ? '' : (docItem.thumbUrl || ''),
+    isChunkedFile,
+    isChunkedAttachment,
+  };
+
+  if (isChunkedAttachment) {
+    firestorePayload.attachmentUrl = '';
+  }
+
+  const cacheKey = `${docItem.id}_${docItem.updatedAt || docItem.uploadedAt || ''}`;
+  if (isChunkedFile || isChunkedAttachment) {
+    reassembledChunkCache.set(cacheKey, {
+      fileUrl: rawFileUrl,
+      attachmentUrl: rawAttUrl || undefined,
+    });
+  }
+
+  // Write chunks first if needed
+  if (isChunkedFile || isChunkedAttachment) {
+    const existingChunks = await getDocs(collection(db, DOCS_COL, docItem.id, 'chunks')).catch(() => null);
+    if (existingChunks && !existingChunks.empty) {
+      await Promise.all(existingChunks.docs.map((c) => deleteDoc(c.ref).catch(() => {})));
+    }
+
+    const chunkWrites: Promise<void>[] = [];
+    if (isChunkedFile) {
+      const totalFileChunks = Math.ceil(rawFileUrl.length / CHUNK_SIZE_CHARS);
+      for (let i = 0; i < totalFileChunks; i++) {
+        const piece = rawFileUrl.slice(i * CHUNK_SIZE_CHARS, (i + 1) * CHUNK_SIZE_CHARS);
+        chunkWrites.push(
+          setDoc(doc(db, DOCS_COL, docItem.id, 'chunks', `file_${i}`), {
+            field: 'fileUrl',
+            index: i,
+            data: piece,
+          })
+        );
+      }
+    }
+
+    if (isChunkedAttachment) {
+      const totalAttChunks = Math.ceil(rawAttUrl.length / CHUNK_SIZE_CHARS);
+      for (let i = 0; i < totalAttChunks; i++) {
+        const piece = rawAttUrl.slice(i * CHUNK_SIZE_CHARS, (i + 1) * CHUNK_SIZE_CHARS);
+        chunkWrites.push(
+          setDoc(doc(db, DOCS_COL, docItem.id, 'chunks', `att_${i}`), {
+            field: 'attachmentUrl',
+            index: i,
+            data: piece,
+          })
+        );
+      }
+    }
+
+    await Promise.all(chunkWrites);
+  }
+
+  await setDoc(doc(db, DOCS_COL, docItem.id), firestorePayload, { merge: true });
+  console.log('[Firestore] Document saved:', docItem.id, docItem.title);
+}
+
+// Documents (Firestore Native Storage with Auto-Chunking & Deduplication)
 export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<void> {
   if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(docItem.id);
+  pendingDocumentSaves.set(docItem.id, { doc: docItem, timestamp: Date.now() });
+
   try {
-    const cleanData = sanitizeForFirestore(docItem);
-    const writePromise = setDoc(doc(db, DOCS_COL, docItem.id), cleanData, { merge: true }).then(() => {
-      console.log('[Firestore] Document saved:', docItem.id, docItem.title);
+    const writePromise = saveDocumentWithChunksToFirestore(docItem).finally(() => {
+      pendingDocumentSaves.delete(docItem.id);
     });
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => resolve(), 2500);
@@ -622,9 +923,14 @@ export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<
 }
 
 export async function firestoreDeleteDocument(docId: string): Promise<void> {
+  markFirestoreIdDeleted(docId);
   if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, DOCS_COL, docId));
+    const chunksSnap = await getDocs(collection(db, DOCS_COL, docId, 'chunks')).catch(() => null);
+    if (chunksSnap && !chunksSnap.empty) {
+      await Promise.all(chunksSnap.docs.map((c) => deleteDoc(c.ref).catch(() => {})));
+    }
     console.log('[Firestore] Document deleted:', docId);
   } catch (err: any) {
     console.warn('[Firestore] firestoreDeleteDocument error:', err);
@@ -633,18 +939,33 @@ export async function firestoreDeleteDocument(docId: string): Promise<void> {
 
 // Access Logs
 export async function firestoreAddLog(log: AccessLog): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
-    await setDoc(doc(db, LOGS_COL, log.id), log);
+    await setDoc(doc(db, LOGS_COL, log.id), sanitizeForFirestore(log));
   } catch (err) {
     console.warn('firestoreAddLog error:', err);
   }
 }
 
+export async function firestoreDeleteLog(logId: string): Promise<void> {
+  markFirestoreIdDeleted(logId);
+  if (!isFirebaseConfigured()) return;
+  try {
+    await deleteDoc(doc(db, LOGS_COL, logId));
+  } catch (err) {
+    console.warn('firestoreDeleteLog error:', err);
+  }
+}
+
 export async function firestoreClearLogs(): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
     const snapshot = await getDocs(collection(db, LOGS_COL));
     const batch = writeBatch(db);
-    snapshot.forEach((d) => batch.delete(d.ref));
+    snapshot.forEach((d) => {
+      markFirestoreIdDeleted(d.id);
+      batch.delete(d.ref);
+    });
     await batch.commit();
   } catch (err) {
     console.warn('firestoreClearLogs error:', err);
@@ -653,23 +974,39 @@ export async function firestoreClearLogs(): Promise<void> {
 
 // Departments
 export async function firestoreSaveDepartment(dept: DepartmentMaster): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(dept.id);
   try {
-    await setDoc(doc(db, DEPTS_COL, dept.id), dept, { merge: true });
+    await setDoc(doc(db, DEPTS_COL, dept.id), sanitizeForFirestore(dept), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveDepartment error:', err);
   }
 }
 
+export async function firestoreDeleteDepartment(deptId: string): Promise<void> {
+  markFirestoreIdDeleted(deptId);
+  if (!isFirebaseConfigured()) return;
+  try {
+    await deleteDoc(doc(db, DEPTS_COL, deptId));
+  } catch (err) {
+    console.warn('firestoreDeleteDepartment error:', err);
+  }
+}
+
 // Categories
 export async function firestoreSaveCategory(cat: CategoryMaster): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(cat.id);
   try {
-    await setDoc(doc(db, CATS_COL, cat.id), cat, { merge: true });
+    await setDoc(doc(db, CATS_COL, cat.id), sanitizeForFirestore(cat), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveCategory error:', err);
   }
 }
 
 export async function firestoreDeleteCategory(catId: string): Promise<void> {
+  markFirestoreIdDeleted(catId);
+  if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, CATS_COL, catId));
   } catch (err) {
@@ -679,14 +1016,18 @@ export async function firestoreDeleteCategory(catId: string): Promise<void> {
 
 // KPIs
 export async function firestoreSaveKPI(kpi: KPIMasterItem): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(kpi.id);
   try {
-    await setDoc(doc(db, KPIS_COL, kpi.id), kpi, { merge: true });
+    await setDoc(doc(db, KPIS_COL, kpi.id), sanitizeForFirestore(kpi), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveKPI error:', err);
   }
 }
 
 export async function firestoreDeleteKPI(kpiId: string): Promise<void> {
+  markFirestoreIdDeleted(kpiId);
+  if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, KPIS_COL, kpiId));
   } catch (err) {
@@ -696,14 +1037,18 @@ export async function firestoreDeleteKPI(kpiId: string): Promise<void> {
 
 // Performances
 export async function firestoreSavePerformance(perf: PerformanceAppraisal): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(perf.id);
   try {
-    await setDoc(doc(db, PERFS_COL, perf.id), perf, { merge: true });
+    await setDoc(doc(db, PERFS_COL, perf.id), sanitizeForFirestore(perf), { merge: true });
   } catch (err) {
     console.warn('firestoreSavePerformance error:', err);
   }
 }
 
 export async function firestoreDeletePerformance(perfId: string): Promise<void> {
+  markFirestoreIdDeleted(perfId);
+  if (!isFirebaseConfigured()) return;
   try {
     await deleteDoc(doc(db, PERFS_COL, perfId));
   } catch (err) {
@@ -713,14 +1058,17 @@ export async function firestoreDeletePerformance(perfId: string): Promise<void> 
 
 // Notifications
 export async function firestoreSaveNotification(notif: PushNotification): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  unmarkFirestoreIdDeleted(notif.id);
   try {
-    await setDoc(doc(db, NOTIFS_COL, notif.id), notif, { merge: true });
+    await setDoc(doc(db, NOTIFS_COL, notif.id), sanitizeForFirestore(notif), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveNotification error:', err);
   }
 }
 
 export async function firestoreMarkNotificationRead(id: string): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
     await updateDoc(doc(db, NOTIFS_COL, id), { read: true });
   } catch (err) {
@@ -730,6 +1078,7 @@ export async function firestoreMarkNotificationRead(id: string): Promise<void> {
 
 // System Config (Google Drive settings)
 export async function firestoreSaveConfig(cfg: any): Promise<void> {
+  if (!isFirebaseConfigured()) return;
   try {
     await setDoc(doc(db, CONFIG_COL, 'drive_storage_config'), {
       ...cfg,

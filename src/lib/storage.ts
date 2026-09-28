@@ -31,10 +31,12 @@ import {
   firestoreSaveDocument,
   firestoreDeleteDocument,
   firestoreAddLog,
+  firestoreDeleteLog,
   firestoreClearLogs,
   firestoreSaveCategory,
   firestoreDeleteCategory,
   firestoreSaveDepartment,
+  firestoreDeleteDepartment,
   firestoreSaveKPI,
   firestoreDeleteKPI,
   firestoreSavePerformance,
@@ -42,6 +44,8 @@ import {
   firestoreSaveNotification,
   firestoreMarkNotificationRead,
   firestoreSaveConfig,
+  isFirestoreIdDeleted,
+  markFirestoreIdDeleted,
 } from './firestoreService';
 
 const STORAGE_KEYS = {
@@ -135,23 +139,43 @@ function setStored<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    console.error(`Error saving ${key} to storage:`, e);
+    // If localStorage quota is exceeded (e.g., large PDF/SOP base64 files), store compact metadata in localStorage while keeping full files in memory & Cloud Firestore
+    if (key === STORAGE_KEYS.DOCUMENTS && Array.isArray(data)) {
+      try {
+        const compactDocs = (data as any[]).map((d) => ({
+          ...d,
+          fileUrl: d.fileUrl && d.fileUrl.length > 150000 ? '' : d.fileUrl,
+          previewUrl: '',
+          downloadUrl: '',
+          thumbUrl: d.thumbUrl && d.thumbUrl.length > 100000 ? '' : d.thumbUrl,
+          attachmentUrl: d.attachmentUrl && d.attachmentUrl.length > 100000 ? '' : d.attachmentUrl,
+        }));
+        localStorage.setItem(key, JSON.stringify(compactDocs));
+        return;
+      } catch {
+        // Ignore secondary quota error
+      }
+    }
+    console.warn(`Storage quota notice for ${key}:`, e);
   }
 }
 
 // ----------------- USERS -----------------
 export function getUsers(): User[] {
   if (memoryUsers && memoryUsers.length > 0) {
-    return memoryUsers;
+    return memoryUsers.filter((u) => !isFirestoreIdDeleted(u.id));
   }
-  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS).filter(
+    (u) => !isFirestoreIdDeleted(u.id)
+  );
   memoryUsers = loaded;
   return loaded;
 }
 
 export function saveUsers(users: User[]): void {
-  memoryUsers = users;
-  setStored(STORAGE_KEYS.USERS, users);
+  const clean = (users || []).filter((u) => !isFirestoreIdDeleted(u.id));
+  memoryUsers = clean;
+  setStored(STORAGE_KEYS.USERS, clean);
 }
 
 export function getCurrentUser(): User | null {
@@ -236,6 +260,7 @@ export function deleteUser(userId: string, actor: User): { success: boolean; mes
     return { success: false, message: 'Akun pengguna tidak ditemukan dalam database.' };
   }
 
+  markFirestoreIdDeleted(userId);
   const updated = users.filter((u) => u.id !== userId);
   saveUsers(updated);
 
@@ -389,17 +414,39 @@ export function updateUserByAdmin(
 
 // ----------------- DOCUMENTS (CLOUD FIRESTORE STORAGE) -----------------
 export function getDocuments(): IntranetDocument[] {
-  if (memoryDocuments && memoryDocuments.length > 0) {
-    return memoryDocuments;
+  if (memoryDocuments !== null) {
+    return memoryDocuments.filter((d) => !isFirestoreIdDeleted(d.id));
   }
-  const loaded = getStored<IntranetDocument[]>(STORAGE_KEYS.DOCUMENTS, INITIAL_DOCUMENTS);
+  const loaded = getStored<IntranetDocument[]>(STORAGE_KEYS.DOCUMENTS, INITIAL_DOCUMENTS).filter(
+    (d) => !isFirestoreIdDeleted(d.id)
+  );
   memoryDocuments = loaded;
   return loaded;
 }
 
 export function saveDocuments(docs: IntranetDocument[]): void {
-  memoryDocuments = docs;
-  setStored(STORAGE_KEYS.DOCUMENTS, docs);
+  const clean = (docs || []).filter((d) => !isFirestoreIdDeleted(d.id));
+  // Preserve full in-memory fileUrl if incoming snapshot or localStorage had an empty fileUrl during chunking
+  if (memoryDocuments && memoryDocuments.length > 0) {
+    const prevMap = new Map(memoryDocuments.map((d) => [d.id, d]));
+    memoryDocuments = clean.map((d) => {
+      const prev = prevMap.get(d.id);
+      if (prev && !d.fileUrl && prev.fileUrl) {
+        return {
+          ...d,
+          fileUrl: prev.fileUrl,
+          previewUrl: prev.previewUrl || prev.fileUrl,
+          downloadUrl: prev.downloadUrl || prev.fileUrl,
+          thumbUrl: d.thumbUrl || prev.thumbUrl,
+          attachmentUrl: d.attachmentUrl || prev.attachmentUrl,
+        };
+      }
+      return d;
+    });
+  } else {
+    memoryDocuments = clean;
+  }
+  setStored(STORAGE_KEYS.DOCUMENTS, memoryDocuments);
 }
 
 export async function addDocument(doc: IntranetDocument, actor: User): Promise<void> {
@@ -444,6 +491,7 @@ export async function addDocument(doc: IntranetDocument, actor: User): Promise<v
 export async function deleteDocument(docId: string, actor: User): Promise<void> {
   const docs = getDocuments();
   const target = docs.find((d) => d.id === docId);
+  markFirestoreIdDeleted(docId);
   const updated = docs.filter((d) => d.id !== docId);
   saveDocuments(updated);
 
@@ -535,11 +583,11 @@ export function pruneExpiredAnnouncements(
   }
 
   if (expiredDocs.length > 0) {
-    saveDocuments(validDocs);
-    // Delete expired announcements directly from Firestore
     expiredDocs.forEach((d) => {
+      markFirestoreIdDeleted(d.id);
       firestoreDeleteDocument(d.id);
     });
+    saveDocuments(validDocs);
 
     addAccessLog({
       user: actor || null,
@@ -558,20 +606,34 @@ export function pruneExpiredAnnouncements(
   };
 }
 
-// ----------------- STRUCTURED ACCESS LOGS (1-WEEK RETENTION) -----------------
-export const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari (1 minggu)
+// ----------------- STRUCTURED ACCESS LOGS (3-MONTH RETENTION) -----------------
+export const LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 hari (3 bulan)
 
 /**
- * Otomatis membersihkan log yang berumur lebih dari 1 minggu (7 hari ke belakang dari saat ini).
- * Log hanya bertahan selama 1 minggu agar penyimpanan tidak penuh.
+ * Otomatis membersihkan log yang berumur lebih dari 3 bulan (90 hari ke belakang dari saat ini).
+ * Log hanya bertahan selama 3 bulan agar penyimpanan lokal maupun Cloud Firestore tidak penuh.
  */
 export function pruneExpiredAccessLogs(): AccessLog[] {
   const all = memoryLogs || getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
   const now = Date.now();
-  const valid = all.filter((log) => {
+  const valid: AccessLog[] = [];
+  const expired: AccessLog[] = [];
+
+  for (const log of all) {
+    if (isFirestoreIdDeleted(log.id)) continue;
     const time = new Date(log.timestamp).getTime();
-    return !isNaN(time) && now - time <= LOG_RETENTION_MS;
-  });
+    if (!isNaN(time) && now - time <= LOG_RETENTION_MS) {
+      valid.push(log);
+    } else {
+      expired.push(log);
+    }
+  }
+
+  if (expired.length > 0) {
+    expired.forEach((l) => {
+      firestoreDeleteLog(l.id);
+    });
+  }
 
   memoryLogs = valid;
   if (valid.length !== all.length) {
@@ -581,15 +643,16 @@ export function pruneExpiredAccessLogs(): AccessLog[] {
 }
 
 export function getAccessLogs(): AccessLog[] {
-  if (memoryLogs && memoryLogs.length > 0) {
-    return memoryLogs;
+  if (memoryLogs !== null) {
+    return memoryLogs.filter((l) => !isFirestoreIdDeleted(l.id));
   }
   return pruneExpiredAccessLogs();
 }
 
 export function saveAccessLogs(logs: AccessLog[]): void {
   const now = Date.now();
-  const valid = logs.filter((log) => {
+  const valid = (logs || []).filter((log) => {
+    if (isFirestoreIdDeleted(log.id)) return false;
     const time = new Date(log.timestamp).getTime();
     return !isNaN(time) && now - time <= LOG_RETENTION_MS;
   });
@@ -633,6 +696,13 @@ export function addAccessLog(params: {
   return newLog;
 }
 
+export function deleteAccessLog(logId: string): void {
+  const logs = getAccessLogs();
+  markFirestoreIdDeleted(logId);
+  saveAccessLogs(logs.filter((l) => l.id !== logId));
+  firestoreDeleteLog(logId);
+}
+
 export function clearAccessLogs(actor: User): void {
   const resetLogs: AccessLog[] = [
     {
@@ -656,17 +726,20 @@ export function clearAccessLogs(actor: User): void {
 
 // ----------------- CATEGORIES -----------------
 export function getCategories(): CategoryMaster[] {
-  if (memoryCategories && memoryCategories.length > 0) {
-    return memoryCategories;
+  if (memoryCategories !== null) {
+    return memoryCategories.filter((c) => !isFirestoreIdDeleted(c.id));
   }
-  const loaded = getStored<CategoryMaster[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+  const loaded = getStored<CategoryMaster[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES).filter(
+    (c) => !isFirestoreIdDeleted(c.id)
+  );
   memoryCategories = loaded;
   return loaded;
 }
 
 export function saveCategories(cats: CategoryMaster[]): void {
-  memoryCategories = cats;
-  setStored(STORAGE_KEYS.CATEGORIES, cats);
+  const clean = (cats || []).filter((c) => !isFirestoreIdDeleted(c.id));
+  memoryCategories = clean;
+  setStored(STORAGE_KEYS.CATEGORIES, clean);
 }
 
 export function addCategory(cat: CategoryMaster, actor: User): void {
@@ -686,6 +759,7 @@ export function addCategory(cat: CategoryMaster, actor: User): void {
 export function deleteCategory(id: string, actor: User): void {
   const cats = getCategories();
   const target = cats.find((c) => c.id === id);
+  markFirestoreIdDeleted(id);
   saveCategories(cats.filter((c) => c.id !== id));
   firestoreDeleteCategory(id);
 
@@ -702,17 +776,20 @@ export function deleteCategory(id: string, actor: User): void {
 
 // ----------------- DEPARTMENTS MASTER -----------------
 export function getDepartmentMasters(): DepartmentMaster[] {
-  if (memoryDepartments && memoryDepartments.length > 0) {
-    return memoryDepartments;
+  if (memoryDepartments !== null) {
+    return memoryDepartments.filter((d) => !isFirestoreIdDeleted(d.id));
   }
-  const loaded = getStored<DepartmentMaster[]>(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS);
+  const loaded = getStored<DepartmentMaster[]>(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS).filter(
+    (d) => !isFirestoreIdDeleted(d.id)
+  );
   memoryDepartments = loaded;
   return loaded;
 }
 
 export function saveDepartmentMasters(depts: DepartmentMaster[]): void {
-  memoryDepartments = depts;
-  setStored(STORAGE_KEYS.DEPARTMENTS, depts);
+  const clean = (depts || []).filter((d) => !isFirestoreIdDeleted(d.id));
+  memoryDepartments = clean;
+  setStored(STORAGE_KEYS.DEPARTMENTS, clean);
 }
 
 export function getDepartments(): string[] {
@@ -887,19 +964,51 @@ export function updateDepartment(
   };
 }
 
+export function deleteDepartment(
+  id: string,
+  actor: User
+): { success: boolean; message: string } {
+  const list = getDepartmentMasters();
+  const target = list.find((d) => d.id === id);
+  if (!target) {
+    return { success: false, message: 'Departemen tidak ditemukan.' };
+  }
+
+  markFirestoreIdDeleted(id);
+  saveDepartmentMasters(list.filter((d) => d.id !== id));
+  firestoreDeleteDepartment(id);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'SYSTEM',
+    action: 'Hapus Departemen Master',
+    target: `${target.name} (${target.code})`,
+    status: 'WARNING',
+    details: `Departemen '${target.name}' dihapus dari sistem dan Cloud Firestore oleh ${actor.nama}.`,
+  });
+
+  return {
+    success: true,
+    message: `Departemen '${target.name}' berhasil dihapus secara permanen dari sistem & Firestore.`,
+  };
+}
+
 // ----------------- KPI MASTER -----------------
 export function getKPIMaster(): KPIMasterItem[] {
-  if (memoryKPIs && memoryKPIs.length > 0) {
-    return memoryKPIs;
+  if (memoryKPIs !== null) {
+    return memoryKPIs.filter((k) => !isFirestoreIdDeleted(k.id));
   }
-  const loaded = getStored<KPIMasterItem[]>(STORAGE_KEYS.KPIS, INITIAL_KPIS);
+  const loaded = getStored<KPIMasterItem[]>(STORAGE_KEYS.KPIS, INITIAL_KPIS).filter(
+    (k) => !isFirestoreIdDeleted(k.id)
+  );
   memoryKPIs = loaded;
   return loaded;
 }
 
 export function saveKPIMaster(kpis: KPIMasterItem[]): void {
-  memoryKPIs = kpis;
-  setStored(STORAGE_KEYS.KPIS, kpis);
+  const clean = (kpis || []).filter((k) => !isFirestoreIdDeleted(k.id));
+  memoryKPIs = clean;
+  setStored(STORAGE_KEYS.KPIS, clean);
 }
 
 export function addKPIMasterItem(item: KPIMasterItem, actor: User): void {
@@ -951,6 +1060,7 @@ export function updateKPIMasterItem(item: KPIMasterItem, actor: User): void {
 export function deleteKPIMasterItem(id: string, actor: User): void {
   const kpis = getKPIMaster();
   const target = kpis.find((k) => k.id === id);
+  markFirestoreIdDeleted(id);
   saveKPIMaster(kpis.filter((k) => k.id !== id));
   firestoreDeleteKPI(id);
 
@@ -996,29 +1106,20 @@ export function deployKPI(dept: string, year: number | string, tipe: string, rol
 
 // ----------------- PERFORMANCE APPRAISAL -----------------
 export function getPerformances(): PerformanceAppraisal[] {
-  if (memoryPerformances && memoryPerformances.length > 0) {
-    return memoryPerformances;
+  if (memoryPerformances !== null) {
+    return memoryPerformances.filter((p) => !isFirestoreIdDeleted(p.id));
   }
-  const list = getStored<PerformanceAppraisal[]>(STORAGE_KEYS.PERFORMANCES, INITIAL_PERFORMANCES);
-  if (!list || list.length === 0) {
-    memoryPerformances = INITIAL_PERFORMANCES;
-    return INITIAL_PERFORMANCES;
-  }
-  const existingIds = new Set(list.map((p) => p.id));
-  const missingInitials = INITIAL_PERFORMANCES.filter((p) => !existingIds.has(p.id));
-  if (missingInitials.length > 0) {
-    const merged = [...list, ...missingInitials];
-    setStored(STORAGE_KEYS.PERFORMANCES, merged);
-    memoryPerformances = merged;
-    return merged;
-  }
+  const list = getStored<PerformanceAppraisal[]>(STORAGE_KEYS.PERFORMANCES, INITIAL_PERFORMANCES).filter(
+    (p) => !isFirestoreIdDeleted(p.id)
+  );
   memoryPerformances = list;
   return list;
 }
 
 export function savePerformances(perfs: PerformanceAppraisal[]): void {
-  memoryPerformances = perfs;
-  setStored(STORAGE_KEYS.PERFORMANCES, perfs);
+  const clean = (perfs || []).filter((p) => !isFirestoreIdDeleted(p.id));
+  memoryPerformances = clean;
+  setStored(STORAGE_KEYS.PERFORMANCES, clean);
 }
 
 export function savePerformanceItem(perf: PerformanceAppraisal, actor: User): void {
@@ -1232,6 +1333,7 @@ export function deletePerformanceItem(perfId: string, actor: User): { success: b
     return { success: false, message: 'Dokumen KPI terkunci tidak dapat dihapus kecuali oleh Super Admin.' };
   }
 
+  markFirestoreIdDeleted(perfId);
   const updatedList = list.filter((p) => p.id !== perfId);
   savePerformances(updatedList);
   firestoreDeletePerformance(perfId);

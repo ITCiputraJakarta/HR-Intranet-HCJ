@@ -65,20 +65,21 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [selectedSubcat, setSelectedSubcat] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('All');
-  const [sortField, setSortField] = useState<string>('title');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [sortBy, setSortBy] = useState<DocumentSortOption>('title-asc');
+  const [sortField, setSortField] = useState<string>('uploadedAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<DocumentSortOption>('date-desc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
 
   // Upload modal state
   const [upTitle, setUpTitle] = useState('');
   const [upDept, setUpDept] = useState(
-    currentUser.role === 'manager' || currentUser.role === 'admin'
+    currentUser.role === 'admin'
       ? 'All Departments'
-      : currentUser.departemen
+      : currentUser.departemen || 'All Departments'
   );
   const [upSubcat, setUpSubcat] = useState('');
   const [upDesc, setUpDesc] = useState('');
@@ -99,7 +100,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   // Delete Confirm State
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<IntranetDocument | null>(null);
 
-  const isManagerOrAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
+  const isManagerOrAdmin =
+    currentUser.role === 'admin' ||
+    currentUser.role === 'hod' ||
+    currentUser.role === 'manager';
   const isStaffOrSpv = currentUser.role === 'staff' || currentUser.role === 'spv';
 
   // Filter docs by category (SOP or Form)
@@ -253,6 +257,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       await updateDocument(updatedDoc, currentUser);
       setEditDoc(null);
+      setActionSuccessNotice(`Dokumen ${category} "${updatedDoc.title}" berhasil diperbarui dan disinkronkan ke Cloud Firestore!`);
+      setTimeout(() => setActionSuccessNotice(null), 5000);
       onRefresh();
     } catch (err: any) {
       setEditError(err?.message || 'Gagal menyimpan perubahan berkas.');
@@ -263,8 +269,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   // Delete Document
   const handleDeleteDocument = async (docId: string) => {
+    const targetTitle = deleteConfirmDoc?.title || category;
     await deleteDocument(docId, currentUser);
     setDeleteConfirmDoc(null);
+    setActionSuccessNotice(`Dokumen "${targetTitle}" telah dihapus secara permanen dari arsip & Cloud Firestore.`);
+    setTimeout(() => setActionSuccessNotice(null), 5000);
     onRefresh();
   };
 
@@ -304,7 +313,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         title: upTitle.trim(),
         category: category,
         sub_kategori: upSubcat || availableSubcats[0] || 'Umum',
-        akses_dept: upDept,
+        akses_dept: upDept || 'All Departments',
         keterangan: upDesc.trim(),
         fileUrl,
         previewUrl,
@@ -323,6 +332,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       setUpTitle('');
       setUpDesc('');
       setFileInput(null);
+      // Reset filters and sort by newest so the uploaded document is immediately visible at the top
+      setSelectedSubcat('All');
+      setFilterDept('All');
+      setSearchQuery('');
+      setSortField('uploadedAt');
+      setSortDirection('desc');
+      setSortBy('date-desc');
+      setCurrentPage(1);
+      setActionSuccessNotice(`Berkas ${category} "${newDoc.title}" berhasil disimpan dan tersinkron ke Cloud Firestore!`);
+      setTimeout(() => setActionSuccessNotice(null), 5000);
       onRefresh();
     } catch (err: any) {
       setUploadError(err?.message || 'Gagal mengunggah berkas ke penyimpanan.');
@@ -366,7 +385,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         {isManagerOrAdmin && (
           <button
             id="btn-open-upload-doc"
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => {
+              setUploadError('');
+              setShowUploadModal(true);
+            }}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
@@ -374,6 +396,21 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </button>
         )}
       </div>
+
+      {actionSuccessNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionSuccessNotice}</span>
+          </div>
+          <button
+            onClick={() => setActionSuccessNotice(null)}
+            className="text-emerald-600 hover:text-emerald-800 p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Subcategory Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -667,6 +704,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                           <Download className="w-3.5 h-3.5" />
                           <span>Unduh</span>
                         </button>
+
+                        {isManagerOrAdmin && (
+                          <button
+                            onClick={() => setDeleteConfirmDoc(doc)}
+                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors flex items-center border border-slate-200 hover:border-rose-200"
+                            title="Hapus Berkas"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

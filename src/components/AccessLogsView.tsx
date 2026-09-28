@@ -22,8 +22,7 @@ import {
   ArrowUpZA,
 } from 'lucide-react';
 import { AccessLog, User, ActionCategory, LogStatus } from '../types';
-import { DEPARTMENTS } from '../data/initialData';
-import { clearAccessLogs } from '../lib/storage';
+import { clearAccessLogs, deleteAccessLog, getDepartments } from '../lib/storage';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
@@ -51,6 +50,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const departments = getDepartments();
 
   const safeLogs = logs || [];
 
@@ -271,14 +271,14 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
         </div>
       </div>
 
-      {/* 1-Week Retention Policy Banner */}
+      {/* 3-Month Retention Policy Banner */}
       <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-900 shadow-2xs">
         <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
         <div className="flex-1">
-          <span className="font-bold">Kebijakan Retensi Log 1 Minggu:</span> Sistem otomatis menjaga riwayat aktivitas dari 7 hari ke belakang (1 minggu) dari detik ini. Data log yang lebih dari 7 hari otomatis dibersihkan secara berkala agar penyimpanan database tetap optimal dan tidak menumpuk.
+          <span className="font-bold">Kebijakan Retensi Log 3 Bulan (90 Hari):</span> Sistem otomatis menjaga riwayat aktivitas dari 3 bulan (90 hari) ke belakang dari saat ini. Data log yang berumur lebih dari 3 bulan otomatis dibersihkan dari database Cloud Firestore agar penyimpanan tidak penuh.
         </div>
         <span className="px-2.5 py-1 rounded-lg bg-indigo-200/80 text-indigo-900 font-extrabold text-[10px] tracking-wider uppercase shrink-0">
-          7 HARI AKTIF
+          3 BULAN AKTIF
         </span>
       </div>
 
@@ -441,7 +441,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
             >
               <option value="All">Semua Departemen</option>
-              {DEPARTMENTS.map((d) => (
+              {departments.map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
@@ -628,7 +628,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                       {getStatusBadge(log.status)}
                     </td>
 
-                    <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                    <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-1.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -639,6 +639,19 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                         <Eye className="w-3.5 h-3.5" />
                         <span>Rincian</span>
                       </button>
+                      {currentUser.role === 'admin' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAccessLog(log.id);
+                            onRefresh();
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors inline-flex items-center border border-slate-200 hover:border-rose-200"
+                          title="Hapus Catatan Log Ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

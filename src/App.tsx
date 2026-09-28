@@ -6,6 +6,7 @@ import {
   AccessLog,
   KPIMasterItem,
   CategoryMaster,
+  DepartmentMaster,
   NotificationItem,
   SpreadsheetConfig,
   PerformanceAppraisal,
@@ -19,6 +20,7 @@ import {
   getAccessLogs,
   getKPIMaster,
   getCategories,
+  getDepartmentMasters,
   getNotifications,
   getPerformances,
   getSpreadsheetConfig,
@@ -26,8 +28,15 @@ import {
   addAccessLog,
   clearAllSessionCache,
   pruneExpiredAnnouncements,
+  pruneExpiredAccessLogs,
   saveDocuments,
   saveUsers,
+  saveAccessLogs,
+  saveCategories,
+  saveDepartmentMasters,
+  saveKPIMaster,
+  savePerformances,
+  saveNotifications,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -53,6 +62,7 @@ import {
   subscribeToDocuments,
   subscribeToAccessLogs,
   subscribeToCategories,
+  subscribeToDepartments,
   subscribeToKPIs,
   subscribeToPerformances,
   subscribeToNotifications,
@@ -83,6 +93,7 @@ export default function App() {
   const [logs, setLogs] = useState<AccessLog[]>(() => getAccessLogs());
   const [kpiMaster, setKpiMaster] = useState<KPIMasterItem[]>(() => getKPIMaster());
   const [categories, setCategories] = useState<CategoryMaster[]>(() => getCategories());
+  const [departmentMasters, setDepartmentMasters] = useState<DepartmentMaster[]>(() => getDepartmentMasters());
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => getNotifications());
   const [performances, setPerformances] = useState<PerformanceAppraisal[]>(() => getPerformances());
   const [config, setConfig] = useState<SpreadsheetConfig>(() => getSpreadsheetConfig());
@@ -98,6 +109,7 @@ export default function App() {
   const refreshAllData = () => {
     try {
       pruneExpiredAnnouncements(7, currentUser || undefined);
+      pruneExpiredAccessLogs();
     } catch (e) {
       console.warn('Pruning check:', e);
     }
@@ -107,6 +119,7 @@ export default function App() {
     setLogs(getAccessLogs());
     setKpiMaster(getKPIMaster());
     setCategories(getCategories());
+    setDepartmentMasters(getDepartmentMasters());
     setNotifications(getNotifications());
     setPerformances(getPerformances());
     setConfig(getSpreadsheetConfig());
@@ -133,33 +146,39 @@ export default function App() {
 
     const unsubDocs = subscribeToDocuments((newDocs) => {
       saveDocuments(newDocs);
-      setDocuments(newDocs);
-      setAnnouncements(newDocs.filter((d) => d.category === 'Pengumuman'));
+      const syncedDocs = getDocuments();
+      setDocuments(syncedDocs);
+      setAnnouncements(syncedDocs.filter((d) => d.category === 'Pengumuman'));
     });
 
     const unsubLogs = subscribeToAccessLogs((newLogs) => {
-      setLogs(newLogs);
-      localStorage.setItem('ciputra_intra_logs_v1', JSON.stringify(newLogs));
+      saveAccessLogs(newLogs);
+      setLogs(getAccessLogs());
     });
 
     const unsubCats = subscribeToCategories((newCats) => {
-      setCategories(newCats);
-      localStorage.setItem('ciputra_intra_cats_v1', JSON.stringify(newCats));
+      saveCategories(newCats);
+      setCategories(getCategories());
+    });
+
+    const unsubDepts = subscribeToDepartments((newDepts) => {
+      saveDepartmentMasters(newDepts);
+      setDepartmentMasters(getDepartmentMasters());
     });
 
     const unsubKPIs = subscribeToKPIs((newKPIs) => {
-      setKpiMaster(newKPIs);
-      localStorage.setItem('ciputra_intra_kpis_v1', JSON.stringify(newKPIs));
+      saveKPIMaster(newKPIs);
+      setKpiMaster(getKPIMaster());
     });
 
     const unsubPerfs = subscribeToPerformances((newPerfs) => {
-      setPerformances(newPerfs);
-      localStorage.setItem('ciputra_intra_perfs_v1', JSON.stringify(newPerfs));
+      savePerformances(newPerfs);
+      setPerformances(getPerformances());
     });
 
     const unsubNotifs = subscribeToNotifications((newNotifs) => {
-      setNotifications(newNotifs);
-      localStorage.setItem('ciputra_intra_notifs_v1', JSON.stringify(newNotifs));
+      saveNotifications(newNotifs);
+      setNotifications(getNotifications());
     });
 
     const unsubConfig = subscribeToSystemConfig((newConfig) => {
@@ -176,6 +195,7 @@ export default function App() {
       unsubDocs();
       unsubLogs();
       unsubCats();
+      unsubDepts();
       unsubKPIs();
       unsubPerfs();
       unsubNotifs();
@@ -449,6 +469,7 @@ export default function App() {
           {activeTab === 'departments' && isHodOrAdmin && (
             <DepartmentsMasterView
               currentUser={currentUser}
+              departments={departmentMasters}
               users={users}
               documents={documents}
               currentLang={currentLang}

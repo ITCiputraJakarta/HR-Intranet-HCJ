@@ -168,19 +168,19 @@ export async function compressImageFile(
 
 /**
  * Prepares a non-image file (PDF, Doc, Spreadsheet) for direct Firestore storage.
- * Enforces size limits to protect Firestore document bounds (max 650KB).
+ * Supports up to 15MB with automatic Firestore chunking in firestoreService.
  */
 export async function prepareDocumentFile(
   file: File,
-  maxSizeBytes: number = 700 * 1024 // 700 KB max limit for Firestore document health
+  maxSizeBytes: number = 15 * 1024 * 1024 // 15 MB max limit with Firestore auto-chunking
 ): Promise<CompressionResult> {
   return new Promise((resolve, reject) => {
     if (file.size > maxSizeBytes) {
       reject(
         new Error(
-          `Ukuran berkas (${formatBytes(file.size)}) melebihi batas penyimpanan hemat Firestore (${formatBytes(
+          `Ukuran berkas (${formatBytes(file.size)}) melebihi batas maksimum (${formatBytes(
             maxSizeBytes
-          )}). Silakan gunakan berkas berukuran lebih kecil atau kompres dokumen terlebih dahulu agar kuota bulanan tetap efisien.`
+          )}). Silakan gunakan berkas berukuran di bawah 15 MB.`
         )
       );
       return;

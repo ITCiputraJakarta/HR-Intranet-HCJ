@@ -97,7 +97,7 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
     const logRes = pruneExpiredAccessLogs();
 
     setCleanMessage(
-      `Pembersihan selesai! ${pruneRes.deletedCount} pengumuman kedaluwarsa & log berumur >7 hari dibersihkan dari Firestore.`
+      `Pembersihan selesai! ${pruneRes.deletedCount} pengumuman kedaluwarsa & log berumur >3 bulan (90 hari) dibersihkan dari Firestore.`
     );
     if (onRefreshAll) onRefreshAll();
   };
@@ -225,7 +225,7 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
                   <FileCheck2 className="w-3.5 h-3.5 text-rose-600" />
                 </div>
                 <div className="text-xl font-black text-slate-900">{logs.length}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Audit trail (7 hari)</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Audit trail (3 bulan)</div>
               </div>
             </div>
           </div>

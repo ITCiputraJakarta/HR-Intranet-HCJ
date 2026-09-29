@@ -1,5 +1,5 @@
 /**
- * Branding and Custom Logo Management for Intranet HCJ
+ * Branding, Custom Logo, Hotel Hero Photo & Bottom Gallery Footer Management for Intranet HCJ
  * Synchronized with Firebase Firestore (systemConfig/app_branding) and local cache.
  */
 
@@ -11,15 +11,40 @@ export interface AppBranding {
   appName: string;
   subTitle: string;
   customLogoUrl: string | null;
+  customBgUrl: string | null;
+  heroBadge: string;
+  heroTitle: string;
+  heroDescription: string;
+  footerTitle: string;
+  footerDescription: string;
+  footerBottomTitle: string;
+  galleryTitle: string;
+  galleryImages: Array<string | null>;
+  footerAddress: string;
+  footerContact: string;
+  footerCopyright: string;
   creatorSignature: string;
   updatedAt: string;
   updatedBy?: string;
 }
 
 export const DEFAULT_BRANDING: AppBranding = {
-  appName: 'Intranet HCJ',
-  subTitle: 'Portal Dokumen & Evaluasi Kinerja',
+  appName: 'Intranet',
+  subTitle: 'Hotel Ciputra Jakarta',
   customLogoUrl: null,
+  customBgUrl: null,
+  heroBadge: '',
+  heroTitle: '',
+  heroDescription: '',
+  footerTitle: 'Hotel Ciputra Jakarta',
+  footerDescription:
+    'Portal Intranet Resmi Manajemen & Karyawan. Pusat akses dokumen SOP, formulir operasional, pengumuman internal, dan evaluasi kinerja terpadu.',
+  footerBottomTitle: 'Intranet HCJ',
+  galleryTitle: 'Galeri & Fasilitas Hotel',
+  galleryImages: [null, null, null, null],
+  footerAddress: 'Hospitality Operations & Human Capital Management Division',
+  footerContact: 'Layanan Bantuan IT & HRD: it@hotelciputra.com',
+  footerCopyright: '© 2026 Intranet HCJ • All Rights Reserved',
   creatorSignature: 'JBagas 2026 ttd',
   updatedAt: new Date().toISOString(),
 };
@@ -27,6 +52,11 @@ export const DEFAULT_BRANDING: AppBranding = {
 const BRANDING_STORAGE_KEY = 'ciputra_intra_branding_v1';
 const CONFIG_COLLECTION = 'systemConfig';
 const BRANDING_DOC_ID = 'app_branding';
+
+function normalizeGalleryImages(arr: unknown): Array<string | null> {
+  if (!Array.isArray(arr)) return [null, null, null, null];
+  return [0, 1, 2, 3].map((i) => (typeof arr[i] === 'string' && arr[i] ? arr[i] : null));
+}
 
 let currentBranding: AppBranding = (() => {
   if (typeof window !== 'undefined') {
@@ -37,7 +67,33 @@ let currentBranding: AppBranding = (() => {
         return {
           appName: parsed.appName || DEFAULT_BRANDING.appName,
           subTitle: parsed.subTitle !== undefined ? parsed.subTitle : DEFAULT_BRANDING.subTitle,
-          customLogoUrl: parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
+          customLogoUrl:
+            parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
+          customBgUrl:
+            parsed.customBgUrl !== undefined ? parsed.customBgUrl : DEFAULT_BRANDING.customBgUrl,
+          heroBadge: parsed.heroBadge !== undefined ? parsed.heroBadge : DEFAULT_BRANDING.heroBadge,
+          heroTitle: parsed.heroTitle !== undefined ? parsed.heroTitle : DEFAULT_BRANDING.heroTitle,
+          heroDescription:
+            parsed.heroDescription !== undefined ? parsed.heroDescription : DEFAULT_BRANDING.heroDescription,
+          footerTitle:
+            parsed.footerTitle !== undefined ? parsed.footerTitle : DEFAULT_BRANDING.footerTitle,
+          footerDescription:
+            parsed.footerDescription !== undefined
+              ? parsed.footerDescription
+              : DEFAULT_BRANDING.footerDescription,
+          footerBottomTitle:
+            parsed.footerBottomTitle !== undefined
+              ? parsed.footerBottomTitle
+              : DEFAULT_BRANDING.footerBottomTitle,
+          galleryTitle:
+            parsed.galleryTitle !== undefined ? parsed.galleryTitle : DEFAULT_BRANDING.galleryTitle,
+          galleryImages: normalizeGalleryImages(parsed.galleryImages),
+          footerAddress:
+            parsed.footerAddress !== undefined ? parsed.footerAddress : DEFAULT_BRANDING.footerAddress,
+          footerContact:
+            parsed.footerContact !== undefined ? parsed.footerContact : DEFAULT_BRANDING.footerContact,
+          footerCopyright:
+            parsed.footerCopyright !== undefined ? parsed.footerCopyright : DEFAULT_BRANDING.footerCopyright,
           creatorSignature: parsed.creatorSignature || DEFAULT_BRANDING.creatorSignature,
           updatedAt: parsed.updatedAt || DEFAULT_BRANDING.updatedAt,
           updatedBy: parsed.updatedBy || '',
@@ -66,7 +122,6 @@ function notifySubscribers(updated: AppBranding) {
   });
 }
 
-// Global active Firestore listener & timestamp guard to prevent stale reads overwriting fresh saves
 let isListenerActive = false;
 let lastLocalSaveTime = 0;
 
@@ -89,7 +144,6 @@ function syncFavicon(logoUrl: string | null) {
 
 function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
   const incomingTime = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
-  // Ignore stale snapshot if we just saved locally within the last 5 seconds and incoming is older
   if (lastLocalSaveTime > 0 && Date.now() - lastLocalSaveTime < 5000 && incomingTime < lastLocalSaveTime) {
     return currentBranding;
   }
@@ -98,7 +152,27 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
     appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
     subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
     customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
-    creatorSignature: data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
+    customBgUrl: data.customBgUrl !== undefined ? data.customBgUrl : currentBranding.customBgUrl,
+    heroBadge: data.heroBadge !== undefined ? data.heroBadge : currentBranding.heroBadge,
+    heroTitle: data.heroTitle !== undefined ? data.heroTitle : currentBranding.heroTitle,
+    heroDescription:
+      data.heroDescription !== undefined ? data.heroDescription : currentBranding.heroDescription,
+    footerTitle: data.footerTitle !== undefined ? data.footerTitle : currentBranding.footerTitle,
+    footerDescription:
+      data.footerDescription !== undefined ? data.footerDescription : currentBranding.footerDescription,
+    footerBottomTitle:
+      data.footerBottomTitle !== undefined ? data.footerBottomTitle : currentBranding.footerBottomTitle,
+    galleryTitle: data.galleryTitle !== undefined ? data.galleryTitle : currentBranding.galleryTitle,
+    galleryImages:
+      data.galleryImages !== undefined
+        ? normalizeGalleryImages(data.galleryImages)
+        : currentBranding.galleryImages,
+    footerAddress: data.footerAddress !== undefined ? data.footerAddress : currentBranding.footerAddress,
+    footerContact: data.footerContact !== undefined ? data.footerContact : currentBranding.footerContact,
+    footerCopyright:
+      data.footerCopyright !== undefined ? data.footerCopyright : currentBranding.footerCopyright,
+    creatorSignature:
+      data.creatorSignature || currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
     updatedAt: data.updatedAt || new Date().toISOString(),
     updatedBy: data.updatedBy || '',
   };
@@ -113,12 +187,8 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
   return updated;
 }
 
-/**
- * Fetch latest branding from Firestore directly (one-time getDoc)
- */
 export async function fetchAppBrandingFromFirestore(): Promise<AppBranding> {
   if (!isFirebaseConfigured()) return currentBranding;
-  // Do not overwrite an in-flight local save
   if (lastLocalSaveTime > 0 && Date.now() - lastLocalSaveTime < 4000) {
     return currentBranding;
   }
@@ -155,7 +225,6 @@ export function initBrandingFirestoreSync(): void {
   }
 }
 
-// Fetch initial branding once immediately on script load
 if (typeof window !== 'undefined') {
   initBrandingFirestoreSync();
   fetchAppBrandingFromFirestore().catch(() => {});
@@ -180,10 +249,70 @@ export async function saveAppBranding(
   lastLocalSaveTime = Date.now();
 
   const updated: AppBranding = {
-    appName: newBranding.appName !== undefined ? newBranding.appName.trim() : (currentBranding.appName || DEFAULT_BRANDING.appName),
-    subTitle: newBranding.subTitle !== undefined ? newBranding.subTitle.trim() : (currentBranding.subTitle || DEFAULT_BRANDING.subTitle),
-    customLogoUrl: newBranding.customLogoUrl !== undefined ? newBranding.customLogoUrl : (currentBranding.customLogoUrl || null),
-    creatorSignature: newBranding.creatorSignature !== undefined ? newBranding.creatorSignature.trim() : (currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature),
+    appName:
+      newBranding.appName !== undefined
+        ? newBranding.appName.trim()
+        : currentBranding.appName || DEFAULT_BRANDING.appName,
+    subTitle:
+      newBranding.subTitle !== undefined
+        ? newBranding.subTitle.trim()
+        : currentBranding.subTitle || DEFAULT_BRANDING.subTitle,
+    customLogoUrl:
+      newBranding.customLogoUrl !== undefined
+        ? newBranding.customLogoUrl
+        : currentBranding.customLogoUrl || null,
+    customBgUrl:
+      newBranding.customBgUrl !== undefined
+        ? newBranding.customBgUrl
+        : currentBranding.customBgUrl || null,
+    heroBadge:
+      newBranding.heroBadge !== undefined
+        ? newBranding.heroBadge.trim()
+        : currentBranding.heroBadge ?? DEFAULT_BRANDING.heroBadge,
+    heroTitle:
+      newBranding.heroTitle !== undefined
+        ? newBranding.heroTitle.trim()
+        : currentBranding.heroTitle ?? DEFAULT_BRANDING.heroTitle,
+    heroDescription:
+      newBranding.heroDescription !== undefined
+        ? newBranding.heroDescription.trim()
+        : currentBranding.heroDescription ?? DEFAULT_BRANDING.heroDescription,
+    footerTitle:
+      newBranding.footerTitle !== undefined
+        ? newBranding.footerTitle.trim()
+        : currentBranding.footerTitle ?? DEFAULT_BRANDING.footerTitle,
+    footerDescription:
+      newBranding.footerDescription !== undefined
+        ? newBranding.footerDescription.trim()
+        : currentBranding.footerDescription ?? DEFAULT_BRANDING.footerDescription,
+    footerBottomTitle:
+      newBranding.footerBottomTitle !== undefined
+        ? newBranding.footerBottomTitle.trim()
+        : currentBranding.footerBottomTitle ?? DEFAULT_BRANDING.footerBottomTitle,
+    galleryTitle:
+      newBranding.galleryTitle !== undefined
+        ? newBranding.galleryTitle.trim()
+        : currentBranding.galleryTitle ?? DEFAULT_BRANDING.galleryTitle,
+    galleryImages:
+      newBranding.galleryImages !== undefined
+        ? normalizeGalleryImages(newBranding.galleryImages)
+        : currentBranding.galleryImages ?? [null, null, null, null],
+    footerAddress:
+      newBranding.footerAddress !== undefined
+        ? newBranding.footerAddress.trim()
+        : currentBranding.footerAddress ?? DEFAULT_BRANDING.footerAddress,
+    footerContact:
+      newBranding.footerContact !== undefined
+        ? newBranding.footerContact.trim()
+        : currentBranding.footerContact ?? DEFAULT_BRANDING.footerContact,
+    footerCopyright:
+      newBranding.footerCopyright !== undefined
+        ? newBranding.footerCopyright.trim()
+        : currentBranding.footerCopyright ?? DEFAULT_BRANDING.footerCopyright,
+    creatorSignature:
+      newBranding.creatorSignature !== undefined
+        ? newBranding.creatorSignature.trim()
+        : currentBranding.creatorSignature || DEFAULT_BRANDING.creatorSignature,
     updatedAt: nowIso,
     updatedBy: actorEmail || currentBranding.updatedBy || '',
   };
@@ -199,16 +328,26 @@ export async function saveAppBranding(
     syncFavicon(updated.customLogoUrl);
   }
 
-  // Broadcast to local subscribers immediately so UI updates in <10ms
   notifySubscribers(updated);
 
-  // Sync to Firestore with a 2.5s UI timeout guard so slow connections never hang the loading button
   if (isFirebaseConfigured()) {
     const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
     const cleanPayload: Record<string, any> = {
       appName: updated.appName,
       subTitle: updated.subTitle,
       customLogoUrl: updated.customLogoUrl,
+      customBgUrl: updated.customBgUrl,
+      heroBadge: updated.heroBadge,
+      heroTitle: updated.heroTitle,
+      heroDescription: updated.heroDescription,
+      footerTitle: updated.footerTitle,
+      footerDescription: updated.footerDescription,
+      footerBottomTitle: updated.footerBottomTitle,
+      galleryTitle: updated.galleryTitle,
+      galleryImages: updated.galleryImages,
+      footerAddress: updated.footerAddress,
+      footerContact: updated.footerContact,
+      footerCopyright: updated.footerCopyright,
       creatorSignature: updated.creatorSignature,
       updatedAt: updated.updatedAt,
       updatedBy: updated.updatedBy || '',
@@ -228,20 +367,40 @@ export async function saveAppBranding(
   return updated;
 }
 
-/**
- * Super Admin logo upload helper: compresses logo file to ultra-compact WebP/PNG
- * and stores it permanently in Firestore and local state.
- */
 export async function uploadCustomLogo(file: File, actorEmail?: string): Promise<string> {
-  // Compress logo/icon to max 240x240 pixels with high crispness (results in ~4KB - 12KB in <40ms)
-  const result = await compressImageFile(file, 240, 0.84);
+  const result = await compressImageFile(file, 260, 0.85);
   await saveAppBranding({ customLogoUrl: result.dataUrl }, actorEmail);
   return result.dataUrl;
 }
 
-/**
- * Reset logo back to default hotel icon
- */
 export async function resetCustomLogo(actorEmail?: string): Promise<void> {
   await saveAppBranding({ customLogoUrl: null }, actorEmail);
+}
+
+export async function uploadCustomBg(file: File, actorEmail?: string): Promise<string> {
+  const result = await compressImageFile(file, 1360, 0.76);
+  await saveAppBranding({ customBgUrl: result.dataUrl }, actorEmail);
+  return result.dataUrl;
+}
+
+export async function resetCustomBg(actorEmail?: string): Promise<void> {
+  await saveAppBranding({ customBgUrl: null }, actorEmail);
+}
+
+export async function uploadGalleryImage(
+  index: number,
+  file: File,
+  actorEmail?: string
+): Promise<string> {
+  const result = await compressImageFile(file, 480, 0.76);
+  const nextGallery = [...(currentBranding.galleryImages || [null, null, null, null])];
+  nextGallery[index] = result.dataUrl;
+  await saveAppBranding({ galleryImages: nextGallery }, actorEmail);
+  return result.dataUrl;
+}
+
+export async function resetGalleryImage(index: number, actorEmail?: string): Promise<void> {
+  const nextGallery = [...(currentBranding.galleryImages || [null, null, null, null])];
+  nextGallery[index] = null;
+  await saveAppBranding({ galleryImages: nextGallery }, actorEmail);
 }

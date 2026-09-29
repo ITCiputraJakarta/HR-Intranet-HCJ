@@ -541,14 +541,33 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="w-full shrink-0 border-t border-slate-200 bg-white py-3.5 mt-auto relative z-10 shadow-xs">
+      <footer className="w-full shrink-0 border-t border-slate-200 bg-white py-4 mt-auto relative z-10 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-slate-800 tracking-wide text-xs">
+              {branding.footerCopyright || '© 2026 Intranet HCJ • All Rights Reserved'}
+            </span>
+            <span>•</span>
+            <span className="font-semibold text-slate-700">
               {branding.creatorSignature || 'JBagas 2026 ttd'}
             </span>
+            {branding.footerContact && (
+              <>
+                <span className="hidden md:inline">•</span>
+                <span className="hidden md:inline text-slate-500">{branding.footerContact}</span>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowBrandingModal(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 font-semibold transition-colors cursor-pointer"
+                title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
+              >
+                <span>Edit Tampilan & Footer</span>
+              </button>
+            )}
             {isSuperAdmin ? (
               <button
                 onClick={() => setShowFirestoreModal(true)}

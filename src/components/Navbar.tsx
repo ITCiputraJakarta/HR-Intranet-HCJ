@@ -242,11 +242,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     id="btn-nav-custom-logo"
                     onClick={onOpenBranding}
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs active:scale-95"
-                    title="Upload atau ganti logo portal Intranet HCJ"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title="Ubah Logo, Foto Latar Hotel, Tampilan Awal & Footer (Super Admin)"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    <span className="hidden xl:inline">Ganti Logo</span>
+                    <span className="hidden xl:inline">Tampilan & Logo</span>
                   </button>
                 )}
 
@@ -454,10 +454,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setShowUserDropdown(false);
                           onOpenBranding();
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors text-left"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors text-left cursor-pointer"
                       >
                         <Sparkles className="w-4 h-4 text-indigo-600" />
-                        <span>Pengaturan Logo Portal</span>
+                        <span>Tampilan Awal, Logo & Foto Hotel</span>
                       </button>
                     </div>
                   )}

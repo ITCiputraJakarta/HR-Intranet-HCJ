@@ -7,7 +7,7 @@ import { GoogleGenAI } from "@google/genai";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -43,7 +43,6 @@ apiRouter.post("/ai/draft-announcement", async (req, res) => {
 
     const ai = getGenAI();
     if (!ai) {
-      // Fallback template when GEMINI_API_KEY is not configured
       const fallback = `Diberitahukan kepada seluruh karyawan ${department || "Hotel Ciputra Jakarta"},\n\nSehubungan dengan "${title}", manajemen menyampaikan informasi resmi agar dapat dipedomani oleh seluruh rekan kerja di departemen terkait.\n\nDemikian pengumuman ini disampaikan untuk menjadi perhatian bersama. Atas kerja sama dan dedikasi rekan-rekan sekalian, kami ucapkan terima kasih.\n\nSalam,\nManajemen & Human Resources`;
       return res.json({ result: fallback });
     }
@@ -105,13 +104,18 @@ Instruksi: Tulis dalam 1 paragraf (3-4 kalimat singkat), menyapa langsung dengan
   }
 });
 
-// Mount the API router on /api and root (supports both standalone and Vercel serverless rewrites)
+// Mount the API router on /api and root
 app.use("/api", apiRouter);
 app.use(apiRouter);
 
-// Vite middleware in dev or static files in production
+// Vite middleware in dev or static files in production / Cloud Run
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.K_SERVICE) ||
+    process.env.npm_lifecycle_event === "start";
+
+  if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -119,19 +123,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Robust detection of dist folder across various Cloud Run container mount points
     const candidatePaths = [
       path.join(process.cwd(), "dist"),
-      process.cwd(),
       path.resolve("dist"),
+      process.cwd(),
     ];
 
-    if (typeof __dirname !== "undefined") {
-      candidatePaths.unshift(__dirname);
-      candidatePaths.push(path.join(__dirname, "../dist"));
-    }
-
-    const distPath = candidatePaths.find((p) => fs.existsSync(path.join(p, "index.html"))) || path.join(process.cwd(), "dist");
+    const distPath =
+      candidatePaths.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
+      path.join(process.cwd(), "dist");
 
     console.log(`[Production] Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
@@ -161,7 +161,6 @@ async function startServer() {
   });
 }
 
-// Only start standalone HTTP server if not running in a serverless environment (e.g. Vercel)
 if (!process.env.VERCEL) {
   startServer().catch((err) => {
     console.error("Critical server startup failure:", err);

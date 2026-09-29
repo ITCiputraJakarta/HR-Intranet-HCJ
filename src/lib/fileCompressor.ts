@@ -127,13 +127,19 @@ export async function compressImageFile(
         let mime = 'image/webp';
 
         if (!compressedDataUrl.startsWith('data:image/webp')) {
-          if (file.type === 'image/png' || file.type === 'image/svg+xml' || maxDimension <= 360) {
+          if (maxDimension <= 360 && (file.type === 'image/png' || file.type === 'image/svg+xml')) {
             compressedDataUrl = canvas.toDataURL('image/png');
             mime = 'image/png';
           } else {
             compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
             mime = 'image/jpeg';
           }
+        }
+
+        // Safety cap: if dataUrl is still > 350KB (e.g. complex photo), re-encode as JPEG at 0.62 quality so Firestore 1MB doc limit is never exceeded
+        if (compressedDataUrl.length > 350 * 1024 && maxDimension > 360) {
+          compressedDataUrl = canvas.toDataURL('image/jpeg', 0.62);
+          mime = 'image/jpeg';
         }
 
         const base64Len = compressedDataUrl.split(',')[1]?.length || 0;

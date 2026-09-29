@@ -6,9 +6,9 @@ import {
   initializeFirestore,
   Firestore,
   doc,
-  getDocFromServer
+  getDocFromServer,
 } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, Auth } from 'firebase/auth';
 
 export interface FirebaseAppConfig {
   apiKey: string;
@@ -19,13 +19,11 @@ export interface FirebaseAppConfig {
   appId: string;
   measurementId?: string;
   firestoreDatabaseId?: string;
-  oAuthClientId?: string;
-  recaptchaSiteKey?: string;
 }
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-export const DEFAULT_FIREBASE_CONFIG: FirebaseAppConfig = {
+export const firebaseConfig: FirebaseAppConfig = {
   apiKey: 'AIzaSyCbWSyLab5imSjZNI4mYH_KDDII1a4hayI',
   authDomain: 'hr-intranet-31ff4.firebaseapp.com',
   projectId: 'hr-intranet-31ff4',
@@ -36,35 +34,11 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseAppConfig = {
   firestoreDatabaseId: '(default)',
 };
 
-const LOCAL_STORAGE_CUSTOM_CONFIG_KEY = 'ciputra_custom_firebase_config_v1';
+export const DEFAULT_FIREBASE_CONFIG: FirebaseAppConfig = firebaseConfig;
 
 export function getStoredFirebaseConfig(): FirebaseAppConfig {
-  if (typeof window !== 'undefined') {
-    try {
-      // Clear any stale custom config that had a mismatched databaseId so hr-intranet-31ff4 connects cleanly to (default)
-      localStorage.removeItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
-    } catch {
-      // Ignore storage errors
-    }
-  }
-  return DEFAULT_FIREBASE_CONFIG;
+  return firebaseConfig;
 }
-
-export function saveStoredFirebaseConfig(config: Partial<FirebaseAppConfig>): void {
-  if (typeof window !== 'undefined') {
-    const current = getStoredFirebaseConfig();
-    const updated = { ...current, ...config };
-    localStorage.setItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY, JSON.stringify(updated));
-  }
-}
-
-export function resetStoredFirebaseConfig(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(LOCAL_STORAGE_CUSTOM_CONFIG_KEY);
-  }
-}
-
-export const firebaseConfig: FirebaseAppConfig = getStoredFirebaseConfig();
 
 // Initialize Firebase
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -81,25 +55,18 @@ if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
       })
       .catch(() => {});
   } catch {
-    // Ignore analytics errors in restricted iframe/local environments
+    // Ignore analytics errors in restricted iframe environments
   }
 }
 
-// Initialize Cloud Firestore on the default database of hr-intranet-31ff4 with auto-detect long polling
+// Initialize Cloud Firestore on (default) database of hr-intranet-31ff4
 function createFirestoreInstance(): Firestore {
-  const targetDbId =
-    firebaseConfig.firestoreDatabaseId &&
-    firebaseConfig.firestoreDatabaseId !== '(default)' &&
-    firebaseConfig.firestoreDatabaseId.trim() !== ''
-      ? firebaseConfig.firestoreDatabaseId
-      : undefined;
-
   try {
-    return targetDbId
-      ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, targetDbId)
-      : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+    });
   } catch {
-    return targetDbId ? getFirestore(app, targetDbId) : getFirestore(app);
+    return getFirestore(app);
   }
 }
 
@@ -108,9 +75,12 @@ export const db: Firestore = createFirestoreInstance();
 // Initialize Firebase Authentication
 export const auth: Auth = getAuth(app);
 
-// Validate connection to Firestore on boot
+// Validate connection to Firestore on boot & attempt silent anonymous auth if rules require request.auth != null
 async function testConnection() {
   try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth).catch(() => {});
+    }
     await getDocFromServer(doc(db, 'systemConfig', 'app_branding'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
@@ -118,11 +88,12 @@ async function testConnection() {
     }
   }
 }
+
 if (typeof window !== 'undefined') {
   testConnection();
 }
 
-export const firestoreDatabaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+export const firestoreDatabaseId = '(default)';
 export const firebaseProjectId = firebaseConfig.projectId;
 
 export function isFirebaseConfigured(): boolean {
@@ -130,4 +101,3 @@ export function isFirebaseConfigured(): boolean {
 }
 
 export default app;
-

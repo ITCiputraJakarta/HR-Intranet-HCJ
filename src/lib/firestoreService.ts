@@ -271,25 +271,16 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       batch.set(doc(db, NOTIFS_COL, n.id), n);
     });
 
-    // 8. Seed Default System Config (Firestore Native Storage settings & Branding)
-    batch.set(doc(db, CONFIG_COL, 'storage_settings'), {
-      id: 'storage_settings',
-      provider: 'firestore',
-      maxFileSizeMb: 15,
-      autoPruneDays: 7,
-      autoSyncEnabled: true,
-      updatedAt: new Date().toISOString(),
-    });
-
+    // 8. Seed Default System Config (Firestore Native Storage settings)
     batch.set(
-      doc(db, CONFIG_COL, 'app_branding'),
+      doc(db, CONFIG_COL, 'storage_settings'),
       {
-        appName: 'Intranet HCJ',
-        subTitle: 'Portal Dokumen & Evaluasi Kinerja',
-        customLogoUrl: null,
-        creatorSignature: 'JBagas 2026 ttd',
+        id: 'storage_settings',
+        provider: 'firestore',
+        maxFileSizeMb: 15,
+        autoPruneDays: 7,
+        autoSyncEnabled: true,
         updatedAt: new Date().toISOString(),
-        updatedBy: 'system',
       },
       { merge: true }
     );

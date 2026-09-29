@@ -68,6 +68,7 @@ import {
   subscribeToNotifications,
   subscribeToSystemConfig,
   onFirebaseStateChange,
+  testFirestoreConnection,
   FirebaseConnectionState
 } from './lib/firestoreService';
 
@@ -135,7 +136,8 @@ export default function App() {
       if (msg) setFirebaseErrorMsg(msg);
     });
 
-    // Auto-seed Firestore if collections are empty
+    // Probe Firebase connection & auto-seed Firestore if collections are empty
+    testFirestoreConnection().catch(() => {});
     seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
 
     // Real-time Firestore snapshot subscriptions

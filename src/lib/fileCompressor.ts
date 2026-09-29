@@ -225,6 +225,26 @@ export async function processFileForFirestore(file: File): Promise<CompressionRe
 }
 
 /**
+ * Converts a base64 data: URL into a Blob object for safe browser rendering & downloading.
+ */
+export function dataUrlToBlob(dataUrl: string): Blob | null {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+  try {
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+    const binary = atob(parts[1] || '');
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+    return new Blob([array], { type: mime });
+  } catch (e) {
+    console.warn('Failed to convert dataUrl to Blob:', e);
+    return null;
+  }
+}
+
+/**
  * Triggers safe and instant client-side download for base64 data URLs or HTTP URLs
  * without requiring Google Drive or any third-party services.
  */
@@ -232,15 +252,8 @@ export function downloadFileFromDataUrl(url: string, fileName: string): void {
   if (!url) return;
 
   if (url.startsWith('data:')) {
-    try {
-      const parts = url.split(',');
-      const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
-      const binary = atob(parts[1]);
-      const array = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        array[i] = binary.charCodeAt(i);
-      }
-      const blob = new Blob([array], { type: mime });
+    const blob = dataUrlToBlob(url);
+    if (blob) {
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -248,16 +261,54 @@ export function downloadFileFromDataUrl(url: string, fileName: string): void {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       return;
-    } catch (e) {
-      console.warn('Fallback standard download:', e);
     }
   }
 
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName || 'download';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
+ * Safely opens a file (including base64 data: PDFs/images) in a new browser tab or downloads if not viewable inline.
+ */
+export function openFileFromDataUrl(url: string, fileName: string = 'document'): void {
+  if (!url) return;
+
+  if (url.startsWith('data:')) {
+    const blob = dataUrlToBlob(url);
+    if (blob) {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      // For PDF and images, open in new tab; for Office docs (docx/xlsx), download directly
+      const isInlineViewable =
+        blob.type === 'application/pdf' ||
+        blob.type.startsWith('image/') ||
+        blob.type.startsWith('text/');
+      if (isInlineViewable) {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      } else {
+        link.download = fileName;
+      }
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      return;
+    }
+  }
+
+  const link = document.createElement('a');
+  link.href = url;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   document.body.appendChild(link);

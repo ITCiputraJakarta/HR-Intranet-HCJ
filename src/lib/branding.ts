@@ -52,6 +52,7 @@ export const DEFAULT_BRANDING: AppBranding = {
 const BRANDING_STORAGE_KEY = 'ciputra_intra_branding_v1';
 const CONFIG_COLLECTION = 'systemConfig';
 const BRANDING_DOC_ID = 'app_branding';
+const BRANDING_GALLERY_DOC_ID = 'app_branding_gallery';
 
 function normalizeGalleryImages(arr: unknown): Array<string | null> {
   if (!Array.isArray(arr)) return [null, null, null, null];
@@ -194,9 +195,20 @@ export async function fetchAppBrandingFromFirestore(): Promise<AppBranding> {
   }
   try {
     const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
-    const snap = await getDoc(docRef);
+    const galleryRef = doc(db, CONFIG_COLLECTION, BRANDING_GALLERY_DOC_ID);
+    const [snap, gallerySnap] = await Promise.all([
+      getDoc(docRef),
+      getDoc(galleryRef).catch(() => null),
+    ]);
     if (snap.exists()) {
-      return applyIncomingBranding(snap.data() as Partial<AppBranding>);
+      const mainData = snap.data() as Partial<AppBranding>;
+      if (gallerySnap && gallerySnap.exists()) {
+        const gData = gallerySnap.data();
+        if (Array.isArray(gData?.galleryImages)) {
+          mainData.galleryImages = gData.galleryImages;
+        }
+      }
+      return applyIncomingBranding(mainData);
     }
   } catch (err) {
     console.debug('Direct branding fetch notice:', err);
@@ -208,6 +220,7 @@ export function initBrandingFirestoreSync(): void {
   if (isListenerActive || !isFirebaseConfigured()) return;
   try {
     const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
+    const galleryRef = doc(db, CONFIG_COLLECTION, BRANDING_GALLERY_DOC_ID);
     onSnapshot(
       docRef,
       (snap) => {
@@ -218,6 +231,21 @@ export function initBrandingFirestoreSync(): void {
       (err) => {
         console.debug('Branding live subscription notice:', err.message);
       }
+    );
+    onSnapshot(
+      galleryRef,
+      (snap) => {
+        if (snap.exists()) {
+          const gData = snap.data();
+          if (Array.isArray(gData?.galleryImages)) {
+            applyIncomingBranding({
+              galleryImages: gData.galleryImages,
+              updatedAt: gData.updatedAt || currentBranding.updatedAt,
+            });
+          }
+        }
+      },
+      () => {}
     );
     isListenerActive = true;
   } catch (e) {
@@ -332,6 +360,12 @@ export async function saveAppBranding(
 
   if (isFirebaseConfigured()) {
     const docRef = doc(db, CONFIG_COLLECTION, BRANDING_DOC_ID);
+    const galleryRef = doc(db, CONFIG_COLLECTION, BRANDING_GALLERY_DOC_ID);
+
+    const galleryBytes = JSON.stringify(updated.galleryImages || []).length;
+    const bgBytes = (updated.customBgUrl || '').length;
+    const splitGallery = galleryBytes + bgBytes > 600000;
+
     const cleanPayload: Record<string, any> = {
       appName: updated.appName,
       subTitle: updated.subTitle,
@@ -344,7 +378,7 @@ export async function saveAppBranding(
       footerDescription: updated.footerDescription,
       footerBottomTitle: updated.footerBottomTitle,
       galleryTitle: updated.galleryTitle,
-      galleryImages: updated.galleryImages,
+      galleryImages: splitGallery ? [null, null, null, null] : updated.galleryImages,
       footerAddress: updated.footerAddress,
       footerContact: updated.footerContact,
       footerCopyright: updated.footerCopyright,
@@ -353,15 +387,28 @@ export async function saveAppBranding(
       updatedBy: updated.updatedBy || '',
     };
 
-    const writePromise = setDoc(docRef, cleanPayload, { merge: true }).catch((err: any) => {
-      console.error('Firestore branding save error:', err);
-    });
+    const writeOps: Promise<any>[] = [
+      setDoc(docRef, cleanPayload, { merge: true }).catch((err: any) => {
+        console.error('Firestore branding save error:', err);
+      }),
+      setDoc(
+        galleryRef,
+        {
+          galleryImages: updated.galleryImages,
+          updatedAt: updated.updatedAt,
+          updatedBy: updated.updatedBy || '',
+        },
+        { merge: true }
+      ).catch((err: any) => {
+        console.error('Firestore branding gallery save error:', err);
+      }),
+    ];
 
     const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 2500);
+      setTimeout(() => resolve(), 3000);
     });
 
-    await Promise.race([writePromise, timeoutPromise]);
+    await Promise.race([Promise.all(writeOps), timeoutPromise]);
   }
 
   return updated;
@@ -378,7 +425,7 @@ export async function resetCustomLogo(actorEmail?: string): Promise<void> {
 }
 
 export async function uploadCustomBg(file: File, actorEmail?: string): Promise<string> {
-  const result = await compressImageFile(file, 1360, 0.76);
+  const result = await compressImageFile(file, 1200, 0.72);
   await saveAppBranding({ customBgUrl: result.dataUrl }, actorEmail);
   return result.dataUrl;
 }
@@ -392,7 +439,7 @@ export async function uploadGalleryImage(
   file: File,
   actorEmail?: string
 ): Promise<string> {
-  const result = await compressImageFile(file, 480, 0.76);
+  const result = await compressImageFile(file, 440, 0.72);
   const nextGallery = [...(currentBranding.galleryImages || [null, null, null, null])];
   nextGallery[index] = result.dataUrl;
   await saveAppBranding({ galleryImages: nextGallery }, actorEmail);

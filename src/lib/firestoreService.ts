@@ -226,8 +226,11 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
 
   try {
     if (!force) {
-      const usersSnapshot = await getDocs(collection(db, USERS_COL));
-      if (!usersSnapshot.empty) {
+      const [usersSnapshot, docsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, USERS_COL), limit(1))),
+        getDocs(query(collection(db, DOCS_COL), limit(1))),
+      ]);
+      if (!usersSnapshot.empty || !docsSnapshot.empty) {
         notifyFirebaseState('connected');
         return { seeded: true, message: 'Firestore sudah memiliki data master Hotel Ciputra Jakarta.' };
       }
@@ -236,39 +239,53 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
     console.log('Seeding initial Hotel Ciputra Jakarta data into Firestore...');
     const batch = writeBatch(db);
 
-    // 1. Seed Users
+    // 1. Seed Users (respect deleted IDs)
     INITIAL_USERS.forEach((u) => {
-      batch.set(doc(db, USERS_COL, u.id), u);
+      if (!isFirestoreIdDeleted(u.id)) {
+        batch.set(doc(db, USERS_COL, u.id), u, { merge: true });
+      }
     });
 
     // 2. Seed Departments
     INITIAL_DEPARTMENTS.forEach((d) => {
-      batch.set(doc(db, DEPTS_COL, d.id), d);
+      if (!isFirestoreIdDeleted(d.id)) {
+        batch.set(doc(db, DEPTS_COL, d.id), d, { merge: true });
+      }
     });
 
     // 3. Seed Categories
     INITIAL_CATEGORIES.forEach((c) => {
-      batch.set(doc(db, CATS_COL, c.id), c);
+      if (!isFirestoreIdDeleted(c.id)) {
+        batch.set(doc(db, CATS_COL, c.id), c, { merge: true });
+      }
     });
 
     // 4. Seed Documents (Firestore Native Storage)
     INITIAL_DOCUMENTS.forEach((docItem) => {
-      batch.set(doc(db, DOCS_COL, docItem.id), sanitizeForFirestore(docItem));
+      if (!isFirestoreIdDeleted(docItem.id)) {
+        batch.set(doc(db, DOCS_COL, docItem.id), sanitizeForFirestore(docItem), { merge: true });
+      }
     });
 
     // 5. Seed KPIs
     INITIAL_KPIS.forEach((k) => {
-      batch.set(doc(db, KPIS_COL, k.id), k);
+      if (!isFirestoreIdDeleted(k.id)) {
+        batch.set(doc(db, KPIS_COL, k.id), k, { merge: true });
+      }
     });
 
     // 6. Seed Performances
     INITIAL_PERFORMANCES.forEach((p) => {
-      batch.set(doc(db, PERFS_COL, p.id), p);
+      if (!isFirestoreIdDeleted(p.id)) {
+        batch.set(doc(db, PERFS_COL, p.id), p, { merge: true });
+      }
     });
 
     // 7. Seed Notifications
     INITIAL_NOTIFICATIONS.forEach((n) => {
-      batch.set(doc(db, NOTIFS_COL, n.id), n);
+      if (!isFirestoreIdDeleted(n.id)) {
+        batch.set(doc(db, NOTIFS_COL, n.id), n, { merge: true });
+      }
     });
 
     // 8. Seed Default System Config (Firestore Native Storage settings)
@@ -902,10 +919,13 @@ export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<
 
   try {
     const writePromise = saveDocumentWithChunksToFirestore(docItem).finally(() => {
-      pendingDocumentSaves.delete(docItem.id);
+      // Keep pendingDocumentSaves for 10s after write completes so concurrent snapshots never drop the file
+      setTimeout(() => {
+        pendingDocumentSaves.delete(docItem.id);
+      }, 10000);
     });
     const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 2500);
+      setTimeout(() => resolve(), 3500);
     });
     await Promise.race([writePromise, timeoutPromise]);
   } catch (err: any) {

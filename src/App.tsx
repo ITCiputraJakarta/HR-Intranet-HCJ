@@ -523,6 +523,15 @@ export default function App() {
           document={previewDoc}
           currentUser={currentUser}
           onClose={() => setPreviewDoc(null)}
+          onUpdate={(updated) => {
+            setPreviewDoc(updated);
+            refreshAllData();
+          }}
+          onDelete={() => {
+            setPreviewDoc(null);
+            refreshAllData();
+          }}
+          onRefresh={refreshAllData}
         />
       )}
 

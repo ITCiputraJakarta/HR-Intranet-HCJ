@@ -28,6 +28,7 @@ import {
   getUsers,
   deleteUser,
   getDepartments,
+  getHotelUnits,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
@@ -48,7 +49,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
+  const hotelUnits = getHotelUnits();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
   const [filterRole, setFilterRole] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -63,6 +66,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editUnit, setEditUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
   const [editDept, setEditDept] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('staff');
   const [editStatus, setEditStatus] = useState<UserStatus>('Approved');
@@ -80,6 +84,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   // New user form state
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newUnit, setNewUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
   const [newDept, setNewDept] = useState('Front Office');
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [newPassword, setNewPassword] = useState('password123');
@@ -143,6 +148,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       id: `usr-${Date.now()}`,
       nama: newName.trim(),
       email: cleanEmail,
+      unit: newUnit,
       departemen: newDept,
       role: newRole,
       status: newStatus,
@@ -164,6 +170,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setUserToEdit(user);
     setEditName(user.nama);
     setEditEmail(user.email);
+    setEditUnit(user.unit || 'Hotel Ciputra Jakarta');
     setEditDept(user.departemen);
     setEditRole(user.role);
     setEditStatus(user.status);
@@ -185,6 +192,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {
         nama: editName,
         email: editEmail,
+        unit: editUnit,
         departemen: editDept,
         role: editRole,
         status: editStatus,
@@ -207,6 +215,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Filter list
   let filtered = [...safeUsers];
+  if (filterUnit !== 'All') {
+    filtered = filtered.filter((u) => (u.unit || 'Hotel Ciputra Jakarta') === filterUnit);
+  }
   if (filterDept !== 'All') {
     filtered = filtered.filter((u) => u.departemen === filterDept);
   }
@@ -434,6 +445,27 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               )}
             </button>
 
+            {/* Hotel Group Unit Filter */}
+            <div className="flex items-center gap-1 bg-indigo-50/70 border border-indigo-200 rounded-xl px-2 py-1">
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 ml-1 shrink-0" />
+              <select
+                id="filter-user-unit"
+                value={filterUnit}
+                onChange={(e) => {
+                  setFilterUnit(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-bold text-indigo-900 focus:outline-none py-1 pr-1 cursor-pointer max-w-[175px] truncate"
+              >
+                <option value="All">Semua Unit Hotel ({safeUsers.length})</option>
+                {hotelUnits.map((u) => (
+                  <option key={u.id} value={u.name}>
+                    {u.shortName} ({safeUsers.filter((usr) => (usr.unit || 'Hotel Ciputra Jakarta') === u.name).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Department Filter */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
               <Building2 className="w-3.5 h-3.5 text-slate-400 ml-1 shrink-0" />
@@ -502,10 +534,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             Menampilkan <strong>{filtered.length}</strong> dari <strong>{safeUsers.length}</strong> pengguna
           </div>
 
-          {(searchQuery || filterDept !== 'All' || filterRole !== 'All' || filterStatus !== 'All') && (
+          {(searchQuery || filterUnit !== 'All' || filterDept !== 'All' || filterRole !== 'All' || filterStatus !== 'All') && (
             <button
               onClick={() => {
                 setSearchQuery('');
+                setFilterUnit('All');
                 setFilterDept('All');
                 setFilterRole('All');
                 setFilterStatus('All');
@@ -596,7 +629,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <DepartmentBadge department={user.departemen} size="sm" />
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                              (user.unit || 'Hotel Ciputra Jakarta').includes('Unit 2')
+                                ? 'bg-teal-50 text-teal-800 border-teal-200'
+                                : 'bg-sky-50 text-sky-800 border-sky-200'
+                            }`}
+                          >
+                            <Building2 className="w-2.5 h-2.5" />
+                            <span>{user.unit || 'Hotel Ciputra Jakarta'}</span>
+                          </span>
+                          <div>
+                            <DepartmentBadge department={user.departemen} size="sm" />
+                          </div>
+                        </div>
                       </td>
 
                       <td className="py-4 px-4">
@@ -879,6 +926,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Unit Hotel Group (Pemisah Staf & SOP) *
+                </label>
+                <select
+                  value={newUnit}
+                  onChange={(e) => setNewUnit(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
+                >
+                  {hotelUnits.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1028,6 +1092,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="user@ciputra.com"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Unit Hotel Group (Pemisah Staf & SOP) *
+                </label>
+                <select
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
+                >
+                  {hotelUnits.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

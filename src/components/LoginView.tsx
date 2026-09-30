@@ -20,6 +20,7 @@ import {
   addAccessLog,
   getDepartments,
   saveDepartmentMasters,
+  getHotelUnits,
 } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
@@ -66,9 +67,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [bgError, setBgError] = useState(false);
 
   // Register form state
+  const hotelUnits = getHotelUnits();
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regUnit, setRegUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
   const [regDept, setRegDept] = useState(departments[0] || 'Front Office');
   const [regRole, setRegRole] = useState<UserRole>('staff');
 
@@ -235,6 +238,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       id: `user-${Date.now()}`,
       nama: regName.trim(),
       email: cleanEmail,
+      unit: regUnit,
       departemen: regDept,
       role: regRole,
       status: 'Pending',
@@ -492,6 +496,29 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       placeholder={t('namePlaceholder', currentLang)}
                       className="block w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-white bg-white/95 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {currentLang === 'en' ? 'Hotel Group Unit' : 'Unit Hotel Group'}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </div>
+                    <select
+                      id="reg-input-unit"
+                      value={regUnit}
+                      onChange={(e) => setRegUnit(e.target.value)}
+                      className="block w-full pl-8 pr-2 py-2 text-xs rounded-xl border border-white bg-white/95 text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                    >
+                      {hotelUnits.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name} ({u.code})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

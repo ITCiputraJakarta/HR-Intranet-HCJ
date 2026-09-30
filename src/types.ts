@@ -2,10 +2,21 @@ export type UserRole = 'staff' | 'spv' | 'manager' | 'admin' | 'hod';
 
 export type UserStatus = 'Approved' | 'Pending';
 
+export interface HotelUnitMaster {
+  id: string;
+  name: string;
+  shortName: string;
+  code: string;
+  announcementPruneDays: number;
+  announcementRuleNote: string;
+  sopRuleNote: string;
+}
+
 export interface User {
   id: string;
   nama: string;
   email: string;
+  unit?: string; // Pemisah Unit Hotel Group (mis. 'Hotel Ciputra Jakarta' vs 'Hotel Ciputra Group (Unit 2)')
   departemen: string;
   role: UserRole;
   status: UserStatus;
@@ -21,6 +32,7 @@ export interface IntranetDocument {
   title: string;
   category: DocumentCategory;
   sub_kategori?: string;
+  unit?: string; // Unit Hotel Group pemisah SOP & Pengumuman ('Hotel Ciputra Jakarta' | 'Hotel Ciputra Group (Unit 2)' | 'All Units')
   akses_dept: string; // 'All Departments' or specific dept
   keterangan?: string;
   fileUrl: string;
@@ -62,6 +74,7 @@ export interface AccessLog {
   userName: string;
   userEmail: string;
   role: UserRole;
+  unit?: string;
   departemen: string;
   actionCategory: ActionCategory;
   action: string;
@@ -74,12 +87,14 @@ export interface AccessLog {
 
 export interface CategoryMaster {
   id: string;
+  unit?: string;
   departemen: string;
   nama_kategori: string;
 }
 
 export interface DepartmentMaster {
   id: string;
+  unit?: string;
   name: string;
   code: string;
   description?: string;
@@ -89,6 +104,7 @@ export interface DepartmentMaster {
 
 export interface KPIMasterItem {
   id: string;
+  unit?: string;
   departemen: string;
   tahun: number | string;
   tipe: 'Mid-Year' | 'Year-End';
@@ -116,6 +132,7 @@ export interface PerformanceAppraisal {
   tipe: 'Mid-Year' | 'Year-End';
   email: string;
   nama: string;
+  unit?: string;
   departemen: string;
   role: UserRole;
   status: 'Draft' | 'Submitted' | 'On Review' | 'On Check' | 'Approved';
@@ -148,6 +165,7 @@ export interface PushNotification {
   title: string;
   message: string;
   category: string;
+  unit?: string;
   targetDepartment: string;
   targetRole?: string;
   documentId?: string;

@@ -14,6 +14,7 @@ import {
   SystemStorageConfig,
   ActionCategory,
   LogStatus,
+  HotelUnitMaster,
 } from '../types';
 import {
   INITIAL_USERS,
@@ -24,6 +25,8 @@ import {
   INITIAL_KPIS,
   INITIAL_PERFORMANCES,
   INITIAL_NOTIFICATIONS,
+  HOTEL_UNITS,
+  HOTEL_UNIT_NAMES,
 } from '../data/initialData';
 import {
   firestoreSaveUser,
@@ -160,14 +163,33 @@ function setStored<T>(key: string, data: T): void {
   }
 }
 
+export function getHotelUnits(): HotelUnitMaster[] {
+  return HOTEL_UNITS;
+}
+
+export function getHotelUnitNames(): string[] {
+  return HOTEL_UNIT_NAMES;
+}
+
+export function getHotelUnitRule(unitName?: string): HotelUnitMaster {
+  const found = HOTEL_UNITS.find((u) => u.name === unitName);
+  return found || HOTEL_UNITS[0];
+}
+
 // ----------------- USERS -----------------
 export function getUsers(): User[] {
   if (memoryUsers && memoryUsers.length > 0) {
-    return memoryUsers.filter((u) => !isFirestoreIdDeleted(u.id));
+    return memoryUsers.filter((u) => !isFirestoreIdDeleted(u.id)).map((u) => ({
+      ...u,
+      unit: u.unit || 'Hotel Ciputra Jakarta',
+    }));
   }
-  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS).filter(
-    (u) => !isFirestoreIdDeleted(u.id)
-  );
+  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS)
+    .filter((u) => !isFirestoreIdDeleted(u.id))
+    .map((u) => ({
+      ...u,
+      unit: u.unit || 'Hotel Ciputra Jakarta',
+    }));
   memoryUsers = loaded;
   return loaded;
 }
@@ -359,6 +381,7 @@ export function updateUserByAdmin(
   data: {
     nama: string;
     email: string;
+    unit?: string;
     departemen: string;
     role: UserRole;
     status: UserStatus;
@@ -389,6 +412,7 @@ export function updateUserByAdmin(
     ...existing,
     nama: cleanName,
     email: cleanEmail,
+    unit: data.unit || existing.unit || 'Hotel Ciputra Jakarta',
     departemen: data.departemen,
     role: data.role,
     status: data.status,
@@ -798,12 +822,13 @@ export function getDepartments(): string[] {
 }
 
 export function addDepartment(
-  data: { name: string; code: string; description?: string },
+  data: { name: string; code: string; unit?: string; description?: string },
   actor: User
 ): { success: boolean; message: string; department?: DepartmentMaster } {
   const trimmedName = data.name.trim();
   const trimmedCode = data.code.trim().toUpperCase();
   const trimmedDesc = (data.description || '').trim();
+  const targetUnit = data.unit || 'All Units';
 
   if (!trimmedName) {
     return { success: false, message: 'Nama departemen tidak boleh kosong.' };
@@ -813,18 +838,19 @@ export function addDepartment(
   }
 
   const list = getDepartmentMasters();
-  if (list.some((d) => d.name.toLowerCase() === trimmedName.toLowerCase())) {
-    return { success: false, message: `Departemen '${trimmedName}' sudah terdaftar dalam sistem.` };
+  if (list.some((d) => d.name.toLowerCase() === trimmedName.toLowerCase() && (d.unit || 'All Units') === targetUnit)) {
+    return { success: false, message: `Departemen '${trimmedName}' pada unit '${targetUnit}' sudah terdaftar dalam sistem.` };
   }
-  if (list.some((d) => d.code.toUpperCase() === trimmedCode)) {
-    return { success: false, message: `Kode singkatan '${trimmedCode}' sudah digunakan departemen lain.` };
+  if (list.some((d) => d.code.toUpperCase() === trimmedCode && (d.unit || 'All Units') === targetUnit)) {
+    return { success: false, message: `Kode singkatan '${trimmedCode}' sudah digunakan departemen lain pada unit tersebut.` };
   }
 
   const newDept: DepartmentMaster = {
     id: `dept-${Date.now()}`,
+    unit: targetUnit,
     name: trimmedName,
     code: trimmedCode,
-    description: trimmedDesc || `Departemen operasional ${trimmedName} Hotel Ciputra Jakarta.`,
+    description: trimmedDesc || `Departemen operasional ${trimmedName} (${targetUnit}).`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -846,7 +872,7 @@ export function addDepartment(
 
 export function updateDepartment(
   id: string,
-  data: { name: string; code: string; description?: string },
+  data: { name: string; code: string; unit?: string; description?: string },
   actor: User
 ): { success: boolean; message: string; department?: DepartmentMaster } {
   const trimmedName = data.name.trim();
@@ -865,12 +891,13 @@ export function updateDepartment(
   if (!target) {
     return { success: false, message: 'Departemen tidak ditemukan.' };
   }
+  const targetUnit = data.unit || target.unit || 'All Units';
 
-  if (list.some((d) => d.id !== id && d.name.toLowerCase() === trimmedName.toLowerCase())) {
-    return { success: false, message: `Nama departemen '${trimmedName}' sudah digunakan oleh departemen lain.` };
+  if (list.some((d) => d.id !== id && d.name.toLowerCase() === trimmedName.toLowerCase() && (d.unit || 'All Units') === targetUnit)) {
+    return { success: false, message: `Nama departemen '${trimmedName}' sudah digunakan oleh departemen lain pada unit tersebut.` };
   }
-  if (list.some((d) => d.id !== id && d.code.toUpperCase() === trimmedCode)) {
-    return { success: false, message: `Kode singkatan '${trimmedCode}' sudah digunakan departemen lain.` };
+  if (list.some((d) => d.id !== id && d.code.toUpperCase() === trimmedCode && (d.unit || 'All Units') === targetUnit)) {
+    return { success: false, message: `Kode singkatan '${trimmedCode}' sudah digunakan departemen lain pada unit tersebut.` };
   }
 
   const oldName = target.name;
@@ -878,6 +905,7 @@ export function updateDepartment(
 
   const updatedDept: DepartmentMaster = {
     ...target,
+    unit: targetUnit,
     name: trimmedName,
     code: trimmedCode,
     description: trimmedDesc,

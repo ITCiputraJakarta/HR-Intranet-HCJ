@@ -37,7 +37,9 @@ import {
   deleteDocument,
   getDepartments,
   pruneExpiredAnnouncements,
-  getDriveStorageConfig
+  getDriveStorageConfig,
+  getHotelUnits,
+  getHotelUnitRule,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
@@ -140,9 +142,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
+  const hotelUnits = getHotelUnits();
+  const userUnit = currentUser.unit || 'Hotel Ciputra Jakarta';
+  const activeUnitRule = getHotelUnitRule(userUnit);
   const driveConfig = getDriveStorageConfig();
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
   const [sortOrder, setSortOrder] = useState<AnnouncementSortOption>('newest');
   const [sortField, setSortField] = useState<string>('uploadedAt');
@@ -171,8 +177,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
   // Upload Form States
   const todayStr = new Date().toISOString().split('T')[0];
-  const defaultExpiryStr = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const defaultExpiryStr = new Date(
+    Date.now() + (activeUnitRule.announcementPruneDays || 7) * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .split('T')[0];
   const [upTitle, setUpTitle] = useState('');
+  const [upUnit, setUpUnit] = useState(isSuperAdmin ? 'Hotel Ciputra Jakarta' : userUnit);
   const [upDept, setUpDept] = useState('All Departments');
   const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
@@ -188,6 +199,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Edit Form States
   const [editDoc, setEditDoc] = useState<IntranetDocument | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editUnit, setEditUnit] = useState(userUnit);
   const [editDept, setEditDept] = useState('');
   const [editKet, setEditKet] = useState('');
   const [editEffectiveDate, setEditEffectiveDate] = useState(todayStr);
@@ -214,8 +226,21 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     }
   }, []);
 
-  // Department Filtering Logic
+  // Unit & Department Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
+
+  // Strict Unit isolation for non-Super Admin (Unit 1 vs Unit 2)
+  if (!isSuperAdmin) {
+    filteredAnnouncements = filteredAnnouncements.filter((d) => {
+      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
+      return docUnit === userUnit || docUnit === 'All Units';
+    });
+  } else if (filterUnit !== 'All') {
+    filteredAnnouncements = filteredAnnouncements.filter((d) => {
+      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
+      return docUnit === filterUnit || docUnit === 'All Units';
+    });
+  }
 
   if (isLevel1) {
     filteredAnnouncements = filteredAnnouncements.filter(
@@ -333,6 +358,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const handleOpenEdit = (doc: IntranetDocument) => {
     setEditDoc(doc);
     setEditTitle(doc.title);
+    setEditUnit(doc.unit || userUnit);
     setEditDept(isSuperAdmin ? doc.akses_dept : (currentUser.departemen || doc.akses_dept));
     setEditKet(doc.keterangan || '');
     setEditEffectiveDate(doc.effectiveDate || (doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr));
@@ -362,6 +388,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       let updatedDoc: IntranetDocument = {
         ...editDoc,
         title: editTitle.trim(),
+        unit: isSuperAdmin ? editUnit : userUnit,
         akses_dept: targetDept,
         keterangan: editKet.trim(),
         effectiveDate: editEffectiveDate,
@@ -473,6 +500,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         title: upTitle.trim(),
         category: 'Pengumuman',
         sub_kategori: upSubcat || 'Umum',
+        unit: isSuperAdmin ? (upUnit || 'Hotel Ciputra Jakarta') : userUnit,
         akses_dept: targetDept,
         keterangan: upKet.trim(),
         fileUrl: fileUrl || '',
@@ -533,15 +561,22 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-4 pt-2">
+            <div className="px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-xs text-xs font-bold flex items-center gap-2 border border-white/20">
+              <Building2 className="w-3.5 h-3.5 text-sky-300" />
+              <span>Unit Hotel: <strong>{isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit}</strong></span>
+            </div>
             <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold flex items-center gap-2 border border-white/10">
               <Building2 className="w-3.5 h-3.5 text-indigo-300" />
               <span>Departemen: <strong>{currentUser.departemen}</strong></span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold flex items-center gap-2 border border-white/10">
               <Clock className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Retensi Otomatis: <strong>{driveConfig.autoPruneAnnouncementsDays || 7} Hari</strong></span>
+              <span>Rule Retensi Unit: <strong>{getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementPruneDays} Hari</strong></span>
             </div>
           </div>
+          <p className="text-[11px] text-indigo-200/90 mt-2.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+            {getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementRuleNote}
+          </p>
         </div>
 
         <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 opacity-10 pointer-events-none">
@@ -629,27 +664,48 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-            {/* Department Filter (Super Admin only) */}
+            {/* Unit & Department Filter (Super Admin only) */}
             {isSuperAdmin && (
-              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  id="filter-announcement-dept"
-                  value={filterDept}
-                  onChange={(e) => {
-                    setFilterDept(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
-                >
-                  <option value="All">Semua Departemen</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="flex items-center gap-1.5 bg-indigo-50/70 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <select
+                    id="filter-announcement-unit"
+                    value={filterUnit}
+                    onChange={(e) => {
+                      setFilterUnit(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-transparent font-bold text-indigo-900 focus:outline-none cursor-pointer text-xs"
+                  >
+                    <option value="All">Semua Unit Hotel</option>
+                    {hotelUnits.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                  <select
+                    id="filter-announcement-dept"
+                    value={filterDept}
+                    onChange={(e) => {
+                      setFilterDept(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
+                  >
+                    <option value="All">Semua Departemen</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
 
             {/* View Mode Toggle */}
@@ -758,7 +814,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           )}
 
           <form onSubmit={handleUploadSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Judul Pengumuman *
@@ -772,6 +828,40 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                   placeholder="Contoh: Jadwal Shift Libur Nasional"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Unit Hotel Group (Rule Pengumuman) *
+                </label>
+                {isSuperAdmin ? (
+                  <select
+                    value={upUnit}
+                    onChange={(e) => {
+                      const nextU = e.target.value;
+                      setUpUnit(nextU);
+                      const rule = getHotelUnitRule(nextU);
+                      const nextExp = new Date(
+                        Date.now() + (rule.announcementPruneDays || 7) * 24 * 60 * 60 * 1000
+                      )
+                        .toISOString()
+                        .split('T')[0];
+                      setUpExpiryDate(nextExp);
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
+                  >
+                    {hotelUnits.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name} (Rule {u.announcementPruneDays} Hari)
+                      </option>
+                    ))}
+                    <option value="All Units">All Units (Seluruh Unit Hotel Group)</option>
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/60 font-bold text-indigo-900">
+                    {userUnit}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -975,6 +1065,18 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         onClick={() => onOpenPreview(doc)}
                         className="cursor-pointer space-y-1"
                       >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                              (doc.unit || 'Hotel Ciputra Jakarta').includes('Unit 2')
+                                ? 'bg-teal-50 text-teal-800 border-teal-200'
+                                : 'bg-sky-50 text-sky-800 border-sky-200'
+                            }`}
+                          >
+                            <Building2 className="w-2.5 h-2.5" />
+                            <span>{doc.unit || 'Hotel Ciputra Jakarta'}</span>
+                          </span>
+                        </div>
                         <h3 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
                           {doc.title}
                         </h3>

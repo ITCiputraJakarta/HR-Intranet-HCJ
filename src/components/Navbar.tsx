@@ -423,7 +423,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {currentUser.nama}
                   </div>
                   <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    {currentUser.role} • {currentUser.departemen}
+                    {currentUser.role} • {currentUser.departemen} • {(currentUser.unit || 'Hotel Ciputra Jakarta').includes('Unit 2') ? 'Unit 2 (HC Group)' : 'Unit 1 (HCJ)'}
                   </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
@@ -438,6 +438,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </p>
                     <p className="font-bold text-xs text-slate-900 mt-0.5">{currentUser.nama}</p>
                     <p className="text-[11px] text-slate-500">{currentUser.email}</p>
+                    <p className="text-[10px] font-bold text-indigo-700 mt-1 flex items-center gap-1">
+                      <Building2 className="w-3 h-3" />
+                      <span>{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
+                    </p>
                     <div className="mt-2 flex items-center gap-1.5">
                       <DepartmentBadge department={currentUser.departemen} size="xs" />
                       <span className="px-2 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-700 rounded-md uppercase">

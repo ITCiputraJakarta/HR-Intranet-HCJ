@@ -131,15 +131,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
+          <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5 bg-slate-900/70 px-2.5 py-1 rounded-lg border border-slate-700">
+            <Building2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <span className="truncate">{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
+          </div>
           <div>
             <DepartmentBadge department={currentUser.departemen} size="sm" />
           </div>
           <div className="flex items-center gap-1.5 pt-1 text-[11px] text-slate-400">
             <FolderLock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span className="truncate">
-              {isAdmin || role === 'manager'
-                ? t('allFilesAccess', currentLang)
-                : t('deptProtectedFilter', currentLang)}
+              {isAdmin
+                ? 'Akses Lintas Unit & Departemen'
+                : `Terisolasi: ${(currentUser.unit || 'Hotel Ciputra Jakarta').includes('Unit 2') ? 'Unit 2' : 'Unit 1'}`}
             </span>
           </div>
         </div>

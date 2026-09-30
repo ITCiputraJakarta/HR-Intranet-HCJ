@@ -169,17 +169,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
+    <header className="sticky top-0 z-40 bg-gradient-to-r from-white/95 via-[#f8fbff]/95 to-[#f1f7fe]/95 backdrop-blur-md border-b border-sky-200/80 shadow-xs">
+      {/* Soft Luxury Top Accent Line */}
+      <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-teal-400" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
           {/* Left Brand with Custom Logo Support */}
-          <div className="flex items-center gap-3 select-none">
+          <div className="flex items-center gap-3.5 select-none">
             {onToggleMobileMenu && (
               <button
                 type="button"
                 onClick={onToggleMobileMenu}
-                className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
+                className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-[#005a8d] rounded-xl hover:bg-sky-50 transition-colors cursor-pointer"
                 aria-label="Buka Menu Navigasi"
               >
                 <Menu className="w-5 h-5" />
@@ -192,8 +194,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => {
                   if (isSuperAdmin && onOpenBranding) onOpenBranding();
                 }}
-                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white border border-slate-200 shadow-sm shrink-0 overflow-hidden p-1 ${
-                  isSuperAdmin ? 'cursor-pointer hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 transition-all' : ''
+                className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white border border-sky-200/80 shadow-xs shrink-0 overflow-hidden p-1.5 ${
+                  isSuperAdmin ? 'cursor-pointer hover:border-sky-400 hover:ring-2 hover:ring-sky-100 transition-all' : ''
                 }`}
                 title={isSuperAdmin ? 'Klik untuk mengganti logo portal' : branding.appName}
               >
@@ -208,7 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => {
                   if (isSuperAdmin && onOpenBranding) onOpenBranding();
                 }}
-                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white shadow-md shadow-indigo-500/20 shrink-0 ${
+                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-sky-600 to-[#005a8d] text-white shadow-sm shadow-sky-500/20 shrink-0 ${
                   isSuperAdmin ? 'cursor-pointer hover:scale-105 transition-transform' : ''
                 }`}
                 title={isSuperAdmin ? 'Klik untuk upload logo portal kustom' : branding.appName}
@@ -218,12 +220,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-slate-900 text-sm sm:text-base tracking-tight leading-none whitespace-nowrap">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  onClick={() => onNavigate?.('announcements')}
+                  className="font-black text-[#004872] hover:text-[#005a8d] text-base sm:text-lg tracking-tight leading-none whitespace-nowrap cursor-pointer transition-colors"
+                >
                   {branding.appName || 'Intranet HCJ'}
                 </span>
-                <span className="hidden md:inline-flex px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/60 uppercase tracking-wider">
-                  HOTEL CIPUTRA
+                <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold bg-sky-50 text-[#005a8d] rounded-full border border-sky-200/80 tracking-wide">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
                 </span>
               </div>
               <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5 font-medium">
@@ -413,17 +419,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="btn-user-profile-toggle"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all focus:outline-none"
+                className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl bg-white/90 hover:bg-sky-50/80 border border-sky-200/70 hover:border-sky-300 shadow-2xs transition-all focus:outline-none cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-700 to-indigo-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#005a8d] to-sky-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
                   {currentUser.nama.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden md:block text-left">
                   <div className="text-xs font-bold text-slate-800 leading-tight">
                     {currentUser.nama}
                   </div>
-                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    {currentUser.role} • {currentUser.departemen} • {(currentUser.unit || 'Hotel Ciputra Jakarta').includes('Unit 2') ? 'Unit 2 (HC Group)' : 'Unit 1 (HCJ)'}
+                  <div className="text-[10px] font-semibold text-[#005a8d] uppercase tracking-wider">
+                    {currentUser.role} • {currentUser.departemen}
                   </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />

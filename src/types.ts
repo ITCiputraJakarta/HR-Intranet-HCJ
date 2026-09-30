@@ -5,9 +5,11 @@ export type UserStatus = 'Approved' | 'Pending';
 export interface HotelUnitMaster {
   id: string;
   name: string;
-  shortName: string;
+  shortName?: string;
   code: string;
-  announcementPruneDays: number;
+  description?: string;
+  announcementPruneDays?: number;
+  announcementMaxDays?: number;
   announcementRuleNote: string;
   sopRuleNote: string;
 }

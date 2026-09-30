@@ -11,6 +11,13 @@ import {
   Briefcase,
   Globe,
   Clock,
+  Sparkles,
+  ZoomIn,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  PhoneCall,
+  Layers,
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import {
@@ -21,6 +28,7 @@ import {
   getDepartments,
   saveDepartmentMasters,
   getHotelUnits,
+  saveHotelUnits,
 } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
@@ -33,6 +41,7 @@ import {
 import {
   subscribeToUsers,
   subscribeToDepartments,
+  subscribeToHotelUnits,
   firestoreFindUserByEmail,
 } from '../lib/firestoreService';
 
@@ -65,9 +74,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [bgError, setBgError] = useState(false);
+  const [selectedGalleryIdx, setSelectedGalleryIdx] = useState<number | null>(null);
 
   // Register form state
-  const hotelUnits = getHotelUnits();
+  const [hotelUnits, setHotelUnits] = useState(() => getHotelUnits());
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -92,10 +102,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
       saveDepartmentMasters(newDepts);
       setDepartments(getDepartments());
     });
+    const unsubUnits = subscribeToHotelUnits((newUnits) => {
+      saveHotelUnits(newUnits);
+      setHotelUnits(getHotelUnits());
+    });
     return () => {
       unsubBranding();
       unsubUsers();
       unsubDepts();
+      unsubUnits();
     };
   }, []);
 
@@ -234,13 +249,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
+    // Keamanan: Pendaftaran mandiri hanya diizinkan sampai level HOD (tidak bisa mendaftar sebagai Super Admin)
+    const allowedRole: UserRole = regRole === 'admin' ? 'staff' : regRole;
+
     const newUser: User = {
       id: `user-${Date.now()}`,
       nama: regName.trim(),
       email: cleanEmail,
       unit: regUnit,
       departemen: regDept,
-      role: regRole,
+      role: allowedRole,
       status: 'Pending',
       password: regPassword,
       createdAt: new Date().toISOString(),
@@ -269,25 +287,28 @@ export const LoginView: React.FC<LoginViewProps> = ({
   );
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-[#f5f7fa] text-slate-800">
-      {/* 1. CLEAN WHITE TOP HEADER BAR (Matching Reference Image) */}
-      <header className="w-full bg-white border-b border-slate-200/80 px-6 sm:px-12 py-3.5 shrink-0 z-20">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Left: Soft Square Logo Frame + Underlined Blue Title */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#eef2f7] p-1.5 flex items-center justify-center shadow-2xs">
-              <div className="w-full h-full rounded-xl bg-white shadow-xs border border-slate-200/60 flex items-center justify-center overflow-hidden p-1.5">
+    <div className="min-h-screen w-full flex flex-col bg-[#f4f8fb] text-slate-800">
+      {/* 1. MODERN SOFT INTERACTIVE TOP HEADER BAR */}
+      <header className="w-full bg-gradient-to-r from-white via-[#f8fbff] to-[#eef6fd] border-b border-sky-200/70 shrink-0 z-20 shadow-xs sticky top-0 backdrop-blur-md">
+        {/* Soft Luxury Top Accent Line */}
+        <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-[#005a8d] to-teal-400" />
+
+        <div className="max-w-7xl mx-auto px-5 sm:px-10 lg:px-12 py-3.5 flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Soft Layered Logo Frame + Refined Brand Identity */}
+          <div className="flex items-center gap-4 group">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-sky-50 via-white to-indigo-50/70 p-1.5 flex items-center justify-center shadow-sm border border-sky-200/80 group-hover:border-sky-300 group-hover:shadow-md transition-all duration-300">
+              <div className="w-full h-full rounded-xl bg-white flex items-center justify-center overflow-hidden p-1.5">
                 {branding.customLogoUrl ? (
                   <img
                     src={branding.customLogoUrl}
                     alt={branding.appName}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-[#005a8d]">
                     <Building2 className="w-6 h-6 stroke-[2]" />
-                    <span className="text-[7px] font-bold tracking-tighter uppercase mt-0.5 leading-none">
+                    <span className="text-[7px] font-extrabold tracking-tighter uppercase mt-0.5 leading-none">
                       CIPUTRA
                     </span>
                   </div>
@@ -295,41 +316,89 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             </div>
 
-            <span className="text-2xl sm:text-[28px] font-extrabold text-[#005a8d] underline decoration-[#005a8d] decoration-2 underline-offset-4 tracking-tight">
-              {branding.appName || 'Intranet'}
-            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-xl sm:text-2xl font-black text-[#004c78] tracking-tight">
+                  {branding.appName || 'Intranet'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100/80 text-[#005a8d] border border-sky-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{branding.subTitle || 'Hotel Ciputra Group'}</span>
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
+                {currentLang === 'en'
+                  ? 'Official Management & Employee Digital Workspace'
+                  : 'Portal Digital Resmi Manajemen & Karyawan • Sistem Informasi Terpadu'}
+              </p>
+            </div>
           </div>
 
-          {/* Right: Minimal Language Switcher */}
-          <button
-            type="button"
-            id="btn-login-lang-toggle"
-            onClick={() => {
-              const nextLang: Language = currentLang === 'id' ? 'en' : 'id';
-              if (onLanguageChange) {
-                onLanguageChange(nextLang);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-[#005a8d] bg-slate-50 hover:bg-white text-xs font-bold text-slate-700 transition-all cursor-pointer whitespace-nowrap"
-            title={currentLang === 'id' ? 'Switch language to English' : 'Ubah bahasa ke Indonesia'}
-          >
-            <Globe className="w-3.5 h-3.5 text-[#005a8d]" />
-            <span
-              className={`text-[11px] ${
-                currentLang === 'id' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
-              }`}
+          {/* Right: Quick Auth Switch & Language Toggle */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Quick Mode Pill */}
+            <div className="hidden sm:flex items-center bg-sky-50/90 p-1 rounded-xl border border-sky-200/70 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegister(false);
+                  setErrorMessage('');
+                }}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  !isRegister
+                    ? 'bg-white text-[#005a8d] shadow-2xs border border-sky-100'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t('loginTab', currentLang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRegister(true);
+                  setErrorMessage('');
+                }}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  isRegister
+                    ? 'bg-white text-[#005a8d] shadow-2xs border border-sky-100'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t('registerTab', currentLang)}
+              </button>
+            </div>
+
+            {/* Soft Interactive Language Switcher */}
+            <button
+              type="button"
+              id="btn-login-lang-toggle"
+              onClick={() => {
+                const nextLang: Language = currentLang === 'id' ? 'en' : 'id';
+                if (onLanguageChange) {
+                  onLanguageChange(nextLang);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-200/80 hover:border-[#005a8d] bg-white hover:bg-sky-50/60 text-xs font-bold text-slate-700 shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              title={currentLang === 'id' ? 'Switch language to English' : 'Ubah bahasa ke Indonesia'}
             >
-              ID
-            </span>
-            <span className="text-slate-300">/</span>
-            <span
-              className={`text-[11px] ${
-                currentLang === 'en' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
-              }`}
-            >
-              EN
-            </span>
-          </button>
+              <Globe className="w-3.5 h-3.5 text-[#005a8d]" />
+              <span
+                className={`text-[11px] ${
+                  currentLang === 'id' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
+                }`}
+              >
+                ID
+              </span>
+              <span className="text-slate-300">/</span>
+              <span
+                className={`text-[11px] ${
+                  currentLang === 'en' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
+                }`}
+              >
+                EN
+              </span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -552,7 +621,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     </label>
                     <select
                       id="reg-input-role"
-                      value={regRole}
+                      value={regRole === 'admin' ? 'staff' : regRole}
                       onChange={(e) => setRegRole(e.target.value as UserRole)}
                       className="block w-full px-2.5 py-2 text-xs rounded-xl border border-white bg-white/95 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
                     >
@@ -560,7 +629,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       <option value="spv">{t('roleSpvDesc', currentLang)}</option>
                       <option value="manager">{t('roleManagerDesc', currentLang)}</option>
                       <option value="hod">{t('roleHodDesc', currentLang)}</option>
-                      <option value="admin">{t('roleAdminDesc', currentLang)}</option>
                     </select>
                   </div>
                 </div>
@@ -621,53 +689,201 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </section>
 
-      {/* 3. BAGIAN BAWAH: DEEP TEAL FOOTER WITH LEFT DESCRIPTION & RIGHT 4-PHOTO GALLERY (Matching Reference Image) */}
-      <footer className="w-full bg-[#003853] text-white py-10 px-6 sm:px-12 shrink-0 z-20">
+      {/* 3. BAGIAN BAWAH: SOFT MODERN INTERACTIVE FOOTER (NOT DARK — BRIGHT PEARL & SKY ALABASTER) */}
+      <footer className="w-full bg-gradient-to-b from-[#f4f9fe] via-[#ebf3fc] to-[#e2eef9] text-slate-800 pt-10 pb-6 px-6 sm:px-12 shrink-0 z-20 border-t border-sky-200/80">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
-          {/* Left Column: Title, Description, Bottom Title */}
-          <div className="lg:col-span-4 space-y-4">
-            <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-              {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed font-normal">
-              {branding.footerDescription || DEFAULT_BRANDING.footerDescription}
-            </p>
-            <div className="pt-1">
-              <h4 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                {branding.footerBottomTitle || DEFAULT_BRANDING.footerBottomTitle}
-              </h4>
-              <p className="text-[11px] text-sky-200/70 mt-1">
-                {branding.creatorSignature || DEFAULT_BRANDING.creatorSignature}
+          {/* Left Column: Soft Identity Card, Description, Interactive Unit Chips & Helpdesk */}
+          <div className="lg:col-span-5 space-y-4 bg-white/85 backdrop-blur-xs p-6 rounded-3xl border border-sky-200/70 shadow-xs">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200/80 text-[#005a8d] text-[10px] font-extrabold uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 text-sky-600" />
+              <span>Hospitality Intranet Ecosystem</span>
+            </div>
+
+            <div>
+              <h3 className="text-lg sm:text-xl font-black tracking-tight text-[#004872]">
+                {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal mt-1.5">
+                {branding.footerDescription || DEFAULT_BRANDING.footerDescription}
               </p>
+            </div>
+
+            {/* Bottom Contact & Signature Box */}
+            <div className="pt-3 border-t border-sky-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-extrabold text-[#004872] tracking-tight">
+                  {branding.footerBottomTitle || DEFAULT_BRANDING.footerBottomTitle}
+                </h4>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                  <PhoneCall className="w-3 h-3 text-sky-600 shrink-0" />
+                  <span>{branding.footerContact || DEFAULT_BRANDING.footerContact}</span>
+                </p>
+              </div>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-sky-50 text-[#005a8d] border border-sky-200/60 text-[11px] font-bold self-start sm:self-auto">
+                {branding.creatorSignature || DEFAULT_BRANDING.creatorSignature}
+              </span>
             </div>
           </div>
 
-          {/* Right Column: Gallery Heading + 4 Square Photos */}
-          <div className="lg:col-span-8 space-y-3.5">
-            <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-              {branding.galleryTitle || DEFAULT_BRANDING.galleryTitle}
-            </h3>
+          {/* Right Column: Interactive Gallery Heading + 4 Soft Framed Photos with Lightbox */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg sm:text-xl font-black tracking-tight text-[#004872]">
+                  {branding.galleryTitle || DEFAULT_BRANDING.galleryTitle}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {currentLang === 'en'
+                    ? 'Click any photo to view full gallery preview'
+                    : 'Sentuh atau klik foto untuk melihat pratinjau ukuran penuh'}
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/80 border border-sky-200 text-[11px] font-bold text-[#005a8d] self-start sm:self-auto shadow-2xs">
+                <ZoomIn className="w-3.5 h-3.5 text-sky-600" />
+                <span>Galeri Interaktif</span>
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {gallerySlots.map((imgSrc, idx) => (
-                <div
+                <button
                   key={idx}
-                  className="aspect-square w-full bg-white/10 overflow-hidden shadow-md border border-white/15"
+                  type="button"
+                  onClick={() => setSelectedGalleryIdx(idx)}
+                  className="group relative aspect-square w-full bg-white p-2 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl border border-sky-200/80 hover:border-sky-400 transition-all duration-300 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
                 >
-                  <img
-                    src={imgSrc}
-                    alt={`Galeri ${idx + 1}`}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = DEFAULT_GALLERY[idx];
-                    }}
-                    className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
+                  <div className="relative w-full h-full rounded-xl overflow-hidden bg-sky-50">
+                    <img
+                      src={imgSrc}
+                      alt={`Galeri ${idx + 1}`}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = DEFAULT_GALLERY[idx];
+                      }}
+                      className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#003853]/75 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-white/20 backdrop-blur-xs px-2 py-1 rounded-lg w-fit">
+                        <ZoomIn className="w-3 h-3" />
+                        <span>Perbesar Foto {idx + 1}</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
               ))}
+            </div>
+
+            {/* Soft Highlights Strip under Gallery */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3 rounded-2xl bg-white/80 border border-sky-200/70 flex items-center gap-2.5 shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-sky-100 text-[#005a8d] flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Akses Terisolasi</p>
+                  <p className="text-[10px] text-slate-500">Pemisahan SOP & Staf per Unit</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/80 border border-sky-200/70 flex items-center gap-2.5 shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Real-Time Cloud</p>
+                  <p className="text-[10px] text-slate-500">Sinkronisasi Dokumen & KPI</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-white/80 border border-sky-200/70 flex items-center gap-2.5 shadow-2xs">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Rule Pengumuman</p>
+                  <p className="text-[10px] text-slate-500">Masa Tayang Otomatis per Unit</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Bottom Sub-footer */}
+        <div className="max-w-7xl mx-auto mt-8 pt-4 border-t border-sky-200/70 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <p className="font-semibold text-slate-600">
+            {branding.footerCopyright || DEFAULT_BRANDING.footerCopyright}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {branding.footerAddress || DEFAULT_BRANDING.footerAddress}
+          </p>
+        </div>
       </footer>
+
+      {/* Interactive Gallery Lightbox Modal */}
+      {selectedGalleryIdx !== null && (
+        <div
+          onClick={() => setSelectedGalleryIdx(null)}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-2xl w-full bg-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-sky-200 space-y-3 cursor-default"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#005a8d] font-bold text-xs border border-sky-200">
+                  Foto {selectedGalleryIdx + 1} / {gallerySlots.length}
+                </span>
+                <h4 className="font-bold text-slate-800 text-sm">
+                  {branding.galleryTitle || DEFAULT_BRANDING.galleryTitle}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedGalleryIdx(null)}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
+              <img
+                src={gallerySlots[selectedGalleryIdx]}
+                alt={`Galeri ${selectedGalleryIdx + 1}`}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    DEFAULT_GALLERY[selectedGalleryIdx];
+                }}
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedGalleryIdx(
+                    (selectedGalleryIdx - 1 + gallerySlots.length) % gallerySlots.length
+                  )
+                }
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title="Foto Sebelumnya"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedGalleryIdx((selectedGalleryIdx + 1) % gallerySlots.length)
+                }
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
+                title="Foto Berikutnya"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

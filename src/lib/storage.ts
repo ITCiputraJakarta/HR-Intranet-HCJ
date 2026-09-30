@@ -47,6 +47,7 @@ import {
   firestoreSaveNotification,
   firestoreMarkNotificationRead,
   firestoreSaveConfig,
+  firestoreSaveHotelUnits,
   isFirestoreIdDeleted,
   markFirestoreIdDeleted,
 } from './firestoreService';
@@ -62,6 +63,7 @@ const STORAGE_KEYS = {
   PERFORMANCES: 'ciputra_intra_perfs_v1',
   NOTIFICATIONS: 'ciputra_intra_notifs_v1',
   CONFIG: 'ciputra_intra_config_v1',
+  HOTEL_UNITS: 'ciputra_intra_units_v1',
 };
 
 // Runtime in-memory cache to prevent excessive Firestore reads and ensure instant UI performance
@@ -74,6 +76,7 @@ let memoryKPIs: KPIMasterItem[] | null = null;
 let memoryPerformances: PerformanceAppraisal[] | null = null;
 let memoryNotifications: PushNotification[] | null = null;
 let memoryConfig: any = null;
+let memoryHotelUnits: HotelUnitMaster[] | null = null;
 
 export function updateMemoryCache(
   collectionKey: 'users' | 'documents' | 'logs' | 'categories' | 'departments' | 'kpis' | 'performances' | 'notifications' | 'config',
@@ -120,6 +123,7 @@ export function clearMemoryCache(): void {
   memoryPerformances = null;
   memoryNotifications = null;
   memoryConfig = null;
+  memoryHotelUnits = null;
 }
 
 // Safe storage getter with fallback
@@ -164,16 +168,256 @@ function setStored<T>(key: string, data: T): void {
 }
 
 export function getHotelUnits(): HotelUnitMaster[] {
-  return HOTEL_UNITS;
+  if (memoryHotelUnits && memoryHotelUnits.length > 0) {
+    return memoryHotelUnits;
+  }
+  const loaded = getStored<HotelUnitMaster[]>(STORAGE_KEYS.HOTEL_UNITS, HOTEL_UNITS);
+  const validUnits = Array.isArray(loaded) && loaded.length > 0 ? loaded : HOTEL_UNITS;
+  memoryHotelUnits = validUnits;
+  return validUnits;
+}
+
+export function saveHotelUnits(units: HotelUnitMaster[]): void {
+  const valid = Array.isArray(units) && units.length > 0 ? units : HOTEL_UNITS;
+  memoryHotelUnits = valid;
+  setStored(STORAGE_KEYS.HOTEL_UNITS, valid);
 }
 
 export function getHotelUnitNames(): string[] {
-  return HOTEL_UNIT_NAMES;
+  return getHotelUnits().map((u) => u.name);
 }
 
 export function getHotelUnitRule(unitName?: string): HotelUnitMaster {
-  const found = HOTEL_UNITS.find((u) => u.name === unitName);
-  return found || HOTEL_UNITS[0];
+  const list = getHotelUnits();
+  const found = list.find((u) => u.name === unitName);
+  return found || list[0] || HOTEL_UNITS[0];
+}
+
+export function addHotelUnit(
+  data: {
+    name: string;
+    code: string;
+    description?: string;
+    announcementMaxDays?: number;
+    announcementRuleNote?: string;
+    sopRuleNote?: string;
+  },
+  actor: User
+): { success: boolean; message: string; unit?: HotelUnitMaster } {
+  const trimmedName = data.name.trim();
+  const trimmedCode = data.code.trim().toUpperCase();
+  const trimmedDesc = (data.description || '').trim();
+  const maxDays = Math.max(1, Math.min(365, Number(data.announcementMaxDays) || 7));
+  const annRule = (data.announcementRuleNote || '').trim();
+  const sopRule = (data.sopRuleNote || '').trim();
+
+  if (!trimmedName) {
+    return { success: false, message: 'Nama Unit Hotel tidak boleh kosong.' };
+  }
+  if (!trimmedCode) {
+    return { success: false, message: 'Kode singkatan Unit Hotel tidak boleh kosong.' };
+  }
+
+  const list = getHotelUnits();
+  if (list.some((u) => u.name.toLowerCase() === trimmedName.toLowerCase())) {
+    return { success: false, message: `Unit Hotel '${trimmedName}' sudah terdaftar dalam sistem.` };
+  }
+  if (list.some((u) => u.code.toUpperCase() === trimmedCode)) {
+    return { success: false, message: `Kode Unit '${trimmedCode}' sudah digunakan oleh unit lain.` };
+  }
+
+  const newUnit: HotelUnitMaster = {
+    id: `unit-${Date.now()}`,
+    name: trimmedName,
+    shortName: trimmedCode,
+    code: trimmedCode,
+    description: trimmedDesc || `Unit properti operasional ${trimmedName}.`,
+    announcementPruneDays: maxDays,
+    announcementMaxDays: maxDays,
+    announcementRuleNote:
+      annRule ||
+      `Rule Pengumuman ${trimmedCode}: Masa tayang standar ${maxDays} hari khusus staf ${trimmedName}.`,
+    sopRuleNote:
+      sopRule ||
+      `Rule SOP ${trimmedCode}: Dokumen SOP & Formulir terisolasi khusus operasional ${trimmedName}.`,
+  };
+
+  const updated = [...list, newUnit];
+  saveHotelUnits(updated);
+  firestoreSaveHotelUnits(updated);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'SYSTEM',
+    action: 'Tambah Unit Hotel Baru',
+    target: `${newUnit.name} (${newUnit.code})`,
+    status: 'SUCCESS',
+    details: `Unit Hotel baru '${newUnit.name}' [${newUnit.code}] dengan rule pengumuman ${newUnit.announcementMaxDays} hari ditambahkan oleh ${actor.nama}.`,
+  });
+
+  return {
+    success: true,
+    message: `Unit Hotel '${newUnit.name}' (${newUnit.code}) berhasil ditambahkan!`,
+    unit: newUnit,
+  };
+}
+
+export function updateHotelUnit(
+  id: string,
+  data: {
+    name: string;
+    code: string;
+    description?: string;
+    announcementMaxDays?: number;
+    announcementRuleNote?: string;
+    sopRuleNote?: string;
+  },
+  actor: User
+): { success: boolean; message: string; unit?: HotelUnitMaster } {
+  const trimmedName = data.name.trim();
+  const trimmedCode = data.code.trim().toUpperCase();
+  const trimmedDesc = (data.description || '').trim();
+  const maxDays = Math.max(1, Math.min(365, Number(data.announcementMaxDays) || 7));
+  const annRule = (data.announcementRuleNote || '').trim();
+  const sopRule = (data.sopRuleNote || '').trim();
+
+  if (!trimmedName) {
+    return { success: false, message: 'Nama Unit Hotel tidak boleh kosong.' };
+  }
+  if (!trimmedCode) {
+    return { success: false, message: 'Kode singkatan Unit Hotel tidak boleh kosong.' };
+  }
+
+  const list = getHotelUnits();
+  const target = list.find((u) => u.id === id);
+  if (!target) {
+    return { success: false, message: 'Data Unit Hotel tidak ditemukan.' };
+  }
+
+  if (list.some((u) => u.id !== id && u.name.toLowerCase() === trimmedName.toLowerCase())) {
+    return { success: false, message: `Nama Unit Hotel '${trimmedName}' sudah digunakan oleh unit lain.` };
+  }
+  if (list.some((u) => u.id !== id && u.code.toUpperCase() === trimmedCode)) {
+    return { success: false, message: `Kode Unit '${trimmedCode}' sudah digunakan oleh unit lain.` };
+  }
+
+  const oldName = target.name;
+  const isNameChanged = oldName !== trimmedName;
+
+  const updatedUnit: HotelUnitMaster = {
+    ...target,
+    name: trimmedName,
+    shortName: trimmedCode,
+    code: trimmedCode,
+    description: trimmedDesc || `Unit properti operasional ${trimmedName}.`,
+    announcementPruneDays: maxDays,
+    announcementMaxDays: maxDays,
+    announcementRuleNote:
+      annRule ||
+      `Rule Pengumuman ${trimmedCode}: Masa tayang standar ${maxDays} hari khusus staf ${trimmedName}.`,
+    sopRuleNote:
+      sopRule ||
+      `Rule SOP ${trimmedCode}: Dokumen SOP & Formulir terisolasi khusus operasional ${trimmedName}.`,
+  };
+
+  const updatedList = list.map((u) => (u.id === id ? updatedUnit : u));
+  saveHotelUnits(updatedList);
+  firestoreSaveHotelUnits(updatedList);
+
+  // Cascade update if unit name changed
+  if (isNameChanged) {
+    const users = getUsers();
+    const updatedUsers = users.map((u) => {
+      if ((u.unit || 'Hotel Ciputra Jakarta') === oldName) {
+        const nextUser = { ...u, unit: trimmedName };
+        firestoreSaveUser(nextUser);
+        return nextUser;
+      }
+      return u;
+    });
+    saveUsers(updatedUsers);
+
+    const docs = getDocuments();
+    const updatedDocs = docs.map((d) => {
+      if (d.unit === oldName) {
+        const nextDoc = { ...d, unit: trimmedName };
+        firestoreSaveDocument(nextDoc);
+        return nextDoc;
+      }
+      return d;
+    });
+    saveDocuments(updatedDocs);
+
+    const depts = getDepartmentMasters();
+    const updatedDepts = depts.map((dept) => {
+      if (dept.unit === oldName) {
+        const nextDept = { ...dept, unit: trimmedName };
+        firestoreSaveDepartment(nextDept);
+        return nextDept;
+      }
+      return dept;
+    });
+    saveDepartmentMasters(updatedDepts);
+
+    const curr = getCurrentUser();
+    if (curr && curr.unit === oldName) {
+      setCurrentUser({ ...curr, unit: trimmedName });
+    }
+  }
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'SYSTEM',
+    action: 'Perbarui Data & Rule Unit Hotel',
+    target: `${oldName} -> ${trimmedName} (${trimmedCode})`,
+    status: 'SUCCESS',
+    details: isNameChanged
+      ? `Nama Unit Hotel diubah dari '${oldName}' menjadi '${trimmedName}' beserta sinkronisasi staf, SOP, dan pengumuman.`
+      : `Konfigurasi & rule Unit Hotel '${trimmedName}' (${trimmedCode}) berhasil diperbarui.`,
+  });
+
+  return {
+    success: true,
+    message: isNameChanged
+      ? `Unit Hotel berhasil diperbarui menjadi '${trimmedName}' & relasi staf/dokumen telah disinkronkan!`
+      : `Konfigurasi & rule Unit Hotel '${trimmedName}' berhasil diperbarui!`,
+    unit: updatedUnit,
+  };
+}
+
+export function deleteHotelUnit(
+  id: string,
+  actor: User
+): { success: boolean; message: string } {
+  const list = getHotelUnits();
+  if (list.length <= 1) {
+    return {
+      success: false,
+      message: 'Minimal harus ada 1 Unit Hotel aktif dalam sistem.',
+    };
+  }
+  const target = list.find((u) => u.id === id);
+  if (!target) {
+    return { success: false, message: 'Unit Hotel tidak ditemukan.' };
+  }
+
+  const updatedList = list.filter((u) => u.id !== id);
+  saveHotelUnits(updatedList);
+  firestoreSaveHotelUnits(updatedList);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'SYSTEM',
+    action: 'Hapus Unit Hotel',
+    target: `${target.name} (${target.code})`,
+    status: 'WARNING',
+    details: `Unit Hotel '${target.name}' (${target.code}) dihapus dari sistem oleh ${actor.nama}.`,
+  });
+
+  return {
+    success: true,
+    message: `Unit Hotel '${target.name}' berhasil dihapus.`,
+  };
 }
 
 // ----------------- USERS -----------------

@@ -20,7 +20,8 @@ import {
   DepartmentMaster,
   KPIMasterItem,
   PerformanceAppraisal,
-  PushNotification
+  PushNotification,
+  HotelUnitMaster
 } from '../types';
 import {
   INITIAL_USERS,
@@ -29,7 +30,8 @@ import {
   INITIAL_DEPARTMENTS,
   INITIAL_KPIS,
   INITIAL_PERFORMANCES,
-  INITIAL_NOTIFICATIONS
+  INITIAL_NOTIFICATIONS,
+  HOTEL_UNITS
 } from '../data/initialData';
 
 // Collection references
@@ -297,6 +299,17 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
         maxFileSizeMb: 15,
         autoPruneDays: 7,
         autoSyncEnabled: true,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    // 9. Seed Default Hotel Units Master
+    batch.set(
+      doc(db, CONFIG_COL, 'hotel_units_master'),
+      {
+        id: 'hotel_units_master',
+        units: HOTEL_UNITS,
         updatedAt: new Date().toISOString(),
       },
       { merge: true }
@@ -745,6 +758,29 @@ export function subscribeToSystemConfig(onUpdate: (cfg: any) => void): () => voi
   }
 }
 
+export function subscribeToHotelUnits(onUpdate: (units: HotelUnitMaster[]) => void): () => void {
+  if (!isFirebaseConfigured()) return () => {};
+  try {
+    const docRef = doc(db, CONFIG_COL, 'hotel_units_master');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && Array.isArray(data.units) && data.units.length > 0) {
+            notifyFirebaseState('connected');
+            onUpdate(data.units as HotelUnitMaster[]);
+          }
+        }
+      },
+      (err) => handleSubscriptionError('HotelUnits', err)
+    );
+  } catch (e) {
+    handleSubscriptionError('HotelUnits init', e);
+    return () => {};
+  }
+}
+
 // =========================================================================
 // FIRESTORE CRUD OPERATIONS
 // =========================================================================
@@ -1097,5 +1133,24 @@ export async function firestoreSaveConfig(cfg: any): Promise<void> {
     }, { merge: true });
   } catch (err) {
     console.warn('firestoreSaveConfig error:', err);
+  }
+}
+
+// Hotel Group Units Master (stored in systemConfig/hotel_units_master)
+export async function firestoreSaveHotelUnits(units: HotelUnitMaster[]): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  try {
+    const cleanUnits = units.map((u) => sanitizeForFirestore(u));
+    await setDoc(
+      doc(db, CONFIG_COL, 'hotel_units_master'),
+      {
+        id: 'hotel_units_master',
+        units: cleanUnits,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('firestoreSaveHotelUnits error:', err);
   }
 }

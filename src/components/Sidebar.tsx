@@ -16,6 +16,7 @@ import {
   Flame,
   Cloud,
   FolderLock,
+  Globe,
   X
 } from 'lucide-react';
 import { User, UserRole } from '../types';
@@ -229,6 +230,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {t('masterAndConfig', currentLang)}
             </div>
             <nav className="space-y-1">
+              <button
+                id="menu-units"
+                onClick={() => handleNav('units')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeTab === 'units'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <Globe className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="flex-1 text-left">
+                  {currentLang === 'en' ? 'Hotel Units Master' : 'Master Unit Hotel'}
+                </span>
+              </button>
+
               <button
                 id="menu-departments"
                 onClick={() => handleNav('departments')}

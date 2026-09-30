@@ -10,6 +10,7 @@ import {
   NotificationItem,
   SpreadsheetConfig,
   PerformanceAppraisal,
+  HotelUnitMaster,
 } from './types';
 import {
   getCurrentUser,
@@ -24,6 +25,7 @@ import {
   getNotifications,
   getPerformances,
   getSpreadsheetConfig,
+  getHotelUnits,
   markNotificationsAsRead,
   addAccessLog,
   clearAllSessionCache,
@@ -37,6 +39,7 @@ import {
   saveKPIMaster,
   savePerformances,
   saveNotifications,
+  saveHotelUnits,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -49,6 +52,7 @@ import { UserManagementView } from './components/UserManagementView';
 import { AccessLogsView } from './components/AccessLogsView';
 import { CategoriesMasterView } from './components/CategoriesMasterView';
 import { DepartmentsMasterView } from './components/DepartmentsMasterView';
+import { UnitsMasterView } from './components/UnitsMasterView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { FirestoreSyncModal } from './components/FirestoreSyncModal';
 import { BrandingSettingsModal } from './components/BrandingSettingsModal';
@@ -67,6 +71,7 @@ import {
   subscribeToPerformances,
   subscribeToNotifications,
   subscribeToSystemConfig,
+  subscribeToHotelUnits,
   onFirebaseStateChange,
   testFirestoreConnection,
   FirebaseConnectionState
@@ -95,6 +100,7 @@ export default function App() {
   const [kpiMaster, setKpiMaster] = useState<KPIMasterItem[]>(() => getKPIMaster());
   const [categories, setCategories] = useState<CategoryMaster[]>(() => getCategories());
   const [departmentMasters, setDepartmentMasters] = useState<DepartmentMaster[]>(() => getDepartmentMasters());
+  const [hotelUnits, setHotelUnits] = useState<HotelUnitMaster[]>(() => getHotelUnits());
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => getNotifications());
   const [performances, setPerformances] = useState<PerformanceAppraisal[]>(() => getPerformances());
   const [config, setConfig] = useState<SpreadsheetConfig>(() => getSpreadsheetConfig());
@@ -121,6 +127,7 @@ export default function App() {
     setKpiMaster(getKPIMaster());
     setCategories(getCategories());
     setDepartmentMasters(getDepartmentMasters());
+    setHotelUnits(getHotelUnits());
     setNotifications(getNotifications());
     setPerformances(getPerformances());
     setConfig(getSpreadsheetConfig());
@@ -168,6 +175,11 @@ export default function App() {
       setDepartmentMasters(getDepartmentMasters());
     });
 
+    const unsubUnits = subscribeToHotelUnits((newUnits) => {
+      saveHotelUnits(newUnits);
+      setHotelUnits(getHotelUnits());
+    });
+
     const unsubKPIs = subscribeToKPIs((newKPIs) => {
       saveKPIMaster(newKPIs);
       setKpiMaster(getKPIMaster());
@@ -198,6 +210,7 @@ export default function App() {
       unsubLogs();
       unsubCats();
       unsubDepts();
+      unsubUnits();
       unsubKPIs();
       unsubPerfs();
       unsubNotifs();
@@ -468,6 +481,17 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'units' && isHodOrAdmin && (
+            <UnitsMasterView
+              currentUser={currentUser}
+              units={hotelUnits}
+              users={users}
+              documents={documents}
+              currentLang={currentLang}
+              onRefresh={refreshAllData}
+            />
+          )}
+
           {activeTab === 'departments' && isHodOrAdmin && (
             <DepartmentsMasterView
               currentUser={currentUser}
@@ -551,69 +575,182 @@ export default function App() {
         onBrandingSaved={refreshAllData}
       />
 
-      {/* Footer */}
-      <footer className="w-full shrink-0 border-t border-slate-200 bg-white py-4 mt-auto relative z-10 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-800 tracking-wide text-xs">
-              {branding.footerCopyright || '© 2026 Intranet HCJ • All Rights Reserved'}
-            </span>
-            <span>•</span>
-            <span className="font-semibold text-slate-700">
-              {branding.creatorSignature || 'JBagas 2026 ttd'}
-            </span>
-            {branding.footerContact && (
-              <>
-                <span className="hidden md:inline">•</span>
-                <span className="hidden md:inline text-slate-500">{branding.footerContact}</span>
-              </>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {isSuperAdmin && (
-              <button
-                onClick={() => setShowBrandingModal(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 font-semibold transition-colors cursor-pointer"
-                title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
-              >
-                <span>Edit Tampilan & Footer</span>
-              </button>
-            )}
-            {isSuperAdmin ? (
-              <button
-                onClick={() => setShowFirestoreModal(true)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-all cursor-pointer ${
-                  firebaseState === 'connected'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                    : firebaseState === 'permission_denied'
-                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
-                    : firebaseState === 'not_found'
-                    ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
-                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                }`}
-                title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
-              >
-                <Flame className={`w-3.5 h-3.5 ${
-                  firebaseState === 'connected' ? 'text-amber-500 fill-amber-500' : 'text-amber-600'
-                }`} />
-                <span>
-                  {firebaseState === 'connected'
-                    ? 'Database: Firebase Firestore (Online)'
-                    : firebaseState === 'permission_denied'
-                    ? 'Firebase: Izin Rules Ditolak (Klik Perbaiki)'
-                    : firebaseState === 'not_found'
-                    ? 'Firebase: Database Belum Dibuat'
-                    : 'Firebase: Mode Offline'}
+      {/* Soft Modern Interactive Footer */}
+      <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-b from-white via-[#f5f9fe] to-[#eaf3fc] pt-7 pb-5 mt-auto relative z-10 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+          {/* Top Interactive Row */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            {/* Brand & Active Unit Scope */}
+            <div className="md:col-span-5 space-y-2">
+              <div className="flex items-center gap-2.5">
+                <span className="font-black text-[#004872] text-sm sm:text-base tracking-tight">
+                  {branding.footerTitle || 'Hotel Ciputra Group Intranet'}
                 </span>
-              </button>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
-                <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                <span>Firestore Cloud: Aktif</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100/80 text-[#005a8d] border border-sky-200">
+                  {currentUser.unit || 'Hotel Ciputra Jakarta'}
+                </span>
               </div>
-            )}
-            <span>•</span>
-            <span>Akses: <strong>{currentUser.nama}</strong> ({currentUser.role.toUpperCase()})</span>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-md">
+                {branding.footerDescription ||
+                  'Portal Intranet Resmi Manajemen & Karyawan. Pusat akses dokumen SOP, formulir operasional, pengumuman internal, dan evaluasi kinerja terpadu.'}
+              </p>
+            </div>
+
+            {/* Interactive Quick Navigation */}
+            <div className="md:col-span-4 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#005a8d]">
+                Navigasi Cepat Portal
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('announcements');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    activeTab === 'announcements'
+                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
+                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
+                  }`}
+                >
+                  Pengumuman
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('sop');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    activeTab === 'sop'
+                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
+                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
+                  }`}
+                >
+                  Dokumen SOP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('forms');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    activeTab === 'forms'
+                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
+                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
+                  }`}
+                >
+                  Formulir Kerja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('performance');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    activeTab === 'performance'
+                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
+                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
+                  }`}
+                >
+                  Evaluasi KPI
+                </button>
+                {isHodOrAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('units');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      activeTab === 'units'
+                        ? 'bg-[#005a8d] text-white border-[#005a8d]'
+                        : 'bg-white hover:bg-sky-50 text-[#005a8d] border-sky-200/80'
+                    }`}
+                  >
+                    Master Unit Hotel
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Cloud Status & Admin Customization */}
+            <div className="md:col-span-3 flex flex-col md:items-end justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => setShowBrandingModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-[#005a8d] border border-sky-200/90 shadow-2xs font-bold text-xs transition-all cursor-pointer"
+                    title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
+                  >
+                    <span>Edit Tampilan & Footer</span>
+                  </button>
+                )}
+                {isSuperAdmin ? (
+                  <button
+                    onClick={() => setShowFirestoreModal(true)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs transition-all cursor-pointer shadow-2xs ${
+                      firebaseState === 'connected'
+                        ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                        : firebaseState === 'permission_denied'
+                        ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
+                        : firebaseState === 'not_found'
+                        ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                    title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
+                  >
+                    <Flame
+                      className={`w-3.5 h-3.5 ${
+                        firebaseState === 'connected'
+                          ? 'text-emerald-600 fill-emerald-500'
+                          : 'text-amber-600'
+                      }`}
+                    />
+                    <span>
+                      {firebaseState === 'connected'
+                        ? 'Firestore Cloud: Online'
+                        : firebaseState === 'permission_denied'
+                        ? 'Perbaiki Izin Rules'
+                        : firebaseState === 'not_found'
+                        ? 'Database Belum Aktif'
+                        : 'Mode Offline'}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+                    <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                    <span>Firestore Cloud: Aktif</span>
+                  </div>
+                )}
+              </div>
+              {branding.footerContact && (
+                <p className="text-[11px] text-slate-500 md:text-right">
+                  {branding.footerContact}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="pt-4 border-t border-sky-200/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-[#004872]">
+                {branding.footerCopyright || '© 2026 Intranet HCJ • All Rights Reserved'}
+              </span>
+              <span>•</span>
+              <span className="font-semibold text-slate-600">
+                {branding.creatorSignature || 'JBagas 2026 ttd'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 bg-white/80 px-3 py-1 rounded-full border border-sky-200/70">
+              <span>Sesi Aktif:</span>
+              <strong className="text-[#004872]">{currentUser.nama}</strong>
+              <span className="text-sky-700 font-bold">({currentUser.role.toUpperCase()})</span>
+            </div>
           </div>
         </div>
       </footer>

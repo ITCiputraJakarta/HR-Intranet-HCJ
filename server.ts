@@ -110,10 +110,11 @@ app.use(apiRouter);
 
 // Vite middleware in dev or static files in production / Cloud Run
 async function startServer() {
+  const isDevScript = process.env.npm_lifecycle_event === "dev";
   const isProduction =
-    process.env.NODE_ENV === "production" ||
-    Boolean(process.env.K_SERVICE) ||
-    process.env.npm_lifecycle_event === "start";
+    !isDevScript &&
+    (process.env.NODE_ENV === "production" ||
+      process.env.npm_lifecycle_event === "start");
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
@@ -123,15 +124,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const candidatePaths = [
-      path.join(process.cwd(), "dist"),
-      path.resolve("dist"),
-      process.cwd(),
-    ];
-
-    const distPath =
-      candidatePaths.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
-      path.join(process.cwd(), "dist");
+    const distPath = path.resolve(process.cwd(), "dist");
 
     console.log(`[Production] Serving static files from: ${distPath}`);
     app.use(express.static(distPath));

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Download,
@@ -27,6 +27,7 @@ import {
   formatBytes,
   downloadFileFromDataUrl,
   openFileFromDataUrl,
+  dataUrlToBlob,
 } from '../lib/fileCompressor';
 
 interface DocumentPreviewModalProps {
@@ -160,6 +161,31 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         doc.fileUrl.startsWith('data:image/'))
   );
 
+  const isPdf = Boolean(
+    doc.fileUrl &&
+      (doc.fileType === 'application/pdf' ||
+        doc.fileName?.toLowerCase().endsWith('.pdf') ||
+        doc.fileUrl.startsWith('data:application/pdf'))
+  );
+
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!isPdf || !doc.fileUrl) {
+      setPdfPreviewUrl('');
+      return;
+    }
+    if (doc.fileUrl.startsWith('data:')) {
+      const blob = dataUrlToBlob(doc.fileUrl);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        setPdfPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+      }
+    }
+    setPdfPreviewUrl(doc.fileUrl);
+  }, [doc.fileUrl, isPdf]);
+
   return (
     <div
       onClick={onClose}
@@ -210,13 +236,19 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           )}
 
-          {/* Preview Canvas (Image / Document Box) */}
-          <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center min-h-[220px] max-h-[360px]">
+          {/* Preview Canvas (Image / PDF / Document Box) */}
+          <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center min-h-[220px] max-h-[420px]">
             {isImage ? (
               <img
                 src={doc.fileUrl}
                 alt={doc.title}
-                className="w-full h-full max-h-[360px] object-contain"
+                className="w-full h-full max-h-[420px] object-contain"
+              />
+            ) : isPdf && pdfPreviewUrl ? (
+              <iframe
+                src={pdfPreviewUrl}
+                title={doc.title}
+                className="w-full h-[380px] border-0 bg-white"
               />
             ) : doc.category === 'Pengumuman' ? (
               <div className="p-8 text-center space-y-3 w-full bg-slate-200 flex flex-col items-center justify-center">

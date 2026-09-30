@@ -54,6 +54,7 @@ import { FirestoreSyncModal } from './components/FirestoreSyncModal';
 import { BrandingSettingsModal } from './components/BrandingSettingsModal';
 import { useIdleTimeout, recordUserActivity, clearActivityTimer } from './lib/useIdleTimeout';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
 import {
@@ -688,6 +689,9 @@ export default function App() {
           <span>Menu</span>
         </button>
       </nav>
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
 
     </div>
   );

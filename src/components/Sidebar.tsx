@@ -13,6 +13,7 @@ import {
   Flame,
   FolderLock,
   Globe,
+  HardDrive,
   X,
 } from 'lucide-react';
 import { User } from '../types';
@@ -449,6 +450,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <span className="flex-1 text-left">{t('menuAccessLogs', currentLang)}</span>
                     {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#005a8d] shrink-0" />}
+                  </button>
+                );
+              })()}
+
+              {(() => {
+                const isActive = activeTab === 'quota-analytics';
+                return (
+                  <button
+                    id="menu-quota-analytics"
+                    onClick={() => handleNav('quota-analytics')}
+                    className={getNavButtonClass(isActive)}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                        isActive
+                          ? 'bg-white text-emerald-600 border border-emerald-300 shadow-2xs'
+                          : 'bg-emerald-50/80 text-emerald-600 border border-emerald-200/80'
+                      }`}
+                    >
+                      <HardDrive className="w-4 h-4" />
+                    </div>
+                    <span className="flex-1 text-left">
+                      {currentLang === 'en' ? 'Quota & Cloud Analytics' : 'Analitik & Kuota Cloud'}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      1 GiB
+                    </span>
                   </button>
                 );
               })()}

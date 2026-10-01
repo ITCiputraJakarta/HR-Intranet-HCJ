@@ -259,15 +259,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
 
                 <button
-                  id="btn-nav-cloud-config"
-                  onClick={handleConfig}
+                  id="btn-nav-quota-analytics"
+                  onClick={() => onNavigate?.('quota-analytics')}
                   className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/70 text-emerald-800 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                  title="Panel Status & Sinkronisasi Cloud Firestore (Super Admin Only)"
+                  title="Analitik Kuota Penyimpanan & Pusat Database Cloud Firebase"
                 >
                   <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-2xs">
                     <Flame className="w-3 h-3 fill-white" />
                   </div>
-                  <span>Cloud Firestore</span>
+                  <span>Kuota & Cloud Firebase</span>
                 </button>
               </div>
             )}

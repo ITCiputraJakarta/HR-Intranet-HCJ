@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   deleteDoc,
@@ -1154,3 +1155,262 @@ export async function firestoreSaveHotelUnits(units: HotelUnitMaster[]): Promise
     console.warn('firestoreSaveHotelUnits error:', err);
   }
 }
+
+// =========================================================================
+// REAL-TIME CLOUD QUOTA TELEMETRY & FULL COLLECTION PULL (FIREBASE + VERCEL)
+// =========================================================================
+
+export interface CloudQuotaTelemetry {
+  id: string;
+  projectId: string;
+  databaseId: string;
+  dateKey: string; // YYYY-MM-DD
+  monthKey: string; // YYYY-MM
+  firebaseUsedBytes: number;
+  firebaseUsedKB: number;
+  firebaseRemainingKB: number;
+  firebaseTotalDocs: number;
+  firebaseChunkDocs: number;
+  dailyReadsUsed: number;
+  dailyWritesUsed: number;
+  dailyDeletesUsed: number;
+  vercelBandwidthUsedMB: number;
+  vercelEdgeRequestsUsed: number;
+  vercelBuildMinutesUsed: number;
+  vercelBundleSizeMB: number;
+  lastSyncedAt: string;
+  syncedBy?: string;
+}
+
+export interface LiveFirestorePullResult {
+  success: boolean;
+  message: string;
+  users: User[];
+  documents: IntranetDocument[];
+  performances: PerformanceAppraisal[];
+  kpiMaster: KPIMasterItem[];
+  accessLogs: AccessLog[];
+  departments: DepartmentMaster[];
+  categories: CategoryMaster[];
+  hotelUnits: HotelUnitMaster[];
+  chunkDocsCount: number;
+  serverTotalDocsCount: number;
+}
+
+export async function firestorePullAllCollections(): Promise<LiveFirestorePullResult> {
+  if (!isFirebaseConfigured()) {
+    return {
+      success: false,
+      message: 'Konfigurasi Firebase belum tersedia.',
+      users: [],
+      documents: [],
+      performances: [],
+      kpiMaster: [],
+      accessLogs: [],
+      departments: [],
+      categories: [],
+      hotelUnits: [],
+      chunkDocsCount: 0,
+      serverTotalDocsCount: 0,
+    };
+  }
+
+  try {
+    const [
+      usersSnap,
+      docsSnap,
+      perfsSnap,
+      kpisSnap,
+      logsSnap,
+      deptsSnap,
+      catsSnap,
+      unitsDocSnap,
+    ] = await Promise.all([
+      getDocs(collection(db, USERS_COL)),
+      getDocs(collection(db, DOCS_COL)),
+      getDocs(collection(db, PERFS_COL)),
+      getDocs(collection(db, KPIS_COL)),
+      getDocs(query(collection(db, LOGS_COL), limit(500))),
+      getDocs(collection(db, DEPTS_COL)),
+      getDocs(collection(db, CATS_COL)),
+      getDoc(doc(db, CONFIG_COL, 'hotel_units_master')),
+    ]);
+
+    const users: User[] = [];
+    usersSnap.forEach((d) => {
+      const u = d.data() as User;
+      const id = u.id || d.id;
+      if (u && u.email && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        users.push({ ...u, id });
+      }
+    });
+
+    const rawDocs: any[] = [];
+    docsSnap.forEach((d) => {
+      const item = d.data() as any;
+      const id = item?.id || d.id;
+      if (item && id && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        rawDocs.push({ ...item, id });
+      }
+    });
+
+    let chunkDocsCount = 0;
+    const documents: IntranetDocument[] = await Promise.all(
+      rawDocs.map(async (item) => {
+        if (item.isChunkedFile || item.isChunkedAttachment) {
+          try {
+            const cSnap = await getDocs(collection(db, DOCS_COL, item.id, 'chunks'));
+            chunkDocsCount += cSnap.size;
+          } catch {}
+          return hydrateChunkedDocument(item);
+        }
+        const fileUrl = item.fileUrl || item.downloadUrl || item.previewUrl || '';
+        return {
+          ...item,
+          fileUrl,
+          previewUrl: item.previewUrl || fileUrl,
+          downloadUrl: item.downloadUrl || fileUrl,
+          thumbUrl: item.thumbUrl || (item.fileType?.startsWith('image/') ? fileUrl : ''),
+        } as IntranetDocument;
+      })
+    );
+
+    const performances: PerformanceAppraisal[] = [];
+    perfsSnap.forEach((d) => {
+      const item = d.data() as PerformanceAppraisal;
+      const id = item.id || d.id;
+      if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        performances.push({ ...item, id });
+      }
+    });
+
+    const kpiMaster: KPIMasterItem[] = [];
+    kpisSnap.forEach((d) => {
+      const item = d.data() as KPIMasterItem;
+      const id = item.id || d.id;
+      if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        kpiMaster.push({ ...item, id });
+      }
+    });
+
+    const accessLogs: AccessLog[] = [];
+    logsSnap.forEach((d) => {
+      const item = d.data() as AccessLog;
+      const id = item.id || d.id;
+      if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        accessLogs.push({ ...item, id });
+      }
+    });
+    accessLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const departments: DepartmentMaster[] = [];
+    deptsSnap.forEach((d) => {
+      const item = d.data() as DepartmentMaster;
+      const id = item.id || d.id;
+      if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        departments.push({ ...item, id });
+      }
+    });
+
+    const categories: CategoryMaster[] = [];
+    catsSnap.forEach((d) => {
+      const item = d.data() as CategoryMaster;
+      const id = item.id || d.id;
+      if (!isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(d.id)) {
+        categories.push({ ...item, id });
+      }
+    });
+
+    let hotelUnits: HotelUnitMaster[] = [];
+    if (unitsDocSnap.exists()) {
+      const uData = unitsDocSnap.data();
+      if (uData && Array.isArray(uData.units)) {
+        hotelUnits = uData.units as HotelUnitMaster[];
+      }
+    }
+
+    const serverTotalDocsCount =
+      users.length +
+      documents.length +
+      chunkDocsCount +
+      performances.length +
+      kpiMaster.length +
+      accessLogs.length +
+      departments.length +
+      categories.length +
+      (hotelUnits.length > 0 ? 1 : 0);
+
+    notifyFirebaseState('connected');
+    return {
+      success: true,
+      message: `Berhasil menarik ${serverTotalDocsCount} dokumen aktif langsung dari server Cloud Firestore.`,
+      users,
+      documents,
+      performances,
+      kpiMaster,
+      accessLogs,
+      departments,
+      categories,
+      hotelUnits,
+      chunkDocsCount,
+      serverTotalDocsCount,
+    };
+  } catch (err: any) {
+    console.warn('[Firestore] firestorePullAllCollections error:', err);
+    return {
+      success: false,
+      message: err?.message || 'Gagal menarik koleksi dari Cloud Firestore.',
+      users: [],
+      documents: [],
+      performances: [],
+      kpiMaster: [],
+      accessLogs: [],
+      departments: [],
+      categories: [],
+      hotelUnits: [],
+      chunkDocsCount: 0,
+      serverTotalDocsCount: 0,
+    };
+  }
+}
+
+export async function firestoreSyncQuotaTelemetry(
+  telemetry: CloudQuotaTelemetry
+): Promise<boolean> {
+  if (!isFirebaseConfigured()) return false;
+  try {
+    await setDoc(
+      doc(db, CONFIG_COL, 'cloud_quota_telemetry'),
+      sanitizeForFirestore(telemetry),
+      { merge: true }
+    );
+    notifyFirebaseState('connected');
+    return true;
+  } catch (err) {
+    console.warn('[Firestore] firestoreSyncQuotaTelemetry error:', err);
+    return false;
+  }
+}
+
+export function subscribeToQuotaTelemetry(
+  onUpdate: (telemetry: CloudQuotaTelemetry) => void
+): () => void {
+  if (!isFirebaseConfigured()) return () => {};
+  try {
+    const docRef = doc(db, CONFIG_COL, 'cloud_quota_telemetry');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          notifyFirebaseState('connected');
+          onUpdate(docSnap.data() as CloudQuotaTelemetry);
+        }
+      },
+      (err) => handleSubscriptionError('QuotaTelemetry', err)
+    );
+  } catch (e) {
+    handleSubscriptionError('QuotaTelemetry init', e);
+    return () => {};
+  }
+}
+

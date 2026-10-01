@@ -546,41 +546,50 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      {/* Top Banner - Premium 5-Star Executive Style */}
+      <div className="bg-gradient-to-br from-[#002f4b] via-[#004872] to-[#0b2545] rounded-3xl p-6 sm:p-8 text-white shadow-[0_18px_45px_-15px_rgba(0,58,93,0.45)] border border-sky-400/20 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-sky-300 to-indigo-400" />
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-semibold mb-3">
-            <Megaphone className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-sky-200 text-xs font-bold mb-3 shadow-inner">
+            <span className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-xs">
+              <Megaphone className="w-3 h-3" />
+            </span>
             <span>{currentLang === 'id' ? 'Pusat Informasi & Pengumuman Internal' : 'Internal Notices & Announcements'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
             {t('headerAnnouncementsTitle', currentLang)}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
+          <p className="text-xs sm:text-sm text-sky-100/90 mt-2 leading-relaxed">
             {t('headerAnnouncementsSubtitle', currentLang)}
           </p>
 
-          <div className="flex flex-wrap items-center gap-3 mt-4 pt-2">
-            <div className="px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-xs text-xs font-bold flex items-center gap-2 border border-white/20">
-              <Building2 className="w-3.5 h-3.5 text-sky-300" />
+          <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-2">
+            <div className="px-3 py-1.5 rounded-xl bg-white/12 backdrop-blur-md text-xs font-bold flex items-center gap-2 border border-white/20 shadow-xs">
+              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center shadow-2xs">
+                <Building2 className="w-3 h-3" />
+              </span>
               <span>Unit Hotel: <strong>{isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit}</strong></span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold flex items-center gap-2 border border-white/10">
-              <Building2 className="w-3.5 h-3.5 text-indigo-300" />
+            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md text-xs font-semibold flex items-center gap-2 border border-white/15 shadow-xs">
+              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-600 text-white flex items-center justify-center shadow-2xs">
+                <Building2 className="w-3 h-3" />
+              </span>
               <span>Departemen: <strong>{currentUser.departemen}</strong></span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-xs text-xs font-semibold flex items-center gap-2 border border-white/10">
-              <Clock className="w-3.5 h-3.5 text-emerald-300" />
+            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md text-xs font-semibold flex items-center gap-2 border border-white/15 shadow-xs">
+              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center shadow-2xs">
+                <Clock className="w-3 h-3" />
+              </span>
               <span>Rule Retensi Unit: <strong>{getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementPruneDays} Hari</strong></span>
             </div>
           </div>
-          <p className="text-[11px] text-indigo-200/90 mt-2.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+          <p className="text-[11px] text-sky-100/90 mt-3 bg-white/8 px-3.5 py-2 rounded-xl border border-white/15 backdrop-blur-xs">
             {getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementRuleNote}
           </p>
         </div>
 
-        <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 opacity-10 pointer-events-none">
-          <Database className="w-96 h-96 text-white" />
+        <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-10 pointer-events-none">
+          <Megaphone className="w-80 h-80 text-white" />
         </div>
       </div>
 
@@ -764,13 +773,15 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
             )}
           </div>
 
-          {(searchQuery || filterDept !== 'All') && (
+          {(searchQuery || filterDept !== 'All' || filterUnit !== 'All') && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setFilterDept('All');
+                setFilterUnit('All');
+                setCurrentPage(1);
               }}
-              className="text-indigo-600 hover:text-indigo-800 font-bold text-xs inline-flex items-center gap-1"
+              className="text-indigo-600 hover:text-indigo-800 font-bold text-xs inline-flex items-center gap-1 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
               <span>Reset Filter</span>

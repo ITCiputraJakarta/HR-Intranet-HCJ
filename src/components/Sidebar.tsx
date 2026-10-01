@@ -23,6 +23,7 @@ import { User, UserRole } from '../types';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
+import { getHotelUnitRule } from '../lib/storage';
 
 interface SidebarProps {
   activeTab?: string;
@@ -34,6 +35,7 @@ interface SidebarProps {
   onSelectTab?: (tab: string) => void;
   onLogout?: () => void;
   pendingUsersCount?: number;
+  pendingAppraisalsCount?: number;
   newLogsCount?: number;
   unreadLogsCount?: number;
   onOpenFirestoreModal?: () => void;
@@ -52,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   onLogout = () => {},
   pendingUsersCount = 0,
+  pendingAppraisalsCount = 0,
   newLogsCount,
   unreadLogsCount,
   onOpenFirestoreModal,
@@ -124,77 +127,105 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Department & Access Scope Pill */}
-      <div className="p-4 border-b border-slate-800/80 shrink-0">
-        <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-2">
+      <div className="p-4 border-b border-sky-900/40 shrink-0">
+        <div className="p-3.5 bg-gradient-to-br from-slate-800/80 via-[#112440]/90 to-slate-900/90 rounded-2xl border border-sky-500/20 shadow-inner space-y-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+            <span className="text-[10px] font-bold tracking-wider text-sky-300/80 uppercase">
               {t('yourDepartment', currentLang)}
             </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 ring-4 ring-emerald-400/15 animate-pulse" />
           </div>
-          <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5 bg-slate-900/70 px-2.5 py-1 rounded-lg border border-slate-700">
-            <Building2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          <div className="text-[11px] font-bold text-white flex items-center gap-2 bg-slate-950/60 px-2.5 py-1.5 rounded-xl border border-sky-500/25 shadow-2xs">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-500 to-[#005a8d] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
             <span className="truncate">{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
           </div>
           <div>
             <DepartmentBadge department={currentUser.departemen} size="sm" />
           </div>
-          <div className="flex items-center gap-1.5 pt-1 text-[11px] text-slate-400">
-            <FolderLock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-            <span className="truncate">
+          <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-300">
+            <div className="w-5 h-5 rounded-md bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
+              <FolderLock className="w-3 h-3" />
+            </div>
+            <span className="truncate font-medium">
               {isAdmin
                 ? 'Akses Lintas Unit & Departemen'
-                : `Terisolasi: ${(currentUser.unit || 'Hotel Ciputra Jakarta').includes('Unit 2') ? 'Unit 2' : 'Unit 1'}`}
+                : `Scope Unit: ${getHotelUnitRule(currentUser.unit).code}`}
             </span>
           </div>
         </div>
       </div>
 
       {/* Navigation Links with custom scrollbar */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         
         {/* Utama (Intranet & Berkas) */}
         <div>
-          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-widest text-sky-300/70">
             {t('archivesAndFiles', currentLang)}
           </div>
-          <nav className="space-y-1">
+          <nav className="space-y-1.5">
             <button
               id="menu-announcements"
               onClick={() => handleNav('announcements')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'announcements'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                  : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
               }`}
             >
-              <Megaphone className="w-4 h-4 text-indigo-400 shrink-0" />
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  activeTab === 'announcements'
+                    ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                    : 'bg-gradient-to-br from-indigo-500/20 to-sky-500/10 text-sky-400 border border-sky-500/25'
+                }`}
+              >
+                <Megaphone className="w-4 h-4" />
+              </div>
               <span className="flex-1 text-left">{t('menuAnnouncements', currentLang)}</span>
             </button>
 
             <button
               id="menu-sop"
               onClick={() => handleNav('documents', 'SOP')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'sop' || (activeTab === 'documents' && activeCategory === 'SOP')
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                  : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
               }`}
             >
-              <FileCheck2 className="w-4 h-4 text-blue-400 shrink-0" />
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  activeTab === 'sop' || (activeTab === 'documents' && activeCategory === 'SOP')
+                    ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                    : 'bg-gradient-to-br from-blue-500/20 to-cyan-500/10 text-blue-400 border border-blue-500/25'
+                }`}
+              >
+                <FileCheck2 className="w-4 h-4" />
+              </div>
               <span className="flex-1 text-left">{t('menuSOP', currentLang)}</span>
             </button>
 
             <button
               id="menu-form"
               onClick={() => handleNav('documents', 'Form')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'forms' || (activeTab === 'documents' && activeCategory === 'Form')
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                  : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
               }`}
             >
-              <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  activeTab === 'forms' || (activeTab === 'documents' && activeCategory === 'Form')
+                    ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                    : 'bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-400 border border-amber-500/25'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+              </div>
               <span className="flex-1 text-left">{t('menuForms', currentLang)}</span>
             </button>
           </nav>
@@ -202,23 +233,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Evaluasi Kinerja (Staff/SPV mengisi KPI, Manager mereview & approve, Admin mengelola semua) */}
         <div>
-          <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-widest text-sky-300/70">
             Evaluasi & Kinerja
           </div>
-          <nav className="space-y-1">
+          <nav className="space-y-1.5">
             <button
               id="menu-performance"
               onClick={() => handleNav('performance')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+              className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === 'performance'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                  : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
               }`}
             >
-              <Award className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  activeTab === 'performance'
+                    ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                    : 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-400 border border-emerald-500/25'
+                }`}
+              >
+                <Award className="w-4 h-4" />
+              </div>
               <span className="flex-1 text-left">
                 {isL1 ? 'Form KPI Saya' : (isHod ? 'Evaluasi Kinerja Tim' : t('menuPerformance', currentLang))}
               </span>
+              {pendingAppraisalsCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-slate-950 shadow-2xs">
+                  {pendingAppraisalsCount}
+                </span>
+              )}
             </button>
           </nav>
         </div>
@@ -226,20 +270,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Master Data (HOD Level 2 & Super Admin Level 3) */}
         {isHodOrAdmin && (
           <div>
-            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-widest text-sky-300/70">
               {t('masterAndConfig', currentLang)}
             </div>
-            <nav className="space-y-1">
+            <nav className="space-y-1.5">
               <button
                 id="menu-units"
                 onClick={() => handleNav('units')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'units'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Globe className="w-4 h-4 text-sky-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'units'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-sky-500/20 to-blue-500/10 text-sky-400 border border-sky-500/25'
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">
                   {currentLang === 'en' ? 'Hotel Units Master' : 'Master Unit Hotel'}
                 </span>
@@ -248,39 +300,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 id="menu-departments"
                 onClick={() => handleNav('departments')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'departments'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'departments'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-400 border border-emerald-500/25'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">{t('menuDepartments', currentLang)}</span>
               </button>
 
               <button
                 id="menu-categories"
                 onClick={() => handleNav('categories')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'categories'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Tags className="w-4 h-4 text-pink-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'categories'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-pink-500/20 to-rose-500/10 text-pink-400 border border-pink-500/25'
+                  }`}
+                >
+                  <Tags className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">{t('menuCategories', currentLang)}</span>
               </button>
 
               <button
                 id="menu-kpi"
                 onClick={() => handleNav('kpi')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'kpi' || activeTab === 'kpi-master'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'kpi' || activeTab === 'kpi-master'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-cyan-500/20 to-sky-500/10 text-cyan-400 border border-cyan-500/25'
+                  }`}
+                >
+                  <Sliders className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">{t('menuKPIMaster', currentLang)}</span>
               </button>
             </nav>
@@ -290,23 +366,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Administrasi Sistem (Super Admin Khusus) */}
         {isAdmin && (
           <div>
-            <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-rose-400">
+            <div className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-widest text-amber-400/90">
               {t('superAdminControl', currentLang)}
             </div>
-            <nav className="space-y-1">
+            <nav className="space-y-1.5">
               <button
                 id="menu-users"
                 onClick={() => handleNav('users')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'users'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Users className="w-4 h-4 text-purple-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'users'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-purple-500/20 to-indigo-500/10 text-purple-400 border border-purple-500/25'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">{t('menuUserManagement', currentLang)}</span>
                 {pendingUsersCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white">
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white shadow-2xs">
                     {pendingUsersCount}
                   </span>
                 )}
@@ -315,26 +399,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 id="menu-logs"
                 onClick={() => handleNav('logs')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'logs'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'logs'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-amber-500/20 to-yellow-500/10 text-amber-400 border border-amber-500/25'
+                  }`}
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
                 <span className="flex-1 text-left">{t('menuAccessLogs', currentLang)}</span>
               </button>
 
               <button
                 id="menu-spreadsheet"
                 onClick={() => handleNav('spreadsheet')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs font-semibold transition-all cursor-pointer ${
                   activeTab === 'spreadsheet'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#005a8d] via-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-900/40 font-bold border border-sky-400/30'
+                    : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
-                <Flame className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    activeTab === 'spreadsheet'
+                      ? 'bg-white/20 text-white border border-white/30 shadow-xs'
+                      : 'bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-400 border border-amber-500/25'
+                  }`}
+                >
+                  <Flame className="w-4 h-4 fill-amber-400" />
+                </div>
                 <span className="flex-1 text-left">{t('menuCloudSync', currentLang)}</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
               </button>
@@ -345,16 +445,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer User Logout & Creator Signature */}
-      <div className="p-3 border-t border-slate-800 shrink-0 space-y-2">
+      <div className="p-3 border-t border-sky-900/40 shrink-0 space-y-2">
         <button
           id="btn-sidebar-logout"
           onClick={() => {
             if (onCloseMobile) onCloseMobile();
             onLogout();
           }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 rounded-xl transition-colors"
+          className="group w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-950/50 hover:text-rose-200 rounded-2xl border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
         >
-          <LogOut className="w-4 h-4 shrink-0" />
+          <div className="w-7 h-7 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <LogOut className="w-3.5 h-3.5" />
+          </div>
           <span>{t('logoutSession', currentLang)}</span>
         </button>
 
@@ -370,7 +472,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sticky Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-slate-800/80 shadow-lg sticky top-24 h-[calc(100vh-7rem)] self-start z-20">
+      <aside className="hidden lg:flex w-64 bg-gradient-to-b from-[#0b172a] via-[#0e1f38] to-[#091324] text-slate-300 flex-col shrink-0 rounded-3xl overflow-hidden border border-sky-900/40 shadow-xl sticky top-24 h-[calc(100vh-7rem)] self-start z-20">
         {renderContent(false)}
       </aside>
 

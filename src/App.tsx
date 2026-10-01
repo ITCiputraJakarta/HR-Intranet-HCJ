@@ -120,9 +120,10 @@ export default function App() {
     } catch (e) {
       console.warn('Pruning check:', e);
     }
+    const latestUsers = getUsers();
     setDocuments(getDocuments());
     setAnnouncements(getAnnouncements());
-    setUsers(getUsers());
+    setUsers(latestUsers);
     setLogs(getAccessLogs());
     setKpiMaster(getKPIMaster());
     setCategories(getCategories());
@@ -132,25 +133,67 @@ export default function App() {
     setPerformances(getPerformances());
     setConfig(getSpreadsheetConfig());
     setBranding(getAppBranding());
+    setUserState((prev) => {
+      if (!prev) return null;
+      const matched = latestUsers.find((u) => u.id === prev.id);
+      if (
+        matched &&
+        (matched.unit !== prev.unit ||
+          matched.departemen !== prev.departemen ||
+          matched.role !== prev.role ||
+          matched.nama !== prev.nama)
+      ) {
+        setCurrentUser(matched);
+        return matched;
+      }
+      return prev;
+    });
   };
 
   useEffect(() => {
-    refreshAllData();
-
-    // Listen to Firebase connectivity state
+    // Listen to Firebase connectivity state & branding even on Login screen
     const unsubState = onFirebaseStateChange((state, msg) => {
       setFirebaseState(state);
       if (msg) setFirebaseErrorMsg(msg);
     });
 
-    // Probe Firebase connection & auto-seed Firestore if collections are empty
     testFirestoreConnection().catch(() => {});
     seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
 
-    // Real-time Firestore snapshot subscriptions
+    const unsubBranding = subscribeToAppBranding((b) => {
+      setBranding(b);
+    });
+
+    // Security: Do not subscribe to sensitive collections (Users, SOPs, Logs, KPIs) until user is authenticated
+    if (!currentUser?.id) {
+      return () => {
+        unsubState();
+        unsubBranding();
+      };
+    }
+
+    refreshAllData();
+
+    // Real-time Firestore snapshot subscriptions (Authenticated Session Only)
     const unsubUsers = subscribeToUsers((newUsers) => {
       saveUsers(newUsers);
-      setUsers(newUsers);
+      const syncedUsers = getUsers();
+      setUsers(syncedUsers);
+      setUserState((prev) => {
+        if (!prev) return null;
+        const matched = syncedUsers.find((u) => u.id === prev.id);
+        if (
+          matched &&
+          (matched.unit !== prev.unit ||
+            matched.departemen !== prev.departemen ||
+            matched.role !== prev.role ||
+            matched.nama !== prev.nama)
+        ) {
+          setCurrentUser(matched);
+          return matched;
+        }
+        return prev;
+      });
     });
 
     const unsubDocs = subscribeToDocuments((newDocs) => {
@@ -199,10 +242,6 @@ export default function App() {
       setConfig((prev) => ({ ...prev, ...newConfig }));
     });
 
-    const unsubBranding = subscribeToAppBranding((b) => {
-      setBranding(b);
-    });
-
     return () => {
       unsubState();
       unsubUsers();
@@ -217,7 +256,7 @@ export default function App() {
       unsubConfig();
       unsubBranding();
     };
-  }, []);
+  }, [currentUser?.id]);
 
   const isSuperAdmin = currentUser?.role === 'admin';
   const isHod = currentUser?.role === 'hod';
@@ -422,7 +461,10 @@ export default function App() {
               if (p.status !== 'On Review' && p.status !== 'Submitted' && p.status !== 'On Check') return false;
               if (isSuperAdmin) return true;
               if (currentUser?.role === 'manager' || currentUser?.role === 'hod' || currentUser?.role === 'spv') {
-                return p.departemen === currentUser?.departemen;
+                const owner = (users || []).find((u) => u.email.toLowerCase() === p.email.toLowerCase());
+                const perfUnit = p.unit || owner?.unit || 'Hotel Ciputra Jakarta';
+                const currUnit = currentUser?.unit || 'Hotel Ciputra Jakarta';
+                return p.departemen === currentUser?.departemen && perfUnit === currUnit;
               }
               return false;
             }).length

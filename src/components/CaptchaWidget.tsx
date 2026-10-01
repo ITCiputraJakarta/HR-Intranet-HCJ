@@ -218,21 +218,15 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
       <div className={`space-y-1.5 ${className}`}>
         <label
           htmlFor={`${idPrefix}-captcha-input`}
-          className="block text-[11px] font-bold text-slate-700 flex items-center justify-between"
+          className="block text-[11px] font-bold text-slate-700 flex items-center gap-1.5"
         >
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-md bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-2xs">
-              <ShieldCheck className="w-2.5 h-2.5" />
-            </span>
-            <span>{isId ? 'Verifikasi Keamanan Captcha' : 'Security Captcha Verification'}</span>
+          <span className="w-4 h-4 rounded-md bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+            <ShieldCheck className="w-2.5 h-2.5" />
           </span>
-          <span className="inline-flex items-center gap-1 text-[9.5px] text-[#005a8d] font-bold bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/80">
-            <Lock className="w-2.5 h-2.5" />
-            <span>{isId ? '6 Karakter • Anti-Bot' : '6 Chars • Anti-Bot'}</span>
-          </span>
+          <span>{isId ? 'Verifikasi Kode Captcha' : 'Captcha Verification'}</span>
         </label>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Visual Canvas Box */}
           <div
             className="relative rounded-xl overflow-hidden border border-sky-200/90 shadow-2xs bg-slate-100 flex items-center justify-center shrink-0 select-none"
@@ -240,9 +234,9 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
           >
             <canvas
               ref={canvasRef}
-              width={148}
-              height={40}
-              className="block cursor-pointer select-none"
+              width={136}
+              height={38}
+              className="block w-[118px] sm:w-[136px] h-[38px] cursor-pointer select-none"
               onClick={refreshCaptcha}
               title={isId ? 'Klik untuk mengganti kode keamanan' : 'Click to refresh security code'}
             />
@@ -259,7 +253,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
           </button>
 
           {/* User Input Field (Paste/Drop Protected) */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <input
               id={`${idPrefix}-captcha-input`}
               type="text"
@@ -278,8 +272,8 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
                 e.preventDefault();
                 setPasteBlockedNotice(true);
               }}
-              placeholder={isId ? 'Ketik 6 kode' : 'Type 6 chars'}
-              className={`block w-full px-3 py-2 text-xs rounded-xl border font-black uppercase tracking-widest transition-colors ${
+              placeholder={isId ? 'Ketik kode' : 'Enter code'}
+              className={`block w-full px-2.5 sm:px-3 py-2 text-xs rounded-xl border font-black uppercase tracking-widest transition-colors ${
                 touched
                   ? isMatched
                     ? 'border-emerald-400 bg-emerald-50/40 text-emerald-900 focus:ring-emerald-500'

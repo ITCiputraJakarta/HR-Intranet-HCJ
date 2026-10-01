@@ -196,23 +196,23 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200/80 flex flex-col max-h-[90vh] cursor-default"
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] border-b border-sky-200/90 text-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-600/30 border border-indigo-400/30 text-indigo-400">
+            <div className="p-2 rounded-xl bg-sky-50 border border-sky-200 text-[#005a8d]">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-[#005a8d] uppercase tracking-wider block">
                 Penyimpanan Cloud • {doc.category}
               </span>
-              <h3 className="text-base font-bold text-white truncate max-w-lg">
+              <h3 className="text-base font-bold text-slate-900 truncate max-w-lg">
                 {doc.title}
               </h3>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

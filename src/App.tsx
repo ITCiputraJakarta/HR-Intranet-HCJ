@@ -617,257 +617,73 @@ export default function App() {
         onBrandingSaved={refreshAllData}
       />
 
-      {/* Soft Modern Interactive Footer */}
-      <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-b from-white via-[#f5f9fe] to-[#eaf3fc] pt-7 pb-5 mt-auto relative z-10 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-          {/* Top Interactive Row */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            {/* Brand & Active Unit Scope */}
-            <div className="md:col-span-5 space-y-2">
-              <div className="flex items-center gap-2.5">
-                <span className="font-black text-[#004872] text-sm sm:text-base tracking-tight">
-                  {branding.footerTitle || 'Hotel Ciputra Group Intranet'}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100/80 text-[#005a8d] border border-sky-200">
-                  {currentUser.unit || 'Hotel Ciputra Jakarta'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-md">
-                {branding.footerDescription ||
-                  'Portal Intranet Resmi Manajemen & Karyawan. Pusat akses dokumen SOP, formulir operasional, pengumuman internal, dan evaluasi kinerja terpadu.'}
-              </p>
-            </div>
-
-            {/* Interactive Quick Navigation */}
-            <div className="md:col-span-4 space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#005a8d]">
-                Navigasi Cepat Portal
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('announcements');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    activeTab === 'announcements'
-                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
-                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
-                  }`}
-                >
-                  Pengumuman
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('sop');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    activeTab === 'sop'
-                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
-                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
-                  }`}
-                >
-                  Dokumen SOP
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('forms');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    activeTab === 'forms'
-                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
-                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
-                  }`}
-                >
-                  Formulir Kerja
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('performance');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                    activeTab === 'performance'
-                      ? 'bg-[#005a8d] text-white border-[#005a8d]'
-                      : 'bg-white hover:bg-sky-50 text-slate-700 border-sky-200/80'
-                  }`}
-                >
-                  Evaluasi KPI
-                </button>
-                {isHodOrAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('units');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      activeTab === 'units'
-                        ? 'bg-[#005a8d] text-white border-[#005a8d]'
-                        : 'bg-white hover:bg-sky-50 text-[#005a8d] border-sky-200/80'
-                    }`}
-                  >
-                    Master Unit Hotel
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Cloud Status & Admin Customization */}
-            <div className="md:col-span-3 flex flex-col md:items-end justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {isSuperAdmin && (
-                  <button
-                    onClick={() => setShowBrandingModal(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-[#005a8d] border border-sky-200/90 shadow-2xs font-bold text-xs transition-all cursor-pointer"
-                    title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
-                  >
-                    <span>Edit Tampilan & Footer</span>
-                  </button>
-                )}
-                {isSuperAdmin ? (
-                  <button
-                    onClick={() => setShowFirestoreModal(true)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs transition-all cursor-pointer shadow-2xs ${
-                      firebaseState === 'connected'
-                        ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                        : firebaseState === 'permission_denied'
-                        ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
-                        : firebaseState === 'not_found'
-                        ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }`}
-                    title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
-                  >
-                    <Flame
-                      className={`w-3.5 h-3.5 ${
-                        firebaseState === 'connected'
-                          ? 'text-emerald-600 fill-emerald-500'
-                          : 'text-amber-600'
-                      }`}
-                    />
-                    <span>
-                      {firebaseState === 'connected'
-                        ? 'Firestore Cloud: Online'
-                        : firebaseState === 'permission_denied'
-                        ? 'Perbaiki Izin Rules'
-                        : firebaseState === 'not_found'
-                        ? 'Database Belum Aktif'
-                        : 'Mode Offline'}
-                    </span>
-                  </button>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-xs font-semibold">
-                    <Flame className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                    <span>Firestore Cloud: Aktif</span>
-                  </div>
-                )}
-              </div>
-              {branding.footerContact && (
-                <p className="text-[11px] text-slate-500 md:text-right">
-                  {branding.footerContact}
-                </p>
-              )}
-            </div>
+      {/* Single-Line Soft Modern Footer (After Login) */}
+      <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-4 sm:px-6 lg:px-8 mt-auto relative z-10 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
+          {/* Left: Unified Copyright */}
+          <div className="flex items-center justify-center sm:justify-start text-center sm:text-left">
+            <span className="font-bold text-[#004872]">
+              © 2026 Intranet HCJ JBagas • All Rights Reserved
+            </span>
           </div>
 
-          {/* Bottom Bar */}
-          <div className="pt-4 border-t border-sky-200/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-[#004872]">
-                {branding.footerCopyright || '© 2026 Intranet HCJ • All Rights Reserved'}
-              </span>
-              <span>•</span>
-              <span className="font-semibold text-slate-600">
-                {branding.creatorSignature || 'JBagas 2026 ttd'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-600 bg-white/80 px-3 py-1 rounded-full border border-sky-200/70">
-              <span>Sesi Aktif:</span>
+          {/* Right: Session Info & Super Admin / Cloud Status */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowBrandingModal(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white hover:bg-sky-50 text-[#005a8d] border border-sky-200/90 shadow-2xs font-bold text-[11px] transition-all cursor-pointer"
+                title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
+              >
+                <span>Edit Tampilan & Footer</span>
+              </button>
+            )}
+
+            {isSuperAdmin ? (
+              <button
+                onClick={() => setShowFirestoreModal(true)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-bold text-[11px] transition-all cursor-pointer shadow-2xs ${
+                  firebaseState === 'connected'
+                    ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                    : firebaseState === 'permission_denied'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
+                    : firebaseState === 'not_found'
+                    ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+                title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
+              >
+                <Flame
+                  className={`w-3 h-3 ${
+                    firebaseState === 'connected'
+                      ? 'text-emerald-600 fill-emerald-500'
+                      : 'text-amber-600'
+                  }`}
+                />
+                <span>
+                  {firebaseState === 'connected'
+                    ? 'Firestore: Online'
+                    : firebaseState === 'permission_denied'
+                    ? 'Perbaiki Rules'
+                    : firebaseState === 'not_found'
+                    ? 'DB Belum Aktif'
+                    : 'Offline'}
+                </span>
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                <Flame className="w-3 h-3 text-emerald-600 fill-emerald-600" />
+                <span>Cloud Aktif</span>
+              </div>
+            )}
+
+            <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 bg-white/90 px-3 py-1 rounded-full border border-sky-200/80 shadow-2xs">
               <strong className="text-[#004872]">{currentUser.nama}</strong>
               <span className="text-sky-700 font-bold">({currentUser.role.toUpperCase()})</span>
             </div>
           </div>
         </div>
       </footer>
-
-      {/* Mobile Smartphone Bottom Quick Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
-        <button
-          onClick={() => {
-            setActiveTab('announcements');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeTab === 'announcements'
-              ? 'text-indigo-600 font-extrabold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Megaphone className="w-4 h-4 mb-0.5" />
-          <span>Beranda</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('sop');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeTab === 'sop'
-              ? 'text-indigo-600 font-extrabold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <FileCheck2 className="w-4 h-4 mb-0.5" />
-          <span>SOP</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('forms');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeTab === 'forms'
-              ? 'text-indigo-600 font-extrabold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <FileText className="w-4 h-4 mb-0.5" />
-          <span>Formulir</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('performance');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold transition-colors ${
-            activeTab === 'performance'
-              ? 'text-indigo-600 font-extrabold'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Award className="w-4 h-4 mb-0.5" />
-          <span>{currentUser?.role === 'staff' || currentUser?.role === 'spv' ? 'KPI Saya' : 'Kinerja'}</span>
-        </button>
-
-        <button
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-col items-center py-1 px-2 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          <MenuIcon className="w-4 h-4 mb-0.5" />
-          <span>Menu</span>
-        </button>
-      </nav>
-
     </div>
   );
 }

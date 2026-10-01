@@ -47,6 +47,22 @@ import {
 const AUTH_LOCKOUT_STORAGE_KEY = 'hcj_auth_security_lockout_v1';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 60;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function isValidEmailFormat(val: string): boolean {
+  return EMAIL_REGEX.test(val.trim());
+}
+
+function isStrongPassword(val: string): boolean {
+  return val.length >= 8 && /[a-zA-Z]/.test(val) && /[0-9]/.test(val);
+}
+
+function formatShortUnitOption(name: string, code: string): string {
+  const short = name
+    .replace(/^Hotel Ciputra Jakarta$/i, 'HC Jakarta')
+    .replace(/^Hotel Ciputra Group\s*-\s*/i, 'HC Group ');
+  return `${code} • ${short}`;
+}
 
 interface AuthLockoutState {
   failedAttempts: number;
@@ -243,6 +259,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
 
     // 3. Verify 6-character Anti-Bot Captcha
+    if (!isValidEmailFormat(email)) {
+      setErrorMessage(
+        currentLang === 'en'
+          ? 'Please enter a valid email address (e.g. name@ciputra.com).'
+          : 'Format alamat email tidak valid. Pastikan menggunakan format email yang benar (contoh: nama@ciputra.com).'
+      );
+      return;
+    }
+
     if (loginCaptchaRef.current && !loginCaptchaRef.current.isValid()) {
       setErrorMessage(t('errCaptchaInvalid', currentLang));
       loginCaptchaRef.current.reset();
@@ -364,14 +389,30 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
+    if (regName.trim().length > 100) {
+      setErrorMessage(
+        currentLang === 'en'
+          ? 'Full name must not exceed 100 characters.'
+          : 'Nama lengkap tidak boleh lebih dari 100 karakter.'
+      );
+      return;
+    }
+
+    if (!isValidEmailFormat(regEmail)) {
+      setErrorMessage(
+        currentLang === 'en'
+          ? 'Please enter a valid work email address (e.g. name@ciputra.com).'
+          : 'Format email kerja tidak valid. Pastikan menggunakan format email yang benar (contoh: nama@ciputra.com).'
+      );
+      return;
+    }
+
     // 3. Enforce Password Complexity Policy (min 8 chars + letters & numbers)
-    const hasLetter = /[a-zA-Z]/.test(regPassword);
-    const hasNumber = /[0-9]/.test(regPassword);
-    if (regPassword.trim().length < 8 || !hasLetter || !hasNumber) {
+    if (!isStrongPassword(regPassword)) {
       setErrorMessage(
         currentLang === 'en'
           ? 'Password must be at least 8 characters and include both letters and numbers.'
-          : 'Demi keamanan, kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.'
+          : 'Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.'
       );
       registerCaptchaRef.current?.reset();
       return;
@@ -436,10 +477,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Luxury Top Accent Line */}
         <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-[#005a8d] to-sky-400" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: 3D Layered Logo Frame + Refined Brand Identity */}
-          <div className="flex items-center gap-3.5 group">
-            <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-gradient-to-br from-amber-100/70 via-white to-sky-100/80 p-1 flex items-center justify-center shadow-sm border border-sky-200/90 group-hover:border-amber-300 group-hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 group">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-100/70 via-white to-sky-100/80 p-1 flex items-center justify-center shadow-sm border border-sky-200/90 group-hover:border-amber-300 group-hover:shadow-md transition-all duration-300 shrink-0">
               <div className="w-full h-full rounded-xl bg-white flex items-center justify-center overflow-hidden p-1 shadow-inner">
                 {branding.customLogoUrl ? (
                   <img
@@ -450,10 +491,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-[#005a8d]">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-xs">
-                      <Building2 className="w-4 h-4 stroke-[2.2]" />
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-xs">
+                      <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]" />
                     </div>
-                    <span className="text-[6.5px] font-black tracking-widest uppercase mt-0.5 leading-none text-[#004872]">
+                    <span className="text-[6px] sm:text-[6.5px] font-black tracking-widest uppercase mt-0.5 leading-none text-[#004872]">
                       CIPUTRA
                     </span>
                   </div>
@@ -461,17 +502,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             </div>
 
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-lg sm:text-xl font-black bg-gradient-to-r from-[#003b5c] via-[#005a8d] to-sky-700 bg-clip-text text-transparent tracking-tight">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-base sm:text-xl font-black bg-gradient-to-r from-[#003b5c] via-[#005a8d] to-sky-700 bg-clip-text text-transparent tracking-tight truncate">
                   {branding.appName || 'Intranet'}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-sky-50 to-indigo-50/80 text-[#005a8d] border border-sky-200/90 shadow-2xs">
+                <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-extrabold bg-gradient-to-r from-sky-50 to-indigo-50/80 text-[#005a8d] border border-sky-200/90 shadow-2xs shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{branding.subTitle || 'Hotel Ciputra Jakarta'}</span>
+                  <span className="truncate max-w-[130px] sm:max-w-none">
+                    {branding.subTitle || 'Hotel Ciputra Jakarta'}
+                  </span>
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
+              <p className="text-[11px] text-slate-500 font-medium hidden sm:block truncate">
                 {currentLang === 'en'
                   ? 'Official Executive & Employee Digital Workspace'
                   : 'Portal Digital Resmi Manajemen & Karyawan • Sistem Informasi Terpadu'}
@@ -479,43 +522,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
           </div>
 
-          {/* Right: Quick Auth Switch & Premium Language Toggle */}
-          <div className="flex items-center gap-2.5">
-            {/* Quick Mode Pill */}
-            <div className="hidden sm:flex items-center bg-sky-50/90 p-1 rounded-xl border border-sky-200/80 text-xs font-bold shadow-inner">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(false);
-                  setErrorMessage('');
-                }}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  !isRegister
-                    ? 'bg-gradient-to-r from-[#005a8d] to-sky-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-[#005a8d]'
-                }`}
-              >
-                <Lock className="w-3 h-3" />
-                <span>{t('loginTab', currentLang)}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(true);
-                  setErrorMessage('');
-                }}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isRegister
-                    ? 'bg-gradient-to-r from-[#005a8d] to-sky-700 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-[#005a8d]'
-                }`}
-              >
-                <UserIcon className="w-3 h-3" />
-                <span>{t('registerTab', currentLang)}</span>
-              </button>
-            </div>
-
-            {/* Premium Language Switcher */}
+          {/* Right: Premium Language Switcher */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               id="btn-login-lang-toggle"
@@ -566,15 +574,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-slate-100 via-sky-50 to-slate-200" />
           )}
-          {/* Subtle luxury light vignette to enhance contrast */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/10 via-transparent to-slate-900/25 pointer-events-none" />
+          {/* Subtle bright luxury airiness */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/15 via-transparent to-sky-900/10 pointer-events-none" />
         </div>
 
-        {/* Container positioning Login/Register Card on the Right (Pojok Kanan) */}
-        <div className="relative z-10 w-full h-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-4 lg:py-3 flex items-center justify-center lg:justify-end">
-          <div className="w-full max-w-[400px] max-h-full overflow-y-auto bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/95 ring-1 ring-sky-900/10 p-5 sm:p-6 text-slate-800">
-            {/* Segmented Login / Register Toggle */}
-            <div className="flex rounded-2xl bg-slate-100/90 p-1 mb-3.5 text-xs font-bold border border-slate-200/80 shadow-inner">
+        {/* Container positioning Login/Register Card: Centered on Smartphone/Tablet, Right-Aligned on Desktop */}
+        <div className="relative z-10 w-full h-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8 lg:py-3 flex items-center justify-center lg:justify-end">
+          <div className="w-full max-w-[420px] lg:max-w-[400px] lg:max-h-full lg:overflow-y-auto bg-white/92 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/95 ring-1 ring-sky-900/10 p-5 sm:p-6 text-slate-800">
+            {/* Segmented Login / Register Toggle (Soft Light Theme) */}
+            <div className="flex rounded-2xl bg-sky-50/90 p-1 mb-3.5 text-xs font-bold border border-sky-200/80 shadow-inner">
               <button
                 type="button"
                 id="tab-login-toggle"
@@ -584,11 +592,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 }}
                 className={`flex-1 py-2 px-3 rounded-xl text-center transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
                   !isRegister
-                    ? 'bg-gradient-to-r from-[#004872] via-[#005a8d] to-sky-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#004872] font-extrabold shadow-xs border border-sky-200/90'
+                    : 'text-slate-600 hover:text-[#004872]'
                 }`}
               >
-                <Lock className="w-3.5 h-3.5" />
+                <Lock className="w-3.5 h-3.5 text-[#005a8d]" />
                 <span>{t('loginTab', currentLang)}</span>
               </button>
               <button
@@ -600,11 +608,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 }}
                 className={`flex-1 py-2 px-3 rounded-xl text-center transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
                   isRegister
-                    ? 'bg-gradient-to-r from-[#004872] via-[#005a8d] to-sky-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#004872] font-extrabold shadow-xs border border-sky-200/90'
+                    : 'text-slate-600 hover:text-[#004872]'
                 }`}
               >
-                <UserIcon className="w-3.5 h-3.5" />
+                <UserIcon className="w-3.5 h-3.5 text-[#005a8d]" />
                 <span>{t('registerTab', currentLang)}</span>
               </button>
             </div>
@@ -695,9 +703,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t('emailPlaceholder', currentLang)}
-                      className="block w-full pl-10 pr-3 py-2 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d] focus:border-transparent transition-all shadow-2xs"
+                      className={`block w-full pl-10 pr-3 py-2 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
+                        email.trim().length > 0 && !isValidEmailFormat(email)
+                          ? 'border-rose-300 focus:ring-rose-500'
+                          : 'border-slate-200/90 focus:ring-[#005a8d] focus:border-transparent'
+                      }`}
                     />
                   </div>
+                  {email.trim().length > 0 && !isValidEmailFormat(email) && (
+                    <p className="text-[10.5px] text-rose-600 font-medium mt-1">
+                      {currentLang === 'en'
+                        ? 'Please enter a valid email address (e.g. name@ciputra.com).'
+                        : 'Masukkan format alamat email yang valid (contoh: nama@ciputra.com).'}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -771,9 +790,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {t('fullNameLabel', currentLang)}
-                    </label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        {t('fullNameLabel', currentLang)}
+                      </label>
+                      <span className="text-[9.5px] text-slate-400 font-medium">
+                        {regName.length}/100
+                      </span>
+                    </div>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
                         <div className="w-5 h-5 rounded-md bg-sky-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center">
@@ -784,8 +808,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         id="reg-input-name"
                         type="text"
                         required
+                        maxLength={100}
                         value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
+                        onChange={(e) => setRegName(e.target.value.slice(0, 100))}
                         placeholder={t('namePlaceholder', currentLang)}
                         className="block w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
                       />
@@ -794,7 +819,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {currentLang === 'en' ? 'Hotel Group Unit' : 'Unit Hotel Group'}
+                      {currentLang === 'en' ? 'Hotel Unit' : 'Unit Hotel'}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
@@ -806,11 +831,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         id="reg-input-unit"
                         value={regUnit}
                         onChange={(e) => setRegUnit(e.target.value)}
-                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
                       >
                         {hotelUnits.map((u) => (
                           <option key={u.id} value={u.name}>
-                            {u.name} ({u.code})
+                            {formatShortUnitOption(u.name, u.code)}
                           </option>
                         ))}
                       </select>
@@ -833,7 +858,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         id="reg-input-dept"
                         value={regDept}
                         onChange={(e) => setRegDept(e.target.value)}
-                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
                       >
                         {departments.map((d) => (
                           <option key={d} value={d}>
@@ -852,7 +877,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       id="reg-input-role"
                       value={regRole === 'admin' ? 'staff' : regRole}
                       onChange={(e) => setRegRole(e.target.value as UserRole)}
-                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
                     >
                       <option value="staff">{t('roleStaffDesc', currentLang)}</option>
                       <option value="spv">{t('roleSpvDesc', currentLang)}</option>
@@ -874,8 +899,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       placeholder={t('emailPlaceholder', currentLang)}
-                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                      className={`block w-full px-2.5 py-1.5 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 ${
+                        regEmail.trim().length > 0 && !isValidEmailFormat(regEmail)
+                          ? 'border-rose-300 focus:ring-rose-500'
+                          : 'border-slate-200/90 focus:ring-[#005a8d]'
+                      }`}
                     />
+                    {regEmail.trim().length > 0 && !isValidEmailFormat(regEmail) && (
+                      <p className="text-[10px] text-rose-600 font-medium mt-0.5 leading-tight">
+                        {currentLang === 'en'
+                          ? 'Invalid email format (e.g. name@ciputra.com).'
+                          : 'Format email belum sesuai (contoh: nama@ciputra.com).'}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -890,8 +926,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       placeholder={currentLang === 'en' ? 'Min. 8 chars (letters & numbers)' : 'Min. 8 karakter (huruf & angka)'}
-                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                      className={`block w-full px-2.5 py-1.5 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 ${
+                        regPassword.length > 0 && !isStrongPassword(regPassword)
+                          ? 'border-rose-300 focus:ring-rose-500'
+                          : 'border-slate-200/90 focus:ring-[#005a8d]'
+                      }`}
                     />
+                    {regPassword.length > 0 && !isStrongPassword(regPassword) && (
+                      <p className="text-[10px] text-rose-600 font-medium mt-0.5 leading-tight">
+                        {currentLang === 'en'
+                          ? 'Must be min. 8 characters combining letters and numbers.'
+                          : 'Wajib minimal 8 karakter dengan kombinasi huruf dan angka.'}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -927,36 +974,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
       {/* 3. COMPACT FIT-TO-DESKTOP SOFT LUXURY FOOTER WITH INTERACTIVE 4-PHOTO GALLERY */}
       <footer className="w-full bg-gradient-to-b from-[#f5f9fe] via-[#edf5fc] to-[#e4f0fb] text-slate-800 py-3.5 lg:py-3 px-4 sm:px-8 lg:px-12 shrink-0 z-20 border-t border-sky-200/90">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-center">
-          {/* Left Column: Soft Identity Card, Concise Description & Single Copyright */}
+          {/* Left Column: Single Clean Identity Card & Unified Copyright */}
           <div className="lg:col-span-5 space-y-2 bg-white/90 backdrop-blur-xs px-4 py-3 rounded-2xl border border-sky-200/80 shadow-2xs">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-2xs shrink-0">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <h3 className="text-sm sm:text-base font-black tracking-tight text-[#004872]">
-                  {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
-                </h3>
-              </div>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-sky-50 text-[#005a8d] border border-sky-200/70 text-[10px] font-bold shrink-0">
-                {branding.creatorSignature || DEFAULT_BRANDING.creatorSignature}
-              </span>
-            </div>
+            <h3 className="text-sm sm:text-base font-black tracking-tight text-[#004872]">
+              {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
+            </h3>
 
             <p className="text-[11px] sm:text-xs text-slate-600 leading-snug line-clamp-2">
               {branding.footerDescription || DEFAULT_BRANDING.footerDescription}
             </p>
 
-            {/* Bottom Contact & Single Copyright Line */}
+            {/* Bottom Contact & Single Unified Copyright Line */}
             <div className="pt-2 border-t border-sky-100 flex flex-wrap items-center justify-between gap-2 text-[10.5px]">
-              <span className="text-slate-600 flex items-center gap-1 font-medium">
-                <div className="w-4 h-4 rounded-md bg-sky-100 text-[#005a8d] flex items-center justify-center shrink-0">
-                  <PhoneCall className="w-2.5 h-2.5" />
-                </div>
-                <span>{branding.footerContact || DEFAULT_BRANDING.footerContact}</span>
+              <span className="text-slate-600 font-medium">
+                {branding.footerContact || DEFAULT_BRANDING.footerContact}
               </span>
               <span className="font-bold text-[#004872]">
-                {branding.footerCopyright || DEFAULT_BRANDING.footerCopyright}
+                © 2026 Intranet HCJ JBagas • All Rights Reserved
               </span>
             </div>
           </div>
@@ -972,19 +1006,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   • {currentLang === 'en' ? 'Click photo to enlarge' : 'Klik foto untuk memperbesar'}
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/90 border border-sky-200 text-[10px] font-bold text-[#005a8d] shadow-2xs">
-                <ZoomIn className="w-3 h-3 text-sky-600" />
-                <span>Galeri Interaktif</span>
-              </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
               {gallerySlots.map((imgSrc, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setSelectedGalleryIdx(idx)}
-                  className="group relative h-16 sm:h-20 lg:h-[82px] w-full bg-white p-1.5 rounded-2xl overflow-hidden shadow-xs hover:shadow-lg border border-sky-200/90 hover:border-sky-400 transition-all duration-300 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
+                  className="group relative h-20 sm:h-20 lg:h-[82px] w-full bg-white p-1.5 rounded-2xl overflow-hidden shadow-xs hover:shadow-lg border border-sky-200/90 hover:border-sky-400 transition-all duration-300 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
                 >
                   <div className="relative w-full h-full rounded-xl overflow-hidden bg-sky-50">
                     <img

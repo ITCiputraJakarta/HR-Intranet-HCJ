@@ -228,7 +228,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-slate-900 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-[#005a8d] text-white flex items-center justify-center shadow-md shadow-sky-600/20">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>

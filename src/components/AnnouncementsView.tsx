@@ -115,8 +115,8 @@ const AnnouncementCardBanner: React.FC<{
 
       {/* Document attachment indicator on banner */}
       {doc.attachmentName && isImageValid && (
-        <div className="absolute bottom-2.5 left-3 px-2.5 py-1 rounded-lg bg-slate-900/85 backdrop-blur-md text-white text-[10px] font-bold flex items-center gap-1.5 shadow-xs border border-white/20">
-          <FileText className="w-3 h-3 text-indigo-300" />
+        <div className="absolute bottom-2.5 left-3 px-2.5 py-1 rounded-lg bg-white/95 backdrop-blur-md text-slate-800 text-[10px] font-bold flex items-center gap-1.5 shadow-xs border border-sky-200">
+          <FileText className="w-3 h-3 text-[#005a8d]" />
           <span className="truncate max-w-[170px]">{doc.attachmentName}</span>
         </div>
       )}
@@ -302,7 +302,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         return {
           status: 'expired',
           label: 'Sudah Kedaluwarsa',
-          badgeClass: 'bg-rose-900/90 text-rose-200 border-rose-500/40',
+          badgeClass: 'bg-rose-50/95 text-rose-700 border-rose-200',
           tableBadge: 'bg-rose-50 text-rose-700 border-rose-200',
           days: 0,
           dateStr: doc.expiryDate,
@@ -311,7 +311,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         return {
           status: 'today',
           label: 'Kedaluwarsa Hari Ini',
-          badgeClass: 'bg-amber-900/90 text-amber-200 border-amber-400 font-bold animate-pulse',
+          badgeClass: 'bg-amber-50/95 text-amber-800 border-amber-300 font-bold animate-pulse',
           tableBadge: 'bg-amber-50 text-amber-800 border-amber-300 font-bold animate-pulse',
           days: 0,
           dateStr: doc.expiryDate,
@@ -320,7 +320,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         return {
           status: 'active',
           label: `Sisa ${days} hari`,
-          badgeClass: 'bg-slate-900/80 text-amber-300 border-amber-400/30',
+          badgeClass: 'bg-white/95 text-[#004872] border-sky-200',
           tableBadge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
           days,
           dateStr: doc.expiryDate,
@@ -338,7 +338,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     return {
       status: days === 0 ? 'expired' : days <= 1 ? 'today' : 'active',
       label: days === 0 ? 'Sudah Kedaluwarsa' : days === 1 ? 'Sisa 1 hari' : `Sisa ${days} hari`,
-      badgeClass: 'bg-slate-900/80 text-amber-300 border-amber-400/30',
+      badgeClass: 'bg-white/95 text-[#004872] border-sky-200',
       tableBadge: 'bg-slate-100 text-slate-700 border-slate-200',
       days,
       dateStr: doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr,
@@ -546,50 +546,50 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner - Premium 5-Star Executive Style */}
-      <div className="bg-gradient-to-br from-[#002f4b] via-[#004872] to-[#0b2545] rounded-3xl p-6 sm:p-8 text-white shadow-[0_18px_45px_-15px_rgba(0,58,93,0.45)] border border-sky-400/20 relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-sky-300 to-indigo-400" />
+      {/* Top Banner - Soft Bright Pearl & Sky Executive Style */}
+      <div className="bg-gradient-to-br from-white via-[#f5faff] to-[#e8f3fe] rounded-3xl p-6 sm:p-8 text-slate-800 shadow-[0_10px_30px_-12px_rgba(2,132,199,0.12)] border border-sky-200/90 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 via-indigo-400 to-teal-400" />
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-sky-200 text-xs font-bold mb-3 shadow-inner">
-            <span className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-xs">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-200/90 text-[#005a8d] text-xs font-bold mb-3 shadow-2xs">
+            <span className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-2xs">
               <Megaphone className="w-3 h-3" />
             </span>
             <span>{currentLang === 'id' ? 'Pusat Informasi & Pengumuman Internal' : 'Internal Notices & Announcements'}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-[#004872]">
             {t('headerAnnouncementsTitle', currentLang)}
           </h1>
-          <p className="text-xs sm:text-sm text-sky-100/90 mt-2 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
             {t('headerAnnouncementsSubtitle', currentLang)}
           </p>
 
           <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-2">
-            <div className="px-3 py-1.5 rounded-xl bg-white/12 backdrop-blur-md text-xs font-bold flex items-center gap-2 border border-white/20 shadow-xs">
-              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center shadow-2xs">
+            <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-bold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
+              <span className="w-5 h-5 rounded-lg bg-sky-50 border border-sky-200 text-[#005a8d] flex items-center justify-center">
                 <Building2 className="w-3 h-3" />
               </span>
-              <span>Unit Hotel: <strong>{isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit}</strong></span>
+              <span>Unit Hotel: <strong className="text-[#004872]">{isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit}</strong></span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md text-xs font-semibold flex items-center gap-2 border border-white/15 shadow-xs">
-              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-600 text-white flex items-center justify-center shadow-2xs">
+            <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
+              <span className="w-5 h-5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
                 <Building2 className="w-3 h-3" />
               </span>
-              <span>Departemen: <strong>{currentUser.departemen}</strong></span>
+              <span>Departemen: <strong className="text-slate-900">{currentUser.departemen}</strong></span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md text-xs font-semibold flex items-center gap-2 border border-white/15 shadow-xs">
-              <span className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center shadow-2xs">
+            <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
+              <span className="w-5 h-5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
                 <Clock className="w-3 h-3" />
               </span>
-              <span>Rule Retensi Unit: <strong>{getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementPruneDays} Hari</strong></span>
+              <span>Rule Retensi Unit: <strong className="text-emerald-700">{getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementPruneDays} Hari</strong></span>
             </div>
           </div>
-          <p className="text-[11px] text-sky-100/90 mt-3 bg-white/8 px-3.5 py-2 rounded-xl border border-white/15 backdrop-blur-xs">
+          <p className="text-[11px] text-slate-600 mt-3 bg-white/90 px-3.5 py-2 rounded-xl border border-sky-200/80 shadow-2xs">
             {getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementRuleNote}
           </p>
         </div>
 
-        <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-10 pointer-events-none">
-          <Megaphone className="w-80 h-80 text-white" />
+        <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-[0.06] pointer-events-none">
+          <Megaphone className="w-80 h-80 text-[#005a8d]" />
         </div>
       </div>
 

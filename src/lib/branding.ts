@@ -44,8 +44,8 @@ export const DEFAULT_BRANDING: AppBranding = {
   galleryImages: [null, null, null, null],
   footerAddress: 'Hospitality Operations & Human Capital Management Division',
   footerContact: 'Layanan Bantuan IT & HRD: it@hotelciputra.com',
-  footerCopyright: '© 2026 Intranet HCJ • All Rights Reserved',
-  creatorSignature: 'JBagas 2026 ttd',
+  footerCopyright: '© 2026 Intranet HCJ JBagas • All Rights Reserved',
+  creatorSignature: 'JBagas',
   updatedAt: new Date().toISOString(),
 };
 

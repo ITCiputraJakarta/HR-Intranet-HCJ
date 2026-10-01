@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Soft Light Active & Inactive Classes (No Dark Theme)
   const getNavButtonClass = (isActive: boolean) =>
-    `group w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-xs transition-all cursor-pointer ${
+    `group w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
       isActive
         ? 'bg-gradient-to-r from-sky-100/90 via-[#eaf4fe] to-indigo-50/75 text-[#004872] font-extrabold border border-sky-300/90 shadow-xs ring-1 ring-sky-300/30'
         : 'bg-white/70 text-slate-600 font-semibold hover:bg-sky-50/80 hover:text-[#004872] border border-transparent hover:border-sky-200/80'
@@ -137,8 +137,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Department & Access Scope Soft Pearl Card */}
-      <div className="p-3.5 border-b border-sky-100/90 shrink-0">
-        <div className="p-3.5 bg-gradient-to-br from-white via-[#f7fbff] to-sky-50/60 rounded-2xl border border-sky-200/80 shadow-2xs space-y-2.5">
+      <div className="p-3 border-b border-sky-100/90 shrink-0">
+        <div className="p-3 bg-gradient-to-br from-white via-[#f7fbff] to-sky-50/60 rounded-2xl border border-sky-200/80 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold tracking-wider text-[#005a8d] uppercase">
               {t('yourDepartment', currentLang)}
@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Links with custom scrollbar */}
-      <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-5">
+      <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-3.5">
         {/* Utama (Intranet & Dokumen) */}
         <div>
           <div className="px-3 mb-2 text-[10px] font-extrabold uppercase tracking-widest text-sky-700/80">
@@ -471,35 +471,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <HardDrive className="w-4 h-4" />
                     </div>
-                    <span className="flex-1 text-left">
-                      {currentLang === 'en' ? 'Quota & Cloud Analytics' : 'Analitik & Kuota Cloud'}
+                    <span className="flex-1 text-left truncate">
+                      {currentLang === 'en' ? 'Cloud Quota & Sync' : 'Analitik & Kuota Cloud'}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                       1 GiB
                     </span>
-                  </button>
-                );
-              })()}
-
-              {(() => {
-                const isActive = activeTab === 'spreadsheet';
-                return (
-                  <button
-                    id="menu-spreadsheet"
-                    onClick={() => handleNav('spreadsheet')}
-                    className={getNavButtonClass(isActive)}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                        isActive
-                          ? 'bg-white text-amber-600 border border-amber-300 shadow-2xs'
-                          : 'bg-amber-50/80 text-amber-600 border border-amber-200/80'
-                      }`}
-                    >
-                      <Flame className="w-4 h-4 fill-amber-500" />
-                    </div>
-                    <span className="flex-1 text-left">{t('menuCloudSync', currentLang)}</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
                   </button>
                 );
               })()}
@@ -509,16 +486,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer User Logout */}
-      <div className="p-3 border-t border-sky-100 bg-white/90 shrink-0">
+      <div className="p-2.5 border-t border-sky-100 bg-white/90 shrink-0">
         <button
           id="btn-sidebar-logout"
           onClick={() => {
             if (onCloseMobile) onCloseMobile();
             onLogout();
           }}
-          className="group w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50/70 hover:bg-rose-100/90 rounded-2xl border border-rose-200/80 transition-all cursor-pointer"
+          className="group w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50/70 hover:bg-rose-100/90 rounded-xl border border-rose-200/80 transition-all cursor-pointer"
         >
-          <div className="w-7 h-7 rounded-xl bg-white border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+          <div className="w-7 h-7 rounded-lg bg-white border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
             <LogOut className="w-3.5 h-3.5" />
           </div>
           <span>{t('logoutSession', currentLang)}</span>
@@ -530,7 +507,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sticky Sidebar (Pure Bright Pearl & Soft Sky Theme) */}
-      <aside className="hidden lg:flex w-64 bg-white text-slate-700 flex-col shrink-0 rounded-3xl overflow-hidden border border-sky-200/90 shadow-[0_8px_30px_rgb(2,132,199,0.06)] sticky top-24 h-[calc(100vh-7rem)] self-start z-20">
+      <aside className="hidden lg:flex w-64 xl:w-68 bg-white text-slate-700 flex-col shrink-0 rounded-2xl overflow-hidden border border-sky-200/90 shadow-[0_8px_30px_rgb(2,132,199,0.06)] sticky top-20 max-h-[calc(100vh-5.5rem)] self-start z-20">
         {renderContent(false)}
       </aside>
 

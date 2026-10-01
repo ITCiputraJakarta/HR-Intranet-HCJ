@@ -172,8 +172,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 bg-gradient-to-r from-white/95 via-[#f8fbff]/95 to-[#f1f7fe]/95 backdrop-blur-md border-b border-sky-200/80 shadow-xs">
       {/* Soft Luxury Top Accent Line */}
       <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-teal-400" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
+      <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-5 lg:px-6">
+        <div className="flex items-center justify-between h-16 sm:h-[68px] gap-4">
           
           {/* Left Brand with Custom Logo Support */}
           <div className="flex items-center gap-3.5 select-none">

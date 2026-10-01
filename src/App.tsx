@@ -497,7 +497,7 @@ export default function App() {
       {/* Actionable Banner if Firebase Security Rules Need Attention */}
       {firebaseState === 'permission_denied' && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold shadow-xs flex items-center justify-between animate-in fade-in">
-          <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0 text-slate-950" />
               <span>
@@ -515,8 +515,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Container */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6 items-start">
+      {/* Main Container - Full-Width Fit to Screen on Desktop, Tablet & Mobile */}
+      <div className="flex-1 flex w-full max-w-[1920px] mx-auto px-3 sm:px-5 lg:px-6 py-3 sm:py-4 gap-4 lg:gap-5 items-start">
         
         {/* Left Sidebar (Desktop + Mobile Drawer) */}
         <Sidebar
@@ -707,8 +707,8 @@ export default function App() {
       />
 
       {/* Single-Line Soft Modern Footer (After Login) */}
-      <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-4 sm:px-6 lg:px-8 mt-auto relative z-10 shadow-2xs">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
+      <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-3 sm:px-5 lg:px-6 mt-auto relative z-10 shadow-2xs">
+        <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
           {/* Left: Unified Copyright */}
           <div className="flex items-center justify-center sm:justify-start text-center sm:text-left">
             <span className="font-bold text-[#004872]">

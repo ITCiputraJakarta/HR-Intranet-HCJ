@@ -727,29 +727,26 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
           </div>
 
           {/* Row 3: Status Bar + Export Buttons + SINGLE Unified Sync Button */}
-          <div className="pt-4 border-t border-slate-200/80 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
+          <div className="pt-3.5 border-t border-slate-200/80 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
             {/* Live Connection Status */}
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="relative flex h-3 w-3 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
                 {isConnected && (
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 )}
                 <span
-                  className={`relative inline-flex rounded-full h-3 w-3 ${
+                  className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
                     isConnected ? 'bg-emerald-500' : 'bg-amber-500'
                   }`}
                 />
               </span>
-              <div className="text-xs text-slate-600 truncate">
-                <span className="font-extrabold text-slate-800 uppercase">
-                  {isConnected ? 'Terhubung Real-Time Cloud' : 'Memeriksa Koneksi Cloud'}
-                </span>
-                <span className="mx-1.5 text-slate-300">•</span>
-                <span>
-                  Sinkronisasi Terakhir:{' '}
-                  <strong className="text-slate-800">{lastSyncTime}</strong>
-                </span>
-              </div>
+              <span className="text-xs font-extrabold text-slate-800 uppercase">
+                {isConnected ? 'TERHUBUNG REAL-TIME CLOUD' : 'MEMERIKSA KONEKSI CLOUD'}
+              </span>
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="text-xs text-slate-600">
+                Sinkronisasi Terakhir: <strong className="text-slate-800">{lastSyncTime}</strong>
+              </span>
             </div>
 
             {/* Action Toolbar: Export Buttons + Single Sync Button */}
@@ -853,11 +850,11 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                   style={{ width: `${Math.max(2, Math.min(100, quotaMetrics.usagePercent))}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold tabular-nums">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold tabular-nums whitespace-nowrap">
                   Terpakai: {formatPct(quotaMetrics.usagePercent)}%
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums">
+                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums whitespace-nowrap">
                   Sisa: {formatPct(quotaMetrics.remainingPercent)}%
                 </span>
               </div>
@@ -889,11 +886,11 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                   style={{ width: `${Math.max(2, Math.min(100, quotaMetrics.readsPercent))}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 font-extrabold tabular-nums">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 font-extrabold tabular-nums whitespace-nowrap">
                   Terpakai: {formatPct(quotaMetrics.readsPercent)}%
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums">
+                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums whitespace-nowrap">
                   Sisa: {formatPct(100 - quotaMetrics.readsPercent)}%
                 </span>
               </div>
@@ -925,11 +922,11 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                   style={{ width: `${Math.max(2, Math.min(100, quotaMetrics.writesPercent))}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-extrabold tabular-nums">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-extrabold tabular-nums whitespace-nowrap">
                   Terpakai: {formatPct(quotaMetrics.writesPercent)}%
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums">
+                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums whitespace-nowrap">
                   Sisa: {formatPct(100 - quotaMetrics.writesPercent)}%
                 </span>
               </div>
@@ -963,11 +960,11 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                   }}
                 />
               </div>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-extrabold tabular-nums">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-extrabold tabular-nums whitespace-nowrap">
                   Terpakai: {formatPct(quotaMetrics.vercel.bandwidthPercent)}%
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums">
+                <span className="px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700 font-bold tabular-nums whitespace-nowrap">
                   Sisa: {formatPct(quotaMetrics.vercel.bandwidthRemainingPercent)}%
                 </span>
               </div>

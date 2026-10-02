@@ -477,7 +477,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Luxury Top Accent Line */}
         <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-[#005a8d] to-sky-400" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
+        <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: 3D Layered Logo Frame + Refined Brand Identity */}
           <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 group">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-100/70 via-white to-sky-100/80 p-1 flex items-center justify-center shadow-sm border border-sky-200/90 group-hover:border-amber-300 group-hover:shadow-md transition-all duration-300 shrink-0">
@@ -578,9 +578,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <div className="absolute inset-0 bg-gradient-to-r from-white/15 via-transparent to-sky-900/10 pointer-events-none" />
         </div>
 
-        {/* Container positioning Login/Register Card: Centered on Smartphone/Tablet, Right-Aligned on Desktop */}
-        <div className="relative z-10 w-full h-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8 lg:py-3 flex items-center justify-center lg:justify-end">
-          <div className="w-full max-w-[420px] lg:max-w-[400px] lg:max-h-full lg:overflow-y-auto bg-white/92 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/95 ring-1 ring-sky-900/10 p-5 sm:p-6 text-slate-800">
+        {/* Container positioning Login/Register Card: Centered on Smartphone/Tablet, Right-Aligned & Full-Width Fitted on Desktop */}
+        <div className="relative z-10 w-full h-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-4 flex items-center justify-center lg:justify-end">
+          <div className="w-full max-w-[430px] lg:max-w-[440px] xl:max-w-[460px] lg:max-h-full lg:overflow-y-auto bg-white/94 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/95 ring-1 ring-sky-900/10 p-5 sm:p-6 text-slate-800">
             {/* Segmented Login / Register Toggle (Soft Light Theme) */}
             <div className="flex rounded-2xl bg-sky-50/90 p-1 mb-3.5 text-xs font-bold border border-sky-200/80 shadow-inner">
               <button
@@ -972,10 +972,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
       </section>
 
       {/* 3. COMPACT FIT-TO-DESKTOP SOFT LUXURY FOOTER WITH INTERACTIVE 4-PHOTO GALLERY */}
-      <footer className="w-full bg-gradient-to-b from-[#f5f9fe] via-[#edf5fc] to-[#e4f0fb] text-slate-800 py-3.5 lg:py-3 px-4 sm:px-8 lg:px-12 shrink-0 z-20 border-t border-sky-200/90">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-center">
+      <footer className="w-full bg-gradient-to-b from-[#f5f9fe] via-[#edf5fc] to-[#e4f0fb] text-slate-800 py-3.5 lg:py-3 px-4 sm:px-6 lg:px-8 shrink-0 z-20 border-t border-sky-200/90">
+        <div className="w-full max-w-[1920px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-center">
           {/* Left Column: Single Clean Identity Card & Unified Copyright */}
-          <div className="lg:col-span-5 space-y-2 bg-white/90 backdrop-blur-xs px-4 py-3 rounded-2xl border border-sky-200/80 shadow-2xs">
+          <div className="lg:col-span-5 xl:col-span-4 space-y-2 bg-white/90 backdrop-blur-xs px-4 py-3 rounded-2xl border border-sky-200/80 shadow-2xs">
             <h3 className="text-sm sm:text-base font-black tracking-tight text-[#004872]">
               {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
             </h3>
@@ -996,7 +996,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
 
           {/* Right Column: Interactive 4-Photo Gallery Fitted for Desktop */}
-          <div className="lg:col-span-7 space-y-2">
+          <div className="lg:col-span-7 xl:col-span-8 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-sm font-black tracking-tight text-[#004872]">

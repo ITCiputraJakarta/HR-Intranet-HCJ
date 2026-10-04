@@ -443,15 +443,24 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Deskripsi / Keterangan
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Deskripsi / Keterangan
+                  </label>
+                  <span className={`text-[11px] font-normal ${editKeterangan.length >= 950 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 1.000 karakter • {editKeterangan.length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   value={editKeterangan}
                   onChange={(e) => setEditKeterangan(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white resize-y min-h-[85px]"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  💡 Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">

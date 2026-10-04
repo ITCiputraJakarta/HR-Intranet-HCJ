@@ -26,6 +26,8 @@ import {
   subscribeToAppBranding,
   AppBranding,
   DEFAULT_BRANDING,
+  DEFAULT_GALLERY_CAPTIONS,
+  GalleryItemCaption,
 } from '../lib/branding';
 import { addAccessLog } from '../lib/storage';
 
@@ -59,7 +61,23 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   const [activeSection, setActiveSection] = useState<'main' | 'gallery' | 'text'>('main');
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
-  // Editable text fields
+  // Editable Hero Showcase fields (Marina Bay Sands Style)
+  const [heroBadge, setHeroBadge] = useState(
+    branding.heroBadge || DEFAULT_BRANDING.heroBadge
+  );
+  const [heroTitle, setHeroTitle] = useState(
+    branding.heroTitle || DEFAULT_BRANDING.heroTitle
+  );
+  const [heroDescription, setHeroDescription] = useState(
+    branding.heroDescription || DEFAULT_BRANDING.heroDescription
+  );
+
+  // Editable Gallery Captions (4 items: tag, title, subtitle)
+  const [galleryCaptions, setGalleryCaptions] = useState<GalleryItemCaption[]>(
+    branding.galleryCaptions || DEFAULT_GALLERY_CAPTIONS
+  );
+
+  // Editable Header & Footer text fields
   const [appName, setAppName] = useState(branding.appName);
   const [subTitle, setSubTitle] = useState(branding.subTitle);
   const [footerTitle, setFooterTitle] = useState(
@@ -73,6 +91,9 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   );
   const [galleryTitle, setGalleryTitle] = useState(
     branding.galleryTitle || DEFAULT_BRANDING.galleryTitle
+  );
+  const [footerContact, setFooterContact] = useState(
+    branding.footerContact || DEFAULT_BRANDING.footerContact
   );
   const [creatorSignature, setCreatorSignature] = useState(
     branding.creatorSignature || DEFAULT_BRANDING.creatorSignature
@@ -92,12 +113,21 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
     if (isOpen) {
       const current = getAppBranding();
       setBranding(current);
+      setHeroBadge(current.heroBadge || DEFAULT_BRANDING.heroBadge);
+      setHeroTitle(current.heroTitle || DEFAULT_BRANDING.heroTitle);
+      setHeroDescription(current.heroDescription || DEFAULT_BRANDING.heroDescription);
+      setGalleryCaptions(
+        current.galleryCaptions && current.galleryCaptions.length === 4
+          ? current.galleryCaptions.map((c) => ({ ...c }))
+          : DEFAULT_GALLERY_CAPTIONS.map((c) => ({ ...c }))
+      );
       setAppName(current.appName || DEFAULT_BRANDING.appName);
       setSubTitle(current.subTitle ?? DEFAULT_BRANDING.subTitle);
       setFooterTitle(current.footerTitle ?? DEFAULT_BRANDING.footerTitle);
       setFooterDescription(current.footerDescription ?? DEFAULT_BRANDING.footerDescription);
       setFooterBottomTitle(current.footerBottomTitle ?? DEFAULT_BRANDING.footerBottomTitle);
       setGalleryTitle(current.galleryTitle ?? DEFAULT_BRANDING.galleryTitle);
+      setFooterContact(current.footerContact ?? DEFAULT_BRANDING.footerContact);
       setCreatorSignature(current.creatorSignature || DEFAULT_BRANDING.creatorSignature);
       setFeedback(null);
     }
@@ -122,7 +152,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
           <ShieldAlert className="w-12 h-12 text-rose-600 mx-auto" />
           <h3 className="text-base font-bold text-slate-900">Akses Dibatasi</h3>
           <p className="text-xs text-slate-600">
-            Hanya Super Admin yang berwenang mengubah logo, foto utama, dan bagian bawah portal.
+            Hanya Super Admin yang berwenang mengubah logo, foto utama, galeri, dan narasi tampilan
+            awal portal.
           </p>
           <button
             onClick={onClose}
@@ -233,6 +264,31 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
     }
   };
 
+  const handleSaveHeroShowcaseText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      await saveAppBranding(
+        {
+          heroBadge: heroBadge.trim() || DEFAULT_BRANDING.heroBadge,
+          heroTitle: heroTitle.trim() || DEFAULT_BRANDING.heroTitle,
+          heroDescription: heroDescription.trim() || DEFAULT_BRANDING.heroDescription,
+        },
+        currentUser.email
+      );
+      setFeedback({
+        type: 'success',
+        text: 'Kata-kata & Narasi Hero Utama pada halaman login berhasil diperbarui di Cloud Firestore!',
+      });
+      onBrandingSaved?.();
+    } catch (err: any) {
+      setFeedback({ type: 'error', text: err?.message || 'Gagal menyimpan narasi hero.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleGalleryFileChange = async (
     index: number,
     e: React.ChangeEvent<HTMLInputElement>
@@ -250,7 +306,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       await uploadGalleryImage(index, file, currentUser.email);
       setFeedback({
         type: 'success',
-        text: `Foto Galeri Bawah #${index + 1} berhasil diperbarui!`,
+        text: `Foto Galeri & Highlight #${index + 1} berhasil diperbarui!`,
       });
       onBrandingSaved?.();
     } catch (err: any) {
@@ -269,13 +325,49 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
       await resetGalleryImage(index, currentUser.email);
       setFeedback({
         type: 'success',
-        text: `Foto Galeri Bawah #${index + 1} dikembalikan ke default.`,
+        text: `Foto Galeri & Highlight #${index + 1} dikembalikan ke default.`,
       });
       onBrandingSaved?.();
     } catch (err: any) {
       setFeedback({ type: 'error', text: err?.message || 'Gagal mereset foto galeri.' });
     } finally {
       setUploadingGalleryIdx(null);
+    }
+  };
+
+  const handleCaptionChange = (
+    idx: number,
+    field: keyof GalleryItemCaption,
+    value: string
+  ) => {
+    setGalleryCaptions((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
+
+  const handleSaveGalleryCaptions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      await saveAppBranding(
+        {
+          galleryCaptions,
+          galleryTitle: galleryTitle.trim() || DEFAULT_BRANDING.galleryTitle,
+        },
+        currentUser.email
+      );
+      setFeedback({
+        type: 'success',
+        text: 'Judul & kata-kata pada ke-4 foto galeri tampilan awal berhasil disimpan ke Cloud Firestore!',
+      });
+      onBrandingSaved?.();
+    } catch (err: any) {
+      setFeedback({ type: 'error', text: err?.message || 'Gagal menyimpan kata-kata galeri.' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -290,10 +382,15 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
         {
           appName: appName.trim(),
           subTitle: subTitle.trim(),
+          heroBadge: heroBadge.trim() || DEFAULT_BRANDING.heroBadge,
+          heroTitle: heroTitle.trim() || DEFAULT_BRANDING.heroTitle,
+          heroDescription: heroDescription.trim() || DEFAULT_BRANDING.heroDescription,
           footerTitle: footerTitle.trim(),
           footerDescription: footerDescription.trim(),
           footerBottomTitle: footerBottomTitle.trim(),
           galleryTitle: galleryTitle.trim(),
+          galleryCaptions,
+          footerContact: footerContact.trim(),
           creatorSignature: creatorSignature.trim() || DEFAULT_BRANDING.creatorSignature,
         },
         currentUser.email
@@ -301,7 +398,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
 
       setFeedback({
         type: 'success',
-        text: 'Nama portal dan teks bagian bawah (footer) berhasil disimpan ke Firestore!',
+        text: 'Seluruh teks Header, Hero, dan Footer berhasil disimpan ke Cloud Firestore!',
       });
       onBrandingSaved?.();
     } catch (err: any) {
@@ -318,7 +415,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 cursor-default flex flex-col max-h-[90vh]"
+        className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 cursor-default flex flex-col max-h-[90vh]"
       >
         {/* Header */}
         <div className="p-5 sm:p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -329,12 +426,12 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
             <div>
               <h3 className="font-black text-sm sm:text-base text-slate-900">
                 {isId
-                  ? 'Pengaturan Logo, Foto Utama & Bagian Bawah'
-                  : 'Logo, Hero Photo & Bottom Section Settings'}
+                  ? 'Pengaturan Tampilan Awal (Gaya Marina Bay Sands), Foto & Kata-Kata'
+                  : 'Landing Page Showcase, Photos & Editorial Text Settings'}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isId
-                  ? 'Khusus Super Admin • Tersinkron Otomatis ke Cloud Firestore'
+                  ? 'Khusus Super Admin • Ubah foto & kata-kata tampilan awal secara real-time'
                   : 'Super Admin Only • Real-Time Synced with Cloud Firestore'}
               </p>
             </div>
@@ -359,7 +456,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" />
-            <span>{isId ? '1. Logo & Foto Utama' : '1. Logo & Hero Photo'}</span>
+            <span>{isId ? '1. Logo, Foto & Kata-Kata Hero' : '1. Logo, Hero Photo & Text'}</span>
           </button>
           <button
             type="button"
@@ -371,7 +468,11 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
             }`}
           >
             <Grid className="w-3.5 h-3.5" />
-            <span>{isId ? '2. 4 Foto Bagian Bawah' : '2. Bottom 4 Photos'}</span>
+            <span>
+              {isId
+                ? '2. 4 Foto & Kata-Kata Galeri / Highlight'
+                : '2. 4 Gallery Photos & Captions'}
+            </span>
           </button>
           <button
             type="button"
@@ -383,7 +484,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>{isId ? '3. Teks & Bagian Bawah' : '3. Text & Footer'}</span>
+            <span>{isId ? '3. Header & Footer Bawah' : '3. Header & Footer Text'}</span>
           </button>
         </div>
 
@@ -404,204 +505,343 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
 
           {activeSection === 'main' && (
             <div className="space-y-5">
-              {/* 1. Custom Logo Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900">
-                    {isId ? 'Logo Pojok Kiri Atas' : 'Top-Left Logo'}
-                  </span>
-                  <span className="text-[11px] text-[#005a8d] font-semibold">
-                    {branding.customLogoUrl ? 'Logo Kustom Aktif' : 'Logo Default'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center p-2 overflow-hidden shrink-0">
-                    {branding.customLogoUrl ? (
-                      <img
-                        src={branding.customLogoUrl}
-                        alt="Current Logo"
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-[#005a8d]">
-                        <Building2 className="w-7 h-7" />
-                      </div>
-                    )}
+              {/* 1. Custom Logo & Main Hero Photo Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Custom Logo Box */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">
+                      {isId ? 'Logo Pojok Kiri Atas' : 'Top-Left Logo'}
+                    </span>
+                    <span className="text-[11px] text-[#005a8d] font-semibold">
+                      {branding.customLogoUrl ? 'Logo Kustom Aktif' : 'Logo Default'}
+                    </span>
                   </div>
 
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="file"
-                      ref={logoInputRef}
-                      onChange={handleLogoFileChange}
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => logoInputRef.current?.click()}
-                      disabled={isUploadingLogo}
-                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#005a8d] hover:bg-[#004872] text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                    >
-                      {isUploadingLogo ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Menyimpan Logo...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          <span>Pilih & Ganti Logo</span>
-                        </>
-                      )}
-                    </button>
-
-                    {branding.customLogoUrl && (
-                      <button
-                        type="button"
-                        onClick={handleResetLogo}
-                        disabled={isUploadingLogo}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Reset Logo Default</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Main Hero Photo Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900">
-                    {isId
-                      ? 'Foto Utama Halaman Login (Latar Belakang Penuh)'
-                      : 'Main Login Hero Photo'}
-                  </span>
-                  <span className="text-[11px] text-emerald-700 font-semibold">
-                    {branding.customBgUrl ? 'Foto Kustom Aktif' : 'Foto Default'}
-                  </span>
-                </div>
-
-                <div className="relative w-full h-40 rounded-2xl overflow-hidden border border-slate-200 bg-white">
-                  <img
-                    src={branding.customBgUrl || defaultHeroBright}
-                    alt="Hero Preview"
-                    className="w-full h-full object-cover object-center"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="file"
-                    ref={bgInputRef}
-                    onChange={handleBgFileChange}
-                    accept="image/png,image/jpeg,image/webp"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => bgInputRef.current?.click()}
-                    disabled={isUploadingBg}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    {isUploadingBg ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Menyimpan Foto...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ImageIcon className="w-4 h-4" />
-                        <span>Upload / Ganti Foto Utama</span>
-                      </>
-                    )}
-                  </button>
-
-                  {branding.customBgUrl && (
-                    <button
-                      type="button"
-                      onClick={handleResetBg}
-                      disabled={isUploadingBg}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Reset Default</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'gallery' && (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600">
-                {isId
-                  ? 'Ubah 4 foto kotak yang tampil di bagian bawah (footer) halaman utama:'
-                  : 'Customize the 4 square gallery images displayed in the bottom footer:'}
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[0, 1, 2, 3].map((idx) => {
-                  const customImg = branding.galleryImages?.[idx];
-                  const activeImg = customImg || DEFAULT_GALLERY[idx];
-                  const isBusy = uploadingGalleryIdx === idx;
-                  return (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5"
-                    >
-                      <span className="text-[11px] font-bold text-slate-700">
-                        Foto #{idx + 1}
-                      </span>
-                      <div className="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 bg-white">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center p-2 overflow-hidden shrink-0">
+                      {branding.customLogoUrl ? (
                         <img
-                          src={activeImg}
-                          alt={`Galeri ${idx + 1}`}
-                          className="w-full h-full object-cover"
+                          src={branding.customLogoUrl}
+                          alt="Current Logo"
+                          className="w-full h-full object-contain"
                         />
-                      </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-[#005a8d]">
+                          <Building2 className="w-7 h-7" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
                       <input
                         type="file"
-                        ref={(el) => {
-                          galleryInputRefs.current[idx] = el;
-                        }}
-                        onChange={(e) => handleGalleryFileChange(idx, e)}
-                        accept="image/png,image/jpeg,image/webp"
+                        ref={logoInputRef}
+                        onChange={handleLogoFileChange}
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
                         className="hidden"
                       />
                       <button
                         type="button"
-                        onClick={() => galleryInputRefs.current[idx]?.click()}
-                        disabled={isBusy}
-                        className="w-full py-1.5 px-2 rounded-lg bg-[#005a8d] hover:bg-[#004872] text-white text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={isUploadingLogo}
+                        className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#005a8d] hover:bg-[#004872] text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                       >
-                        {isBusy ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        {isUploadingLogo ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Menyimpan...</span>
+                          </>
                         ) : (
                           <>
-                            <Upload className="w-3 h-3" />
-                            <span>Ganti</span>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Ganti Logo</span>
                           </>
                         )}
                       </button>
-                      {customImg && (
+
+                      {branding.customLogoUrl && (
                         <button
                           type="button"
-                          onClick={() => handleResetGallerySlot(idx)}
-                          disabled={isBusy}
-                          className="w-full py-1 px-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold cursor-pointer"
+                          onClick={handleResetLogo}
+                          disabled={isUploadingLogo}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
                         >
-                          Reset
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset Default</span>
                         </button>
                       )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Hero Photo Box */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">
+                      {isId ? 'Foto Latar Utama (Hero Login)' : 'Main Login Hero Photo'}
+                    </span>
+                    <span className="text-[11px] text-emerald-700 font-semibold">
+                      {branding.customBgUrl ? 'Foto Kustom Aktif' : 'Foto Default'}
+                    </span>
+                  </div>
+
+                  <div className="relative w-full h-24 rounded-xl overflow-hidden border border-slate-200 bg-white">
+                    <img
+                      src={branding.customBgUrl || defaultHeroBright}
+                      alt="Hero Preview"
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      ref={bgInputRef}
+                      onChange={handleBgFileChange}
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => bgInputRef.current?.click()}
+                      disabled={isUploadingBg}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {isUploadingBg ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span>Ganti Foto Utama</span>
+                        </>
+                      )}
+                    </button>
+
+                    {branding.customBgUrl && (
+                      <button
+                        type="button"
+                        onClick={handleResetBg}
+                        disabled={isUploadingBg}
+                        className="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Marina Bay Sands Editorial Hero Text Settings */}
+              <form
+                onSubmit={handleSaveHeroShowcaseText}
+                className="p-4 sm:p-5 rounded-2xl bg-sky-50/50 border border-sky-200/90 space-y-3.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-extrabold text-[#004872]">
+                      Kata-Kata &amp; Narasi Hero Utama (Sisi Kiri Halaman Login)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Tampil di sisi kiri foto utama halaman login (seperti gaya editorial Marina
+                      Bay Sands)
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Label Kategori / Badge Atas Hero
+                  </label>
+                  <input
+                    type="text"
+                    value={heroBadge}
+                    onChange={(e) => setHeroBadge(e.target.value)}
+                    placeholder="LUXURY HOSPITALITY • SWISS-BELHOTEL INTERNATIONAL"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#005a8d] font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Judul Besar Hero Utama (Headline)
+                  </label>
+                  <input
+                    type="text"
+                    value={heroTitle}
+                    onChange={(e) => setHeroTitle(e.target.value)}
+                    placeholder="Keanggunan Layanan & Standar Operasional Kelas Dunia"
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#005a8d] font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Deskripsi / Narasi Hero Utama
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={heroDescription}
+                    onChange={(e) => setHeroDescription(e.target.value)}
+                    placeholder="Selamat datang di Portal Digital Eksekutif & Karyawan Hotel Ciputra Jakarta..."
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#005a8d] text-slate-800"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-4 py-2 rounded-xl bg-[#005a8d] hover:bg-[#004872] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      <span>Simpan Kata-Kata Hero</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeSection === 'gallery' && (
+            <form onSubmit={handleSaveGalleryCaptions} className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <p className="text-xs text-slate-600">
+                  {isId
+                    ? 'Atur 4 foto fasilitas beserta kategori, judul, dan kata-kata penjelasannya (dapat diklik pada halaman login untuk mengganti tampilan slide):'
+                    : 'Customize the 4 highlight photos and their editorial titles & descriptions:'}
+                </p>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-xl bg-[#005a8d] hover:bg-[#004872] text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Semua Kata-Kata Galeri</span>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[0, 1, 2, 3].map((idx) => {
+                  const customImg = branding.galleryImages?.[idx];
+                  const activeImg = customImg || DEFAULT_GALLERY[idx];
+                  const isBusy = uploadingGalleryIdx === idx;
+                  const cap = galleryCaptions[idx] || DEFAULT_GALLERY_CAPTIONS[idx];
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 bg-white shrink-0">
+                          <img
+                            src={activeImg}
+                            alt={`Galeri ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <span className="text-xs font-extrabold text-[#004872] block">
+                            Slide &amp; Galeri Foto #{idx + 1}
+                          </span>
+                          <input
+                            type="file"
+                            ref={(el) => {
+                              galleryInputRefs.current[idx] = el;
+                            }}
+                            onChange={(e) => handleGalleryFileChange(idx, e)}
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => galleryInputRefs.current[idx]?.click()}
+                              disabled={isBusy}
+                              className="py-1.5 px-3 rounded-lg bg-[#005a8d] hover:bg-[#004872] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              {isBusy ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Upload className="w-3 h-3" />
+                                  <span>Ganti Foto</span>
+                                </>
+                              )}
+                            </button>
+                            {customImg && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetGallerySlot(idx)}
+                                disabled={isBusy}
+                                className="py-1.5 px-2.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-[11px] font-semibold cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-1 border-t border-slate-200/80">
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
+                            Label Kategori (Tag)
+                          </label>
+                          <input
+                            type="text"
+                            value={cap.tag}
+                            onChange={(e) => handleCaptionChange(idx, 'tag', e.target.value)}
+                            placeholder="SUITES & ACCOMMODATION"
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-bold text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
+                            Judul Foto / Fasilitas
+                          </label>
+                          <input
+                            type="text"
+                            value={cap.title}
+                            onChange={(e) => handleCaptionChange(idx, 'title', e.target.value)}
+                            placeholder="Executive & Presidential Suites"
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-semibold text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
+                            Kata-Kata Penjelasan Singkat
+                          </label>
+                          <input
+                            type="text"
+                            value={cap.subtitle}
+                            onChange={(e) => handleCaptionChange(idx, 'subtitle', e.target.value)}
+                            placeholder="Kemewahan akomodasi berstandar internasional..."
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-700"
+                          />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </form>
           )}
 
           {activeSection === 'text' && (
@@ -616,7 +856,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                     required
                     value={appName}
                     onChange={(e) => setAppName(e.target.value)}
-                    placeholder="Intranet"
+                    placeholder="Intranet HCJ"
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005a8d] font-bold text-slate-900"
                   />
                 </div>
@@ -655,7 +895,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                     type="text"
                     value={galleryTitle}
                     onChange={(e) => setGalleryTitle(e.target.value)}
-                    placeholder="Galeri & Fasilitas Hotel"
+                    placeholder="Destinasi & Fasilitas Unggulan Hotel"
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005a8d] font-semibold text-slate-900"
                   />
                 </div>
@@ -676,13 +916,13 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {isId ? 'Sub-Judul Kiri Bawah' : 'Bottom-Left Subheading'}
+                    {isId ? 'Kontak Bantuan IT & HRD (Footer)' : 'IT & HRD Contact'}
                   </label>
                   <input
                     type="text"
-                    value={footerBottomTitle}
-                    onChange={(e) => setFooterBottomTitle(e.target.value)}
-                    placeholder="Intranet HCJ"
+                    value={footerContact}
+                    onChange={(e) => setFooterContact(e.target.value)}
+                    placeholder="Layanan Bantuan IT & HRD: it@hotelciputra.com"
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005a8d] font-semibold text-slate-900"
                   />
                 </div>
@@ -694,7 +934,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                     type="text"
                     value={creatorSignature}
                     onChange={(e) => setCreatorSignature(e.target.value)}
-                    placeholder="JBagas 2026 ttd"
+                    placeholder="JBagas"
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#005a8d] text-slate-800 font-mono"
                   />
                 </div>

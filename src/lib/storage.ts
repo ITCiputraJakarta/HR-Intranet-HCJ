@@ -472,7 +472,7 @@ export function clearAllSessionCache(): void {
   }
 }
 
-export function updateUserStatus(userId: string, status: 'Approved' | 'Pending', actor: User): User[] {
+export function updateUserStatus(userId: string, status: UserStatus, actor: User): User[] {
   const users = getUsers();
   const target = users.find((u) => u.id === userId);
   const updated = users.map((u) => (u.id === userId ? { ...u, status } : u));

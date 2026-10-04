@@ -2,8 +2,32 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: 'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-weight: 400;
   }
+
+  h1, h2, h3, h4, h5, h6, strong, b, th {
+    font-weight: 400;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+}
+
+/* Global Typography Policy: Avoid bold fonts across the application; bold is reserved strictly for the top-left corner brand identity (.brand-top-left-bold) */
+.font-bold:not(.brand-top-left-bold),
+.font-extrabold:not(.brand-top-left-bold),
+.font-black:not(.brand-top-left-bold),
+.font-semibold:not(.brand-top-left-bold),
+strong:not(.brand-top-left-bold),
+b:not(.brand-top-left-bold) {
+  font-weight: 400 !important;
+}
+
+.brand-top-left-bold {
+  font-weight: 700 !important;
 }
 
 @media print {

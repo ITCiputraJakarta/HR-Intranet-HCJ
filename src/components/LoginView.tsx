@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Building2,
+  Hotel,
   Lock,
   Mail,
   User as UserIcon,
@@ -12,12 +12,12 @@ import {
   Globe,
   Clock,
   Sparkles,
-  ZoomIn,
-  X,
-  ChevronLeft,
+  FileText,
+  Award,
+  Shield,
+  ArrowLeft,
   ChevronRight,
-  PhoneCall,
-  Layers,
+  Building2
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import {
@@ -89,23 +89,17 @@ function saveLockoutState(state: AuthLockoutState): void {
   try {
     localStorage.setItem(AUTH_LOCKOUT_STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // ignore storage quota errors
+    // ignore quota
   }
 }
-
-import defaultHeroBright from '../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
-import defaultGallery1 from '../assets/images/gallery_hotel_decor_lounge_1790666726376.jpg';
-import defaultGallery2 from '../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
-import defaultGallery3 from '../assets/images/gallery_hotel_artisan_wall_1790666750842.jpg';
-import defaultGallery4 from '../assets/images/gallery_hotel_pantry_cafe_1790666762438.jpg';
-
-const DEFAULT_GALLERY = [defaultGallery1, defaultGallery2, defaultGallery3, defaultGallery4];
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
   currentLang?: Language;
   onLanguageChange?: (lang: Language) => void;
   sessionMessage?: string;
+  onNavigateToHome?: () => void;
+  onNavigateToCareer?: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
@@ -113,6 +107,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   currentLang = 'id',
   onLanguageChange,
   sessionMessage,
+  onNavigateToHome,
+  onNavigateToCareer,
 }) => {
   const [departments, setDepartments] = useState<string[]>(() => getDepartments());
   const [isRegister, setIsRegister] = useState(false);
@@ -121,8 +117,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [bgError, setBgError] = useState(false);
-  const [selectedGalleryIdx, setSelectedGalleryIdx] = useState<number | null>(null);
 
   // Register form state
   const [hotelUnits, setHotelUnits] = useState(() => getHotelUnits());
@@ -169,10 +163,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   }, [lockoutRemainingSec]);
 
   useEffect(() => {
-    const unsubBranding = subscribeToAppBranding((b) => {
-      setBranding(b);
-      setBgError(false);
-    });
+    const unsubBranding = subscribeToAppBranding((b) => setBranding(b));
     const unsubDepts = subscribeToDepartments((newDepts) => {
       saveDepartmentMasters(newDepts);
       setDepartments(getDepartments());
@@ -243,125 +234,130 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
-    // 2. Check Honeypot anti-bot trap
-    if (honeypotTrap.trim() !== '') {
-      addAccessLog({
-        user: null,
-        actionCategory: 'AUTH',
-        action: 'Serangan Bot Terdeteksi (Honeypot Trap)',
-        target: email.trim() || 'Automated Bot',
-        status: 'FAILED',
-        details: 'Pengisian otomatis pada field jebakan honeypot terdeteksi dan diblokir.',
-      });
-      loginCaptchaRef.current?.reset();
-      setErrorMessage(t('errCaptchaInvalid', currentLang));
+    // 2. Anti-Bot Honeypot trap check
+    if (honeypotTrap.trim().length > 0) {
+      console.warn('Bot submission blocked via Honeypot trap.');
+      setErrorMessage('Verifikasi keamanan gagal. Silakan coba lagi.');
       return;
     }
 
-    // 3. Verify 6-character Anti-Bot Captcha
-    if (!isValidEmailFormat(email)) {
+    // 3. Captcha verification check
+    if (loginCaptchaRef.current && !loginCaptchaRef.current.isValid()) {
       setErrorMessage(
         currentLang === 'en'
-          ? 'Please enter a valid email address (e.g. name@ciputra.com).'
-          : 'Format alamat email tidak valid. Pastikan menggunakan format email yang benar (contoh: nama@ciputra.com).'
+          ? 'Security captcha code is incorrect or expired. Please check and try again.'
+          : 'Kode captcha keamanan tidak sesuai atau telah kedaluwarsa. Silakan ketik kode yang tertera.'
       );
+      loginCaptchaRef.current.reset();
       return;
     }
 
-    if (loginCaptchaRef.current && !loginCaptchaRef.current.isValid()) {
-      setErrorMessage(t('errCaptchaInvalid', currentLang));
-      loginCaptchaRef.current.reset();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!isValidEmailFormat(cleanEmail)) {
+      setErrorMessage(
+        currentLang === 'en'
+          ? 'Please enter a valid email address.'
+          : 'Format email tidak valid. Pastikan penulisan alamat email benar.'
+      );
       return;
     }
 
     setIsLoggingIn(true);
 
     try {
-      // Subtle random delay (350-600ms) to mitigate timing enumeration & slow down credential stuffing
-      await new Promise((resolve) => setTimeout(resolve, 350 + Math.floor(Math.random() * 250)));
+      let localUsers = getUsers();
+      let matchedUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
 
-      const cleanEmail = email.trim().toLowerCase();
-      let users = getUsers();
-      let found = users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-      // Query targeted user from Cloud Firestore without subscribing to entire user directory on login screen
-      try {
-        const remoteUser = await firestoreFindUserByEmail(cleanEmail);
-        if (remoteUser) {
-          found = remoteUser;
-          users = [...users.filter((u) => u.id !== remoteUser.id), remoteUser];
-          saveUsers(users);
+      // Fallback: check Firebase Firestore if not in local cache
+      if (!matchedUser) {
+        try {
+          const remoteUser = await firestoreFindUserByEmail(cleanEmail);
+          if (remoteUser) {
+            localUsers = [...localUsers.filter((u) => u.id !== remoteUser.id), remoteUser];
+            saveUsers(localUsers);
+            matchedUser = remoteUser;
+          }
+        } catch (err) {
+          console.warn('Firestore fallback check:', err);
         }
-      } catch (fetchErr) {
-        console.debug('Firestore direct user lookup fallback:', fetchErr);
       }
 
-      const unifiedInvalidCredentialsMsg =
-        currentLang === 'en'
-          ? 'Invalid email or password. Please check your credentials and try again.'
-          : 'Email atau kata sandi yang Anda masukkan tidak sesuai. Silakan periksa kembali.';
-
-      if (!found) {
-        setErrorMessage(unifiedInvalidCredentialsMsg);
+      if (!matchedUser) {
+        recordFailedAttempt(cleanEmail, 'Email tidak terdaftar');
         loginCaptchaRef.current?.reset();
-        addAccessLog({
-          user: null,
-          actionCategory: 'AUTH',
-          action: 'Login Gagal - Kredensial Tidak Valid',
-          target: cleanEmail,
-          status: 'FAILED',
-          details: 'Percobaan login dengan email yang tidak terdaftar.',
-        });
-        recordFailedAttempt(cleanEmail, 'Email tidak ditemukan', null);
+        setIsLoggingIn(false);
+        setErrorMessage(
+          currentLang === 'en'
+            ? 'Account not found with this email. Please check your credentials or register.'
+            : 'Akun dengan email ini belum terdaftar. Silakan periksa kembali atau daftar akun baru.'
+        );
         return;
       }
 
-      if (found.password && found.password !== password) {
-        setErrorMessage(unifiedInvalidCredentialsMsg);
+      // Check account approval status
+      if (matchedUser.status === 'Pending') {
+        setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
-        addAccessLog({
-          user: found,
-          actionCategory: 'AUTH',
-          action: 'Login Gagal - Kata Sandi Salah',
-          target: cleanEmail,
-          status: 'FAILED',
-          details: 'Kata sandi tidak sesuai dengan data terdaftar.',
-        });
-        recordFailedAttempt(cleanEmail, 'Kata sandi salah', found);
+        setErrorMessage(
+          currentLang === 'en'
+            ? 'Your account is pending verification by Super Admin. Please contact HRD/IT.'
+            : 'Akun Anda sedang menunggu persetujuan Super Admin. Silakan hubungi tim HRD/IT.'
+        );
         return;
       }
 
-      if (found.status !== 'Approved') {
-        setErrorMessage(t('errAccountPending', currentLang));
+      if (matchedUser.status === 'Rejected') {
+        setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
-        addAccessLog({
-          user: found,
-          actionCategory: 'AUTH',
-          action: 'Login Ditolak - Akun Belum Disetujui',
-          target: cleanEmail,
-          status: 'FAILED',
-          details: 'Akun masih berstatus Pending dan belum diverifikasi Super Admin.',
-        });
+        setErrorMessage(
+          currentLang === 'en'
+            ? 'Your account registration was not approved. Please contact Administrator.'
+            : 'Pendaftaran akun Anda ditolak. Silakan hubungi Administrator sistem.'
+        );
         return;
       }
 
-      // Reset brute-force lockout counters on successful login
-      saveLockoutState({ failedAttempts: 0, lockUntil: 0, lockCount: 0 });
+      // Password verification
+      if (matchedUser.password !== cleanPassword) {
+        recordFailedAttempt(cleanEmail, 'Password salah', matchedUser);
+        loginCaptchaRef.current?.reset();
+        setIsLoggingIn(false);
+        setErrorMessage(
+          currentLang === 'en'
+            ? 'Incorrect password. Please verify your password and try again.'
+            : 'Kata sandi tidak sesuai. Harap periksa kembali password Anda.'
+        );
+        return;
+      }
+
+      // Login Successful: Reset security lockouts
+      const resetState: AuthLockoutState = {
+        failedAttempts: 0,
+        lockUntil: 0,
+        lockCount: 0,
+      };
+      saveLockoutState(resetState);
       setFailedAttempts(0);
       setLockoutRemainingSec(0);
 
+      // Record successful access log
       addAccessLog({
-        user: found,
+        user: matchedUser,
         actionCategory: 'AUTH',
         action: 'Login Berhasil',
-        target: found.email,
+        target: 'Portal Intranet HCJ',
         status: 'SUCCESS',
-        details: `User ${found.nama} (${found.role}) berhasil masuk ke portal Intranet HCJ.`,
+        details: `Login sukses via Web Portal (${matchedUser.role.toUpperCase()} - ${matchedUser.departemen} - ${matchedUser.unit || 'Hotel Ciputra Jakarta'}).`,
       });
 
-      onLoginSuccess(found);
-    } finally {
       setIsLoggingIn(false);
+      onLoginSuccess(matchedUser);
+    } catch (err) {
+      setIsLoggingIn(false);
+      loginCaptchaRef.current?.reset();
+      setErrorMessage('Terjadi kesalahan saat memproses login. Silakan coba beberapa saat lagi.');
     }
   };
 
@@ -370,160 +366,123 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setErrorMessage('');
     setSuccessMessage('');
 
-    // 1. Check Honeypot anti-bot trap
-    if (honeypotTrap.trim() !== '') {
-      registerCaptchaRef.current?.reset();
-      setErrorMessage(t('errCaptchaInvalid', currentLang));
+    if (honeypotTrap.trim().length > 0) {
+      setErrorMessage('Verifikasi keamanan gagal.');
       return;
     }
 
-    // 2. Verify Captcha
     if (registerCaptchaRef.current && !registerCaptchaRef.current.isValid()) {
-      setErrorMessage(t('errCaptchaInvalid', currentLang));
+      setErrorMessage('Kode captcha keamanan tidak sesuai. Harap ketik kode captcha yang tampil.');
       registerCaptchaRef.current.reset();
       return;
     }
 
-    if (!regName.trim() || !regEmail.trim() || !regPassword.trim()) {
-      setErrorMessage(t('errFillAllFields', currentLang));
-      return;
-    }
-
-    if (regName.trim().length > 100) {
-      setErrorMessage(
-        currentLang === 'en'
-          ? 'Full name must not exceed 100 characters.'
-          : 'Nama lengkap tidak boleh lebih dari 100 karakter.'
-      );
-      return;
-    }
-
-    if (!isValidEmailFormat(regEmail)) {
-      setErrorMessage(
-        currentLang === 'en'
-          ? 'Please enter a valid work email address (e.g. name@ciputra.com).'
-          : 'Format email kerja tidak valid. Pastikan menggunakan format email yang benar (contoh: nama@ciputra.com).'
-      );
-      return;
-    }
-
-    // 3. Enforce Password Complexity Policy (min 8 chars + letters & numbers)
-    if (!isStrongPassword(regPassword)) {
-      setErrorMessage(
-        currentLang === 'en'
-          ? 'Password must be at least 8 characters and include both letters and numbers.'
-          : 'Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.'
-      );
-      registerCaptchaRef.current?.reset();
-      return;
-    }
-
-    const users = getUsers();
     const cleanEmail = regEmail.trim().toLowerCase();
+    const cleanName = regName.trim();
 
-    // Also check remote Firestore for existing email
-    let existingRemote: User | null = null;
-    try {
-      existingRemote = await firestoreFindUserByEmail(cleanEmail);
-    } catch {}
-
-    if (existingRemote || users.some((u) => u.email.toLowerCase() === cleanEmail)) {
-      setErrorMessage(t('errEmailTaken', currentLang));
-      registerCaptchaRef.current?.reset();
+    if (!cleanName) {
+      setErrorMessage('Nama lengkap wajib diisi.');
       return;
     }
 
-    // Keamanan: Pendaftaran mandiri hanya diizinkan sampai level HOD (tidak bisa mendaftar sebagai Super Admin)
-    const allowedRole: UserRole = regRole === 'admin' ? 'staff' : regRole;
+    if (!isValidEmailFormat(cleanEmail)) {
+      setErrorMessage('Format email belum sesuai (contoh: nama@ciputra.com).');
+      return;
+    }
+
+    if (!isStrongPassword(regPassword)) {
+      setErrorMessage('Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.');
+      return;
+    }
+
+    const currentUsers = getUsers();
+    if (currentUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      setErrorMessage('Alamat email ini sudah terdaftar. Silakan gunakan tab Masuk Sistem.');
+      return;
+    }
 
     const newUser: User = {
-      id: `user-${Date.now()}`,
-      nama: regName.trim(),
+      id: `usr-${Date.now()}`,
       email: cleanEmail,
+      nama: cleanName,
       unit: regUnit,
       departemen: regDept,
-      role: allowedRole,
-      status: 'Pending',
+      role: regRole,
       password: regPassword,
+      status: 'Pending',
       createdAt: new Date().toISOString(),
     };
 
-    await registerUser(newUser);
+    registerUser(newUser);
 
     addAccessLog({
       user: newUser,
-      actionCategory: 'USER_MGMT',
-      action: 'Pendaftaran Akun Baru',
-      target: `${newUser.nama} (${newUser.email})`,
+      actionCategory: 'AUTH',
+      action: 'Registrasi Akun Baru',
+      target: cleanEmail,
       status: 'SUCCESS',
-      details: `Pendaftaran berhasil untuk role ${newUser.role} pada departemen ${newUser.departemen}. Status: Pending (menunggu persetujuan Super Admin).`,
+      details: `Pendaftaran mandiri: ${cleanName} (${regRole.toUpperCase()} - ${regDept} - ${regUnit}). Menunggu verifikasi admin.`,
     });
 
-    setSuccessMessage(t('successRegistered', currentLang));
+    setSuccessMessage(
+      'Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan Super Admin. Anda dapat mencoba login setelah diverifikasi.'
+    );
     setIsRegister(false);
     setEmail(cleanEmail);
     setPassword(regPassword);
   };
 
-  const activeBgSrc = branding.customBgUrl || defaultHeroBright;
-  const gallerySlots = [0, 1, 2, 3].map(
-    (idx) => branding.galleryImages?.[idx] || DEFAULT_GALLERY[idx]
-  );
-
   return (
-    <div className="min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden w-full flex flex-col justify-between bg-[#f4f8fb] text-slate-800 selection:bg-[#005a8d] selection:text-white">
-      {/* 1. PREMIUM EXECUTIVE SOFT TOP HEADER BAR */}
-      <header className="w-full bg-gradient-to-r from-white/95 via-[#f8fbff]/95 to-[#eef6fd]/95 border-b border-sky-200/80 shrink-0 z-20 shadow-xs backdrop-blur-md">
-        {/* Luxury Top Accent Line */}
-        <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-[#005a8d] to-sky-400" />
+    <div className="min-h-screen w-full flex flex-col justify-between bg-gradient-to-br from-[#FFF3E4] via-[#fdfbf7] to-[#f7f2ea] text-slate-800 selection:bg-[#F48C06] selection:text-white font-sans antialiased">
+      {/* 1. TOP HEADER BAR WITH UNIFIED BRAND LOGO */}
+      <header className="w-full bg-white/95 backdrop-blur-md border-b border-orange-200/60 shrink-0 z-20 shadow-xs">
+        {/* Top Gold Accent Line matching Beranda */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#F48C06] via-[#2F327D] to-[#65C2B4]" />
 
-        <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
-          {/* Left: 3D Layered Logo Frame + Refined Brand Identity */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 group">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-100/70 via-white to-sky-100/80 p-1 flex items-center justify-center shadow-sm border border-sky-200/90 group-hover:border-amber-300 group-hover:shadow-md transition-all duration-300 shrink-0">
-              <div className="w-full h-full rounded-xl bg-white flex items-center justify-center overflow-hidden p-1 shadow-inner">
-                {branding.customLogoUrl ? (
-                  <img
-                    src={branding.customLogoUrl}
-                    alt={branding.appName}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-[#005a8d]">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-xs">
-                      <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]" />
-                    </div>
-                    <span className="text-[6px] sm:text-[6.5px] font-black tracking-widest uppercase mt-0.5 leading-none text-[#004872]">
-                      CIPUTRA
-                    </span>
-                  </div>
-                )}
-              </div>
+        <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex items-center justify-between gap-3">
+          {/* Brand Identity - Uniform across app */}
+          <div
+            onClick={onNavigateToHome || (() => {})}
+            className="flex items-center gap-3 select-none cursor-pointer group"
+          >
+            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0">
+              <Hotel className="w-6 h-6 stroke-[2.2]" />
             </div>
-
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span className="text-base sm:text-xl font-black bg-gradient-to-r from-[#003b5c] via-[#005a8d] to-sky-700 bg-clip-text text-transparent tracking-tight truncate">
-                  {branding.appName || 'Intranet'}
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-extrabold bg-gradient-to-r from-sky-50 to-indigo-50/80 text-[#005a8d] border border-sky-200/90 shadow-2xs shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="truncate max-w-[130px] sm:max-w-none">
-                    {branding.subTitle || 'Hotel Ciputra Jakarta'}
-                  </span>
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block truncate">
-                {currentLang === 'en'
-                  ? 'Official Executive & Employee Digital Workspace'
-                  : 'Portal Digital Resmi Manajemen & Karyawan • Sistem Informasi Terpadu'}
-              </p>
+            <div>
+              <span className="text-[#2F327D] font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none block">
+                Hotel Ciputra
+              </span>
+              <span className="text-xs sm:text-sm font-normal text-[#696984]">
+                Jakarta • Portal Internal HCJ
+              </span>
             </div>
           </div>
 
-          {/* Right: Premium Language Switcher */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Right Header Navigation & Actions */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {onNavigateToHome && (
+              <button
+                type="button"
+                onClick={onNavigateToHome}
+                className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full border border-slate-200 hover:border-[#F48C06] bg-white hover:bg-orange-50/50 text-xs sm:text-sm font-normal text-[#2F327D] hover:text-[#F48C06] shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Beranda</span>
+              </button>
+            )}
+
+            {onNavigateToCareer && (
+              <button
+                type="button"
+                onClick={onNavigateToCareer}
+                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#F48C06]/30 hover:border-[#F48C06] bg-[#FFF3E4] hover:bg-[#ffe8cd] text-xs sm:text-sm font-normal text-[#F48C06] shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Lowongan Karir</span>
+              </button>
+            )}
+
+            {/* Language Switcher */}
             <button
               type="button"
               id="btn-login-lang-toggle"
@@ -533,25 +492,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   onLanguageChange(nextLang);
                 }
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-sky-200/90 hover:border-[#005a8d] bg-white hover:bg-sky-50/70 text-xs font-bold text-slate-700 shadow-2xs hover:shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-slate-200 hover:border-[#2F327D] bg-white hover:bg-slate-50 text-xs font-normal text-slate-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               title={currentLang === 'id' ? 'Switch language to English' : 'Ubah bahasa ke Indonesia'}
             >
-              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-sky-500 to-[#005a8d] text-white flex items-center justify-center shadow-2xs">
-                <Globe className="w-3 h-3" />
-              </div>
-              <span
-                className={`text-[11px] ${
-                  currentLang === 'id' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
-                }`}
-              >
+              <Globe className="w-3.5 h-3.5 text-[#F48C06]" />
+              <span className={`text-[11px] font-normal ${currentLang === 'id' ? 'text-[#2F327D] underline' : 'text-slate-400'}`}>
                 ID
               </span>
               <span className="text-slate-300">/</span>
-              <span
-                className={`text-[11px] ${
-                  currentLang === 'en' ? 'text-[#005a8d] font-extrabold underline' : 'text-slate-400'
-                }`}
-              >
+              <span className={`text-[11px] font-normal ${currentLang === 'en' ? 'text-[#2F327D] underline' : 'text-slate-400'}`}>
                 EN
               </span>
             </button>
@@ -559,30 +508,81 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </header>
 
-      {/* 2. FIT-TO-DESKTOP HERO AREA WITH RIGHT-ALIGNED PREMIUM AUTH CARD */}
-      <section className="relative flex-1 min-h-[430px] lg:min-h-0 w-full flex items-center overflow-hidden bg-[#eef2f6]">
-        {/* Full-bleed Bright Hotel Interior Photo */}
-        <div className="absolute inset-0 z-0">
-          {!bgError && activeBgSrc ? (
-            <img
-              src={activeBgSrc}
-              alt={branding.appName || 'Hotel Interior'}
-              referrerPolicy="no-referrer"
-              onError={() => setBgError(true)}
-              className="w-full h-full object-cover object-center"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-100 via-sky-50 to-slate-200" />
-          )}
-          {/* Subtle bright luxury airiness */}
-          <div className="absolute inset-0 bg-gradient-to-r from-white/15 via-transparent to-sky-900/10 pointer-events-none" />
-        </div>
+      {/* 2. MAIN LOGIN AREA IN BERANDA THEME (NO DARK GALLERY/SLIDER SHOWCASE) */}
+      <section className="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 py-8 sm:py-12 flex items-center justify-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
+          {/* LEFT: Clean Executive Portal Presentation in Beranda Theme */}
+          <div className="lg:col-span-7 xl:col-span-7 space-y-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Portal Resmi Karyawan & Manajemen Hotel Ciputra Jakarta</span>
+            </div>
 
-        {/* Container positioning Login/Register Card: Centered on Smartphone/Tablet, Right-Aligned & Full-Width Fitted on Desktop */}
-        <div className="relative z-10 w-full h-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-4 flex items-center justify-center lg:justify-end">
-          <div className="w-full max-w-[430px] lg:max-w-[440px] xl:max-w-[460px] lg:max-h-full lg:overflow-y-auto bg-white/94 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/95 ring-1 ring-sky-900/10 p-5 sm:p-6 text-slate-800">
-            {/* Segmented Login / Register Toggle (Soft Light Theme) */}
-            <div className="flex rounded-2xl bg-sky-50/90 p-1 mb-3.5 text-xs font-bold border border-sky-200/80 shadow-inner">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal text-[#2F327D] leading-[1.2] tracking-tight">
+              Akses Digital Terpadu <br />
+              <span className="text-[#F48C06]">Sistem Informasi & Arsip HCJ</span>
+            </h1>
+
+            <p className="text-sm sm:text-base text-[#696984] leading-relaxed max-w-xl font-normal">
+              Satu pintu masuk untuk seluruh kebutuhan operasional Anda: Standar Operasional Prosedur (SOP), Formulir Kerja, Penilaian Kinerja Karyawan (KPI), Pengumuman Manajemen, dan Administrasi Kepegawaian.
+            </p>
+
+            {/* 3 Pillars in Beranda Theme */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 pt-2 max-w-2xl">
+              <div className="p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+                <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#F48C06] flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <h4 className="font-normal text-[#2F327D] text-sm">Arsip & Dokumen SOP</h4>
+                <p className="text-[11px] text-[#696984] leading-snug">
+                  Panduan operasional baku per departemen terstruktur rapi.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/90 border border-indigo-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-[#2F327D] flex items-center justify-center">
+                  <Award className="w-4 h-4" />
+                </div>
+                <h4 className="font-normal text-[#2F327D] text-sm">Evaluasi Kinerja (KPI)</h4>
+                <p className="text-[11px] text-[#696984] leading-snug">
+                  Penilaian transparan, target tahunan, dan evaluasi berkala.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white/90 border border-teal-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <h4 className="font-normal text-[#2F327D] text-sm">Keamanan Multi-Role</h4>
+                <p className="text-[11px] text-[#696984] leading-snug">
+                  Akses terenkripsi, proteksi anti-bot & audit log otomatis.
+                </p>
+              </div>
+            </div>
+
+            {/* Career Callout */}
+            {onNavigateToCareer && (
+              <div className="pt-2">
+                <div className="inline-flex items-center gap-3 p-3 rounded-2xl bg-[#FFF3E4]/80 border border-[#F48C06]/20 text-xs text-[#2F327D]">
+                  <Briefcase className="w-4 h-4 text-[#F48C06] shrink-0" />
+                  <span>Bukan staf internal? Ingin bergabung dengan tim kami?</span>
+                  <button
+                    type="button"
+                    onClick={onNavigateToCareer}
+                    className="text-[#F48C06] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Buka Lowongan Karir</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Login / Register Form Card */}
+          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-[480px] mx-auto bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-orange-100 p-6 sm:p-7 text-slate-800">
+            {/* Tab Toggle: Masuk vs Daftar */}
+            <div className="flex rounded-2xl bg-[#FFF3E4]/70 p-1 mb-4 text-xs font-normal border border-orange-200/60 shadow-inner">
               <button
                 type="button"
                 id="tab-login-toggle"
@@ -592,11 +592,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 }}
                 className={`flex-1 py-2 px-3 rounded-xl text-center transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
                   !isRegister
-                    ? 'bg-white text-[#004872] font-extrabold shadow-xs border border-sky-200/90'
-                    : 'text-slate-600 hover:text-[#004872]'
+                    ? 'bg-white text-[#2F327D] font-normal shadow-xs border border-orange-200/80'
+                    : 'text-slate-600 hover:text-[#2F327D]'
                 }`}
               >
-                <Lock className="w-3.5 h-3.5 text-[#005a8d]" />
+                <Lock className="w-3.5 h-3.5 text-[#F48C06]" />
                 <span>{t('loginTab', currentLang)}</span>
               </button>
               <button
@@ -608,34 +608,35 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 }}
                 className={`flex-1 py-2 px-3 rounded-xl text-center transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
                   isRegister
-                    ? 'bg-white text-[#004872] font-extrabold shadow-xs border border-sky-200/90'
-                    : 'text-slate-600 hover:text-[#004872]'
+                    ? 'bg-white text-[#2F327D] font-normal shadow-xs border border-orange-200/80'
+                    : 'text-slate-600 hover:text-[#2F327D]'
                 }`}
               >
-                <UserIcon className="w-3.5 h-3.5 text-[#005a8d]" />
+                <UserIcon className="w-3.5 h-3.5 text-[#F48C06]" />
                 <span>{t('registerTab', currentLang)}</span>
               </button>
             </div>
 
-            {/* Feedback Messages */}
+            {/* Session Notification Message */}
             {sessionMessage && !errorMessage && (
-              <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-900">
+              <div className="mb-3.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-900">
                 <div className="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
                   <Clock className="w-3 h-3" />
                 </div>
-                <div className="flex-1 font-medium leading-snug">{sessionMessage}</div>
+                <div className="flex-1 font-normal leading-snug">{sessionMessage}</div>
               </div>
             )}
 
+            {/* Error Message */}
             {errorMessage && (
-              <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800">
+              <div className="mb-3.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-800">
                 <div className="w-5 h-5 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0">
                   <AlertCircle className="w-3 h-3" />
                 </div>
-                <div className="flex-1 font-medium leading-snug">
+                <div className="flex-1 font-normal leading-snug">
                   {errorMessage}
                   {failedAttempts >= 2 && lockoutRemainingSec === 0 && (
-                    <span className="block text-[10.5px] font-bold text-rose-700 mt-0.5">
+                    <span className="block text-[10.5px] font-normal text-rose-700 mt-0.5">
                       {currentLang === 'en'
                         ? `Security notice: ${failedAttempts}/${MAX_FAILED_ATTEMPTS} failed attempts before temporary lockout.`
                         : `Peringatan Keamanan: Percobaan gagal ${failedAttempts}/${MAX_FAILED_ATTEMPTS} sebelum penguncian sementara.`}
@@ -645,37 +646,34 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             )}
 
+            {/* Lockout Notice */}
             {lockoutRemainingSec > 0 && (
-              <div className="mb-3 p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-950">
+              <div className="mb-3.5 p-2.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-950">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
                     <Lock className="w-3.5 h-3.5" />
                   </div>
-                  <span className="font-bold text-[11px]">
-                    {currentLang === 'en'
-                      ? 'Brute-Force Protection Active'
-                      : 'Proteksi Keamanan Brute-Force Aktif'}
-                  </span>
+                  <span className="font-normal text-[11px]">Proteksi Brute-Force Aktif</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-lg bg-amber-200/80 text-amber-950 font-black font-mono text-xs">
+                <span className="px-2 py-0.5 rounded-lg bg-amber-200/80 text-amber-950 font-normal font-mono text-xs">
                   {lockoutRemainingSec}s
                 </span>
               </div>
             )}
 
+            {/* Success Notice */}
             {successMessage && (
-              <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800">
+              <div className="mb-3.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-800">
                 <div className="w-5 h-5 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-3 h-3" />
                 </div>
-                <div className="flex-1 font-medium leading-snug">{successMessage}</div>
+                <div className="flex-1 font-normal leading-snug">{successMessage}</div>
               </div>
             )}
 
             {!isRegister ? (
-              /* Login Form */
-              <form onSubmit={handleLogin} className="space-y-3">
-                {/* Invisible Anti-Bot Honeypot Field */}
+              /* LOGIN FORM */
+              <form onSubmit={handleLogin} className="space-y-3.5">
                 <div className="hidden" aria-hidden="true">
                   <input
                     type="text"
@@ -686,15 +684,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     onChange={(e) => setHoneypotTrap(e.target.value)}
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-normal text-slate-700 mb-1">
                     {t('emailLabel', currentLang)}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-100 to-indigo-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center shadow-2xs">
-                        <Mail className="w-3.5 h-3.5" />
-                      </div>
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Mail className="w-4 h-4 text-[#F48C06]" />
                     </div>
                     <input
                       id="input-login-email"
@@ -702,32 +699,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={t('emailPlaceholder', currentLang)}
-                      className={`block w-full pl-10 pr-3 py-2 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 transition-all shadow-2xs ${
-                        email.trim().length > 0 && !isValidEmailFormat(email)
-                          ? 'border-rose-300 focus:ring-rose-500'
-                          : 'border-slate-200/90 focus:ring-[#005a8d] focus:border-transparent'
-                      }`}
+                      placeholder="nama@hotelciputra.com"
+                      className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06] focus:border-transparent transition"
                     />
                   </div>
-                  {email.trim().length > 0 && !isValidEmailFormat(email) && (
-                    <p className="text-[10.5px] text-rose-600 font-medium mt-1">
-                      {currentLang === 'en'
-                        ? 'Please enter a valid email address (e.g. name@ciputra.com).'
-                        : 'Masukkan format alamat email yang valid (contoh: nama@ciputra.com).'}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-normal text-slate-700 mb-1">
                     {t('passwordLabel', currentLang)}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-sky-100 to-indigo-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center shadow-2xs">
-                        <Lock className="w-3.5 h-3.5" />
-                      </div>
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-4 h-4 text-[#F48C06]" />
                     </div>
                     <input
                       id="input-login-password"
@@ -735,8 +719,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t('passwordPlaceholder', currentLang)}
-                      className="block w-full pl-10 pr-3 py-2 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d] focus:border-transparent transition-all shadow-2xs"
+                      placeholder="••••••••"
+                      className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06] focus:border-transparent transition"
                     />
                   </div>
                 </div>
@@ -753,19 +737,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   type="submit"
                   id="btn-login-submit"
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className="w-full mt-1 py-2.5 px-4 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-[#004872] via-[#005a8d] to-sky-600 hover:from-[#003b5c] hover:to-[#005a8d] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#005a8d] shadow-md shadow-sky-900/15 transition-all active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer whitespace-nowrap"
+                  className="w-full mt-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-normal text-white bg-[#F48C06] hover:bg-[#e07f04] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#F48C06] shadow-md shadow-[#F48C06]/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                 >
                   {lockoutRemainingSec > 0 ? (
                     <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>
-                        {currentLang === 'en'
-                          ? `Locked (${lockoutRemainingSec}s)`
-                          : `Terkunci Sementara (${lockoutRemainingSec} dtk)`}
-                      </span>
+                      <Lock className="w-4 h-4" />
+                      <span>Terkunci ({lockoutRemainingSec} dtk)</span>
                     </>
                   ) : isLoggingIn ? (
-                    <span>Memverifikasi kredensial...</span>
+                    <span>Memverifikasi Kredensial...</span>
                   ) : (
                     <>
                       <span>{t('loginSubmitBtn', currentLang)}</span>
@@ -775,9 +755,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </button>
               </form>
             ) : (
-              /* Register Form (Compact for Fit-to-Desktop) */
-              <form onSubmit={handleRegister} className="space-y-2.5">
-                {/* Invisible Anti-Bot Honeypot Field */}
+              /* REGISTER FORM */
+              <form onSubmit={handleRegister} className="space-y-3">
                 <div className="hidden" aria-hidden="true">
                   <input
                     type="text"
@@ -788,96 +767,70 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     onChange={(e) => setHoneypotTrap(e.target.value)}
                   />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        {t('fullNameLabel', currentLang)}
-                      </label>
-                      <span className="text-[9.5px] text-slate-400 font-medium">
-                        {regName.length}/100
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
-                        <div className="w-5 h-5 rounded-md bg-sky-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center">
-                          <UserIcon className="w-3 h-3" />
-                        </div>
-                      </div>
-                      <input
-                        id="reg-input-name"
-                        type="text"
-                        required
-                        maxLength={100}
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value.slice(0, 100))}
-                        placeholder={t('namePlaceholder', currentLang)}
-                        className="block w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
-                      />
-                    </div>
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      {t('fullNameLabel', currentLang)} *
+                    </label>
+                    <input
+                      id="reg-input-name"
+                      type="text"
+                      required
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value.slice(0, 100))}
+                      placeholder="Budi Santoso"
+                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {currentLang === 'en' ? 'Hotel Unit' : 'Unit Hotel'}
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      Unit Hotel *
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
-                        <div className="w-5 h-5 rounded-md bg-sky-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center">
-                          <Building2 className="w-3 h-3" />
-                        </div>
-                      </div>
-                      <select
-                        id="reg-input-unit"
-                        value={regUnit}
-                        onChange={(e) => setRegUnit(e.target.value)}
-                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
-                      >
-                        {hotelUnits.map((u) => (
-                          <option key={u.id} value={u.name}>
-                            {formatShortUnitOption(u.name, u.code)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      id="reg-input-unit"
+                      value={regUnit}
+                      onChange={(e) => setRegUnit(e.target.value)}
+                      className="block w-full px-2 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
+                    >
+                      {hotelUnits.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {formatShortUnitOption(u.name, u.code)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {t('deptLabel', currentLang)}
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      {t('deptLabel', currentLang)} *
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
-                        <div className="w-5 h-5 rounded-md bg-sky-50 border border-sky-200/80 text-[#005a8d] flex items-center justify-center">
-                          <Briefcase className="w-3 h-3" />
-                        </div>
-                      </div>
-                      <select
-                        id="reg-input-dept"
-                        value={regDept}
-                        onChange={(e) => setRegDept(e.target.value)}
-                        className="block w-full pl-8 pr-2 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
-                      >
-                        {departments.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <select
+                      id="reg-input-dept"
+                      value={regDept}
+                      onChange={(e) => setRegDept(e.target.value)}
+                      className="block w-full px-2 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
+                    >
+                      {departments.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {t('roleLabel', currentLang)}
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      {t('roleLabel', currentLang)} *
                     </label>
                     <select
                       id="reg-input-role"
                       value={regRole === 'admin' ? 'staff' : regRole}
                       onChange={(e) => setRegRole(e.target.value as UserRole)}
-                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200/90 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#005a8d] truncate"
+                      className="block w-full px-2 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
                     >
                       <option value="staff">{t('roleStaffDesc', currentLang)}</option>
                       <option value="spv">{t('roleSpvDesc', currentLang)}</option>
@@ -887,10 +840,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {t('workEmailLabel', currentLang)}
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      {t('workEmailLabel', currentLang)} *
                     </label>
                     <input
                       id="reg-input-email"
@@ -898,25 +851,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       required
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder={t('emailPlaceholder', currentLang)}
-                      className={`block w-full px-2.5 py-1.5 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 ${
-                        regEmail.trim().length > 0 && !isValidEmailFormat(regEmail)
-                          ? 'border-rose-300 focus:ring-rose-500'
-                          : 'border-slate-200/90 focus:ring-[#005a8d]'
-                      }`}
+                      placeholder="budi@ciputra.com"
+                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
                     />
-                    {regEmail.trim().length > 0 && !isValidEmailFormat(regEmail) && (
-                      <p className="text-[10px] text-rose-600 font-medium mt-0.5 leading-tight">
-                        {currentLang === 'en'
-                          ? 'Invalid email format (e.g. name@ciputra.com).'
-                          : 'Format email belum sesuai (contoh: nama@ciputra.com).'}
-                      </p>
-                    )}
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      {t('createPasswordLabel', currentLang)}
+                    <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
+                      {t('createPasswordLabel', currentLang)} *
                     </label>
                     <input
                       id="reg-input-password"
@@ -925,20 +867,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       minLength={8}
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder={currentLang === 'en' ? 'Min. 8 chars (letters & numbers)' : 'Min. 8 karakter (huruf & angka)'}
-                      className={`block w-full px-2.5 py-1.5 text-xs rounded-xl border bg-white text-slate-900 focus:outline-none focus:ring-2 ${
-                        regPassword.length > 0 && !isStrongPassword(regPassword)
-                          ? 'border-rose-300 focus:ring-rose-500'
-                          : 'border-slate-200/90 focus:ring-[#005a8d]'
-                      }`}
+                      placeholder="Min. 8 karakter"
+                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
                     />
-                    {regPassword.length > 0 && !isStrongPassword(regPassword) && (
-                      <p className="text-[10px] text-rose-600 font-medium mt-0.5 leading-tight">
-                        {currentLang === 'en'
-                          ? 'Must be min. 8 characters combining letters and numbers.'
-                          : 'Wajib minimal 8 karakter dengan kombinasi huruf dan angka.'}
-                      </p>
-                    )}
                   </div>
                 </div>
 
@@ -953,7 +884,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <button
                   type="submit"
                   id="btn-register-submit"
-                  className="w-full py-2 px-4 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-[#004872] via-[#005a8d] to-sky-600 hover:from-[#003b5c] hover:to-[#005a8d] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#005a8d] shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-normal text-white bg-[#F48C06] hover:bg-[#e07f04] focus:outline-none focus:ring-2 focus:ring-[#F48C06] shadow-md shadow-[#F48C06]/20 transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>{t('registerSubmitBtn', currentLang)}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -961,150 +892,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </form>
             )}
 
-            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-center gap-1.5 text-[10.5px] text-slate-600 font-medium">
-              <div className="w-4 h-4 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-3 h-3" />
-              </div>
+            <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10.5px] text-slate-500 font-normal">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>{t('authSecurityNotice', currentLang)}</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3. COMPACT FIT-TO-DESKTOP SOFT LUXURY FOOTER WITH INTERACTIVE 4-PHOTO GALLERY */}
-      <footer className="w-full bg-gradient-to-b from-[#f5f9fe] via-[#edf5fc] to-[#e4f0fb] text-slate-800 py-3.5 lg:py-3 px-4 sm:px-6 lg:px-8 shrink-0 z-20 border-t border-sky-200/90">
-        <div className="w-full max-w-[1920px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-center">
-          {/* Left Column: Single Clean Identity Card & Unified Copyright */}
-          <div className="lg:col-span-5 xl:col-span-4 space-y-2 bg-white/90 backdrop-blur-xs px-4 py-3 rounded-2xl border border-sky-200/80 shadow-2xs">
-            <h3 className="text-sm sm:text-base font-black tracking-tight text-[#004872]">
-              {branding.footerTitle || DEFAULT_BRANDING.footerTitle}
-            </h3>
-
-            <p className="text-[11px] sm:text-xs text-slate-600 leading-snug line-clamp-2">
-              {branding.footerDescription || DEFAULT_BRANDING.footerDescription}
-            </p>
-
-            {/* Bottom Contact & Single Unified Copyright Line */}
-            <div className="pt-2 border-t border-sky-100 flex flex-wrap items-center justify-between gap-2 text-[10.5px]">
-              <span className="text-slate-600 font-medium">
-                {branding.footerContact || DEFAULT_BRANDING.footerContact}
-              </span>
-              <span className="font-bold text-[#004872]">
-                © 2026 Intranet HCJ JBagas • All Rights Reserved
-              </span>
-            </div>
-          </div>
-
-          {/* Right Column: Interactive 4-Photo Gallery Fitted for Desktop */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-black tracking-tight text-[#004872]">
-                  {branding.galleryTitle || DEFAULT_BRANDING.galleryTitle}
-                </h3>
-                <span className="hidden sm:inline text-[11px] text-slate-500">
-                  • {currentLang === 'en' ? 'Click photo to enlarge' : 'Klik foto untuk memperbesar'}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-              {gallerySlots.map((imgSrc, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setSelectedGalleryIdx(idx)}
-                  className="group relative h-20 sm:h-20 lg:h-[82px] w-full bg-white p-1.5 rounded-2xl overflow-hidden shadow-xs hover:shadow-lg border border-sky-200/90 hover:border-sky-400 transition-all duration-300 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-[#005a8d]"
-                >
-                  <div className="relative w-full h-full rounded-xl overflow-hidden bg-sky-50">
-                    <img
-                      src={imgSrc}
-                      alt={`Galeri ${idx + 1}`}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = DEFAULT_GALLERY[idx];
-                      }}
-                      className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#003853]/75 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-1.5">
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-white bg-white/20 backdrop-blur-xs px-1.5 py-0.5 rounded-md">
-                        <ZoomIn className="w-2.5 h-2.5" />
-                        <span>Foto {idx + 1}</span>
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+      {/* 3. SIMPLE UNIFIED FOOTER IN BERANDA THEME */}
+      <footer className="w-full bg-[#1a1c4b] text-white/70 py-4 px-4 sm:px-6 lg:px-8 shrink-0 z-20 border-t-4 border-[#F48C06]">
+        <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs font-normal">
+          <p className="text-center sm:text-left text-white/80">
+            &copy; 2026 Hotel Ciputra Jakarta. All Rights Reserved. • Internal System Only
+          </p>
+          <div className="flex items-center gap-4 text-white/50 text-xs">
+            <span>Dukungan IT: it@hotelciputra.com</span>
+            <span>•</span>
+            <span>Telp: +62 21 566 0640</span>
           </div>
         </div>
       </footer>
-
-      {/* Interactive Gallery Lightbox Modal */}
-      {selectedGalleryIdx !== null && (
-        <div
-          onClick={() => setSelectedGalleryIdx(null)}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-2xl w-full bg-white rounded-3xl p-4 sm:p-5 shadow-2xl border border-sky-200 space-y-3 cursor-default"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-[#005a8d] font-bold text-xs border border-sky-200">
-                  Foto {selectedGalleryIdx + 1} / {gallerySlots.length}
-                </span>
-                <h4 className="font-bold text-slate-800 text-sm">
-                  {branding.galleryTitle || DEFAULT_BRANDING.galleryTitle}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedGalleryIdx(null)}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
-              <img
-                src={gallerySlots[selectedGalleryIdx]}
-                alt={`Galeri ${selectedGalleryIdx + 1}`}
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src =
-                    DEFAULT_GALLERY[selectedGalleryIdx];
-                }}
-                className="w-full h-full object-cover"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedGalleryIdx(
-                    (selectedGalleryIdx - 1 + gallerySlots.length) % gallerySlots.length
-                  )
-                }
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-                title="Foto Sebelumnya"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedGalleryIdx((selectedGalleryIdx + 1) % gallerySlots.length)
-                }
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center transition-transform active:scale-95 cursor-pointer"
-                title="Foto Berikutnya"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

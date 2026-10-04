@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bell,
+  Hotel,
   Building2,
   ChevronDown,
   LogOut,
@@ -16,7 +17,9 @@ import {
   Sparkles,
   Sliders,
   Flame,
-  Check
+  Check,
+  Briefcase,
+  LayoutDashboard
 } from 'lucide-react';
 import { User, PushNotification } from '../types';
 import { markNotificationAsRead, markAllNotificationsAsRead, addAccessLog } from '../lib/storage';
@@ -169,99 +172,87 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-gradient-to-r from-white/95 via-[#f8fbff]/95 to-[#f1f7fe]/95 backdrop-blur-md border-b border-sky-200/80 shadow-xs">
-      {/* Soft Luxury Top Accent Line */}
-      <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-teal-400" />
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-orange-200/60 shadow-xs">
+      {/* Top Gold Accent Line matching Beranda */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-[#F48C06] via-[#2F327D] to-[#65C2B4]" />
       <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-5 lg:px-6">
         <div className="flex items-center justify-between h-16 sm:h-[68px] gap-4">
           
-          {/* Left Brand with Custom Logo Support */}
-          <div className="flex items-center gap-3.5 select-none">
+          {/* Left Brand with Uniform Logo and Font */}
+          <div className="flex items-center gap-3 select-none">
             {onToggleMobileMenu && (
               <button
                 type="button"
                 onClick={onToggleMobileMenu}
-                className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-[#005a8d] rounded-xl hover:bg-sky-50 transition-colors cursor-pointer"
+                className="lg:hidden p-2 -ml-2 text-slate-600 hover:text-[#F48C06] rounded-xl hover:bg-orange-50 transition-colors cursor-pointer"
                 aria-label="Buka Menu Navigasi"
               >
                 <Menu className="w-5 h-5" />
               </button>
             )}
 
-            {/* Custom Logo or Default Brand Icon */}
-            {branding.customLogoUrl ? (
-              <div
-                onClick={() => {
-                  if (isSuperAdmin && onOpenBranding) onOpenBranding();
-                }}
-                className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white border border-sky-200/80 shadow-xs shrink-0 overflow-hidden p-1.5 ${
-                  isSuperAdmin ? 'cursor-pointer hover:border-sky-400 hover:ring-2 hover:ring-sky-100 transition-all' : ''
-                }`}
-                title={isSuperAdmin ? 'Klik untuk mengganti logo portal' : branding.appName}
-              >
-                <img
-                  src={branding.customLogoUrl}
-                  alt={branding.appName}
-                  className="w-full h-full object-contain"
-                />
+            {/* Standard Uniform Logo matching Beranda */}
+            <div
+              onClick={() => onNavigate?.('announcements')}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-md shadow-[#F48C06]/20 group-hover:scale-105 transition-transform duration-300 shrink-0">
+                <Hotel className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
               </div>
-            ) : (
-              <div
-                onClick={() => {
-                  if (isSuperAdmin && onOpenBranding) onOpenBranding();
-                }}
-                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-sky-600 to-[#005a8d] text-white shadow-sm shadow-sky-500/20 shrink-0 ${
-                  isSuperAdmin ? 'cursor-pointer hover:scale-105 transition-transform' : ''
-                }`}
-                title={isSuperAdmin ? 'Klik untuk upload logo portal kustom' : branding.appName}
-              >
-                <Building2 className="w-5 h-5" />
-              </div>
-            )}
 
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  onClick={() => onNavigate?.('announcements')}
-                  className="font-black text-[#004872] hover:text-[#005a8d] text-base sm:text-lg tracking-tight leading-none whitespace-nowrap cursor-pointer transition-colors"
-                >
-                  {branding.appName || 'Intranet HCJ'}
-                </span>
-                <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold bg-sky-50 text-[#005a8d] rounded-full border border-sky-200/80 tracking-wide">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
-                </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className="font-bold brand-top-left-bold text-[#2F327D] hover:text-[#F48C06] text-lg sm:text-xl tracking-tight leading-none whitespace-nowrap cursor-pointer transition-colors"
+                  >
+                    Hotel Ciputra
+                  </span>
+                  <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-normal bg-orange-50 text-[#F48C06] rounded-full border border-orange-200 tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
+                  </span>
+                </div>
+                <p className="hidden sm:block text-xs font-normal text-[#696984] mt-0.5">
+                  Jakarta • Portal Intranet HCJ
+                </p>
               </div>
-              <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5 font-medium">
-                {branding.subTitle || t('portalSubtitle', currentLang)}
-              </p>
             </div>
           </div>
 
           {/* Right Action Items */}
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Super Admin ONLY: Cloud & Logo Settings Button */}
+            {/* Super Admin ONLY: Direct Shortcuts to Home CMS & Career CMS (Replacing old image gallery) */}
             {isSuperAdmin && (
               <div className="flex items-center gap-2">
-                {onOpenBranding && (
-                  <button
-                    id="btn-nav-custom-logo"
-                    onClick={onOpenBranding}
-                    className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-indigo-200/90 hover:border-indigo-400 bg-white hover:bg-indigo-50/70 text-indigo-800 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                    title="Ubah Logo, Foto Latar Hotel, Tampilan Awal & Footer (Super Admin)"
-                  >
-                    <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-2xs">
-                      <Sparkles className="w-3 h-3" />
-                    </div>
-                    <span className="hidden xl:inline">Tampilan & Logo</span>
-                  </button>
-                )}
+                <button
+                  id="btn-nav-home-cms"
+                  onClick={() => onNavigate?.('home-cms')}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-orange-200 hover:border-[#F48C06] bg-white hover:bg-orange-50/70 text-[#2F327D] hover:text-[#F48C06] text-xs font-normal transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title="Kelola Konten Beranda (Home CMS)"
+                >
+                  <div className="w-5 h-5 rounded-lg bg-[#F48C06] text-white flex items-center justify-center shadow-2xs">
+                    <LayoutDashboard className="w-3 h-3" />
+                  </div>
+                  <span className="hidden xl:inline">Kelola Beranda</span>
+                </button>
+
+                <button
+                  id="btn-nav-career-cms"
+                  onClick={() => onNavigate?.('career-cms')}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-indigo-200 hover:border-[#2F327D] bg-white hover:bg-indigo-50/70 text-[#2F327D] text-xs font-normal transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  title="Kelola Karir & Pelamar"
+                >
+                  <div className="w-5 h-5 rounded-lg bg-[#2F327D] text-white flex items-center justify-center shadow-2xs">
+                    <Briefcase className="w-3 h-3" />
+                  </div>
+                  <span className="hidden xl:inline">Kelola Karir</span>
+                </button>
 
                 <button
                   id="btn-nav-quota-analytics"
                   onClick={() => onNavigate?.('quota-analytics')}
-                  className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/70 text-emerald-800 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                  className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-emerald-200/90 hover:border-emerald-400 bg-white hover:bg-emerald-50/70 text-emerald-800 text-xs font-normal transition-all shadow-2xs active:scale-95 cursor-pointer"
                   title="Analitik Kuota Penyimpanan & Pusat Database Cloud Firebase"
                 >
                   <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-2xs">
@@ -281,17 +272,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onLanguageChange(nextLang);
                 }
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-sky-200/90 hover:border-[#005a8d] bg-white hover:bg-sky-50/60 text-xs font-bold text-slate-700 transition-all shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-sky-200/90 hover:border-[#005a8d] bg-white hover:bg-sky-50/60 text-xs font-normal text-slate-700 transition-all shadow-2xs cursor-pointer"
               title={currentLang === 'id' ? 'Switch to English' : 'Ubah ke Bahasa Indonesia'}
             >
               <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-sky-500 to-[#005a8d] text-white flex items-center justify-center shadow-2xs">
                 <Globe className="w-3 h-3" />
               </div>
-              <span className={`text-[11px] font-extrabold ${currentLang === 'id' ? 'text-[#005a8d] underline decoration-2' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-normal ${currentLang === 'id' ? 'text-[#005a8d] underline decoration-2' : 'text-slate-500'}`}>
                 ID
               </span>
               <span className="text-slate-300 font-normal">/</span>
-              <span className={`text-[11px] font-extrabold ${currentLang === 'en' ? 'text-[#005a8d] underline decoration-2' : 'text-slate-500'}`}>
+              <span className={`text-[11px] font-normal ${currentLang === 'en' ? 'text-[#005a8d] underline decoration-2' : 'text-slate-500'}`}>
                 EN
               </span>
             </button>
@@ -308,7 +299,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Bell className="w-3.5 h-3.5" />
                 </div>
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-extrabold text-white bg-rose-600 rounded-full ring-2 ring-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-normal text-white bg-rose-600 rounded-full ring-2 ring-white animate-pulse">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -319,7 +310,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95">
                   <div className="px-4 pb-3 border-b border-slate-100 flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-sm">
+                      <h4 className="font-normal text-slate-900 text-sm">
                         {t('notificationsTitle', currentLang)}
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
@@ -330,7 +321,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllRead}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                        className="text-xs font-normal text-indigo-600 hover:text-indigo-800 transition-colors"
                       >
                         {t('markAllRead', currentLang)}
                       </button>
@@ -339,13 +330,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Browser Push Permission Banner */}
                   <div className="px-4 py-2 bg-indigo-50/60 border-b border-indigo-100/80 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] text-indigo-900 font-medium">
+                    <div className="flex items-center gap-1.5 text-[11px] text-indigo-900 font-normal">
                       <Volume2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                       <span>{t('enablePushNotice', currentLang)}</span>
                     </div>
                     <button
                       onClick={requestPushPermission}
-                      className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 rounded-md shadow-2xs hover:bg-indigo-50 transition-colors"
+                      className="px-2 py-0.5 text-[10px] font-normal text-indigo-700 hover:text-indigo-900 bg-white border border-indigo-200 rounded-md shadow-2xs hover:bg-indigo-50 transition-colors"
                     >
                       {t('allowPushBtn', currentLang)}
                     </button>
@@ -378,7 +369,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-1 mb-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <span className="text-[10px] font-normal text-slate-400 uppercase tracking-wider">
                                   {n.category}
                                 </span>
                                 <span className="text-[10px] text-slate-400">
@@ -387,7 +378,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </div>
                               <p
                                 className={`text-xs ${
-                                  !n.read ? 'font-bold text-slate-900' : 'text-slate-700'
+                                  !n.read ? 'font-normal text-slate-900' : 'text-slate-700'
                                 }`}
                               >
                                 {n.title}
@@ -397,7 +388,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </p>
 
                               <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
-                                <span className="flex items-center gap-1 font-medium text-indigo-600">
+                                <span className="flex items-center gap-1 font-normal text-indigo-600">
                                   {n.targetDepartment}
                                 </span>
                                 <span className="flex items-center gap-1 font-mono text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/50">
@@ -429,14 +420,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl bg-white/90 hover:bg-sky-50/80 border border-sky-200/70 hover:border-sky-300 shadow-2xs transition-all focus:outline-none cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#005a8d] to-sky-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#005a8d] to-sky-500 text-white flex items-center justify-center font-normal text-xs shadow-xs">
                   {currentUser.nama.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-xs font-bold text-slate-800 leading-tight">
+                  <div className="text-xs font-normal text-slate-800 leading-tight">
                     {currentUser.nama}
                   </div>
-                  <div className="text-[10px] font-semibold text-[#005a8d] uppercase tracking-wider">
+                  <div className="text-[10px] font-normal text-[#005a8d] uppercase tracking-wider">
                     {currentUser.role} • {currentUser.departemen}
                   </div>
                 </div>
@@ -447,35 +438,59 @@ export const Navbar: React.FC<NavbarProps> = ({
               {showUserDropdown && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95">
                   <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <p className="text-[10px] font-normal text-slate-400 uppercase tracking-wider">
                       {t('signedInAs', currentLang)}
                     </p>
-                    <p className="font-bold text-xs text-slate-900 mt-0.5">{currentUser.nama}</p>
+                    <p className="font-normal text-xs text-slate-900 mt-0.5">{currentUser.nama}</p>
                     <p className="text-[11px] text-slate-500">{currentUser.email}</p>
-                    <p className="text-[10px] font-bold text-indigo-700 mt-1 flex items-center gap-1">
+                    <p className="text-[10px] font-normal text-indigo-700 mt-1 flex items-center gap-1">
                       <Building2 className="w-3 h-3" />
                       <span>{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
                     </p>
                     <div className="mt-2 flex items-center gap-1.5">
                       <DepartmentBadge department={currentUser.departemen} size="xs" />
-                      <span className="px-2 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-700 rounded-md uppercase">
+                      <span className="px-2 py-0.5 text-[9px] font-normal bg-slate-100 text-slate-700 rounded-md uppercase">
                         {currentUser.role}
                       </span>
                     </div>
                   </div>
 
-                  {/* Super Admin Quick Logo Settings */}
-                  {isSuperAdmin && onOpenBranding && (
-                    <div className="p-1 border-b border-slate-100">
+                  {/* Super Admin Quick Logo & CMS Settings */}
+                  {isSuperAdmin && (
+                    <div className="p-1 border-b border-slate-100 space-y-0.5">
+                      {onOpenBranding && (
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            onOpenBranding();
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-normal text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors text-left cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Tampilan Awal & Logo</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           setShowUserDropdown(false);
-                          onOpenBranding();
+                          onNavigate?.('home-cms');
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors text-left cursor-pointer"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-normal text-orange-700 hover:bg-orange-50 rounded-xl transition-colors text-left cursor-pointer"
                       >
-                        <Sparkles className="w-4 h-4 text-indigo-600" />
-                        <span>Tampilan Awal, Logo & Foto Hotel</span>
+                        <LayoutDashboard className="w-3.5 h-3.5 text-[#F48C06]" />
+                        <span>Kelola Beranda (Home CMS)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onNavigate?.('career-cms');
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-normal text-[#2F327D] hover:bg-indigo-50 rounded-xl transition-colors text-left cursor-pointer"
+                      >
+                        <Briefcase className="w-3.5 h-3.5 text-[#2F327D]" />
+                        <span>Kelola Karir & Pelamar</span>
                       </button>
                     </div>
                   )}
@@ -488,7 +503,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowUserDropdown(false);
                         onLogout();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-normal text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>{t('signOut', currentLang)}</span>

@@ -56,7 +56,14 @@ import { UnitsMasterView } from './components/UnitsMasterView';
 import { QuotaAnalyticsView } from './components/QuotaAnalyticsView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { FirestoreSyncModal } from './components/FirestoreSyncModal';
-import { BrandingSettingsModal } from './components/BrandingSettingsModal';
+import { PublicHomeView } from './components/public/PublicHomeView';
+import { PublicCareerView } from './components/public/PublicCareerView';
+import { HomeCmsAdminView } from './components/HomeCmsAdminView';
+import { CareerCmsAdminView } from './components/CareerCmsAdminView';
+import {
+  getCareerApplications,
+  subscribeToCareerApplications,
+} from './lib/cmsService';
 import { useIdleTimeout, recordUserActivity, clearActivityTimer } from './lib/useIdleTimeout';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
@@ -111,9 +118,14 @@ export default function App() {
   // Modals
   const [previewDoc, setPreviewDoc] = useState<IntranetDocument | null>(null);
   const [showFirestoreModal, setShowFirestoreModal] = useState<boolean>(false);
-  const [showBrandingModal, setShowBrandingModal] = useState<boolean>(false);
   const [idleTimeoutMessage, setIdleTimeoutMessage] = useState<string>('');
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
+
+  // Public Landing Page & Career Router states
+  const [publicPage, setPublicPage] = useState<'home' | 'career' | 'login'>('home');
+  const [careerApplications, setCareerApplications] = useState(() => getCareerApplications());
+  const [previewHomeModal, setPreviewHomeModal] = useState<boolean>(false);
+  const [previewCareerModal, setPreviewCareerModal] = useState<boolean>(false);
 
   // Load all data from storage
   const refreshAllData = () => {
@@ -245,6 +257,10 @@ export default function App() {
       setConfig((prev) => ({ ...prev, ...newConfig }));
     });
 
+    const unsubApps = subscribeToCareerApplications((apps) => {
+      setCareerApplications(apps);
+    });
+
     return () => {
       unsubState();
       unsubUsers();
@@ -258,6 +274,7 @@ export default function App() {
       unsubNotifs();
       unsubConfig();
       unsubBranding();
+      unsubApps();
     };
   }, [currentUser?.id]);
 
@@ -459,15 +476,46 @@ export default function App() {
     setActiveTab(tab);
   };
 
-  // If user is not logged in, render authentication page
+  // If user is not logged in, render public pages (Home, Career, or Login)
   if (!currentUser) {
+    if (publicPage === 'career') {
+      return (
+        <PublicCareerView
+          onNavigateToHome={() => setPublicPage('home')}
+          onNavigateToLogin={() => setPublicPage('login')}
+        />
+      );
+    }
+
+    if (publicPage === 'login') {
+      return (
+        <LoginView
+          onLoginSuccess={handleLoginSuccess}
+          currentLang={currentLang}
+          onLanguageChange={handleLanguageChange}
+          sessionMessage={idleTimeoutMessage}
+          onNavigateToHome={() => setPublicPage('home')}
+          onNavigateToCareer={() => setPublicPage('career')}
+        />
+      );
+    }
+
     return (
-      <LoginView
-        onLoginSuccess={handleLoginSuccess}
-        currentLang={currentLang}
-        onLanguageChange={handleLanguageChange}
-        sessionMessage={idleTimeoutMessage}
-      />
+      <>
+        <PublicHomeView
+          onNavigateToLogin={() => setPublicPage('login')}
+          onNavigateToCareer={() => setPublicPage('career')}
+          announcements={documents}
+          onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
+        />
+        {previewDoc && (
+          <DocumentPreviewModal
+            document={previewDoc}
+            currentUser={null as any}
+            onClose={() => setPreviewDoc(null)}
+          />
+        )}
+      </>
     );
   }
 
@@ -485,7 +533,6 @@ export default function App() {
         currentLang={currentLang}
         onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
-        onOpenBranding={() => setShowBrandingModal(true)}
         onOpenConfig={() => setShowFirestoreModal(true)}
         onOpenFirestoreModal={() => setShowFirestoreModal(true)}
         onLogout={handleLogout}
@@ -496,17 +543,17 @@ export default function App() {
 
       {/* Actionable Banner if Firebase Security Rules Need Attention */}
       {firebaseState === 'permission_denied' && (
-        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold shadow-xs flex items-center justify-between animate-in fade-in">
+        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-normal shadow-xs flex items-center justify-between animate-in fade-in">
           <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0 text-slate-950" />
               <span>
-                <strong>Perhatian Firebase (hr-intranet-31ff4):</strong> Aturan keamanan (Rules) di Firebase Console Anda sedang memblokir akses database.
+                Perhatian Firebase (hr-intranet-31ff4): Aturan keamanan (Rules) di Firebase Console Anda sedang memblokir akses database.
               </span>
             </div>
             <button
               onClick={() => setShowFirestoreModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 text-white font-bold text-[11px] hover:bg-slate-800 transition-colors shrink-0 self-start sm:self-auto cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 text-white font-normal text-[11px] hover:bg-slate-800 transition-colors shrink-0 self-start sm:self-auto cursor-pointer"
             >
               <span>Buka Status Firestore</span>
               <span>→</span>
@@ -528,6 +575,7 @@ export default function App() {
           currentUser={currentUser}
           onLogout={handleLogout}
           pendingUsersCount={(users || []).filter((u) => u.status === 'Pending').length}
+          pendingApplicantsCount={careerApplications.filter((a) => a.status === 'Pending').length}
           pendingAppraisalsCount={
             (performances || []).filter((p) => {
               if (p.status !== 'On Review' && p.status !== 'Submitted' && p.status !== 'On Check') return false;
@@ -669,6 +717,20 @@ export default function App() {
               onRefresh={refreshAllData}
             />
           )}
+
+          {activeTab === 'home-cms' && isSuperAdmin && (
+            <HomeCmsAdminView
+              currentUser={currentUser}
+              onPreviewPublicHome={() => setPreviewHomeModal(true)}
+            />
+          )}
+
+          {activeTab === 'career-cms' && isSuperAdmin && (
+            <CareerCmsAdminView
+              currentUser={currentUser}
+              onPreviewPublicCareer={() => setPreviewCareerModal(true)}
+            />
+          )}
         </main>
       </div>
 
@@ -698,20 +760,74 @@ export default function App() {
         onRefreshAll={refreshAllData}
       />
 
-      {/* Super Admin Branding & Custom Logo Modal */}
-      <BrandingSettingsModal
-        isOpen={showBrandingModal}
-        onClose={() => setShowBrandingModal(false)}
-        currentUser={currentUser}
-        onBrandingSaved={refreshAllData}
-      />
+      {/* Super Admin Preview Home Modal */}
+      {previewHomeModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
+          <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-normal">
+                Mode Pratinjau Publik: Halaman Beranda (Home Landing Page)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewHomeModal(false)}
+              className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
+            >
+              ✕ Tutup Pratinjau
+            </button>
+          </div>
+          <div className="flex-1 bg-white">
+            <PublicHomeView
+              onNavigateToLogin={() => setPreviewHomeModal(false)}
+              onNavigateToCareer={() => {
+                setPreviewHomeModal(false);
+                setPreviewCareerModal(true);
+              }}
+              announcements={documents}
+              onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Super Admin Preview Career Modal */}
+      {previewCareerModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
+          <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-normal">
+                Mode Pratinjau Publik: Halaman Karir & Rekrutmen (Career Portal)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewCareerModal(false)}
+              className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
+            >
+              ✕ Tutup Pratinjau
+            </button>
+          </div>
+          <div className="flex-1 bg-white">
+            <PublicCareerView
+              onNavigateToHome={() => {
+                setPreviewCareerModal(false);
+                setPreviewHomeModal(true);
+              }}
+              onNavigateToLogin={() => setPreviewCareerModal(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Single-Line Soft Modern Footer (After Login) */}
       <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-3 sm:px-5 lg:px-6 mt-auto relative z-10 shadow-2xs">
         <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
           {/* Left: Unified Copyright */}
           <div className="flex items-center justify-center sm:justify-start text-center sm:text-left">
-            <span className="font-bold text-[#004872]">
+            <span className="font-normal text-[#004872]">
               © 2026 Intranet HCJ JBagas • All Rights Reserved
             </span>
           </div>
@@ -720,18 +836,18 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
             {isSuperAdmin && (
               <button
-                onClick={() => setShowBrandingModal(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white hover:bg-sky-50 text-[#005a8d] border border-sky-200/90 shadow-2xs font-bold text-[11px] transition-all cursor-pointer"
-                title="Ubah Tampilan Awal, Logo, Foto Hotel & Bagian Bawah"
+                onClick={() => setActiveTab('home-cms')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white hover:bg-orange-50 text-[#2F327D] hover:text-[#F48C06] border border-orange-200 shadow-2xs font-normal text-[11px] transition-all cursor-pointer"
+                title="Kelola Konten Beranda (Home CMS)"
               >
-                <span>Edit Tampilan & Footer</span>
+                <span>Kelola Beranda (Home CMS)</span>
               </button>
             )}
 
             {isSuperAdmin ? (
               <button
                 onClick={() => setShowFirestoreModal(true)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-bold text-[11px] transition-all cursor-pointer shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-normal text-[11px] transition-all cursor-pointer shadow-2xs ${
                   firebaseState === 'connected'
                     ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                     : firebaseState === 'permission_denied'
@@ -760,15 +876,15 @@ export default function App() {
                 </span>
               </button>
             ) : (
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-[11px] font-normal">
                 <Flame className="w-3 h-3 text-emerald-600 fill-emerald-600" />
                 <span>Cloud Aktif</span>
               </div>
             )}
 
             <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 bg-white/90 px-3 py-1 rounded-full border border-sky-200/80 shadow-2xs">
-              <strong className="text-[#004872]">{currentUser.nama}</strong>
-              <span className="text-sky-700 font-bold">({currentUser.role.toUpperCase()})</span>
+              <span className="text-[#004872] font-normal">{currentUser.nama}</span>
+              <span className="text-sky-700 font-normal">({currentUser.role.toUpperCase()})</span>
             </div>
           </div>
         </div>

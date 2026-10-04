@@ -273,7 +273,7 @@ export const DepartmentBadge: React.FC<DepartmentBadgeProps> = ({
   return (
     <span
       onClick={onClick}
-      className={`inline-flex items-center font-bold tracking-tight border rounded-lg whitespace-nowrap transition-all select-none ${config.badgeClass} ${sizeClasses} ${
+      className={`inline-flex items-center font-normal tracking-tight border rounded-lg whitespace-nowrap transition-all select-none ${config.badgeClass} ${sizeClasses} ${
         onClick ? 'cursor-pointer active:scale-95' : ''
       } ${className}`}
       title={`Departemen: ${department}`}
@@ -284,7 +284,7 @@ export const DepartmentBadge: React.FC<DepartmentBadgeProps> = ({
         />
       )}
       {showCode && (
-        <span className="font-mono opacity-75 font-semibold">[{config.code}]</span>
+        <span className="font-mono opacity-75 font-normal">[{config.code}]</span>
       )}
       <span className="truncate max-w-[200px]">{department}</span>
     </span>

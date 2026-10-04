@@ -1,11 +1,17 @@
 /**
- * Branding, Custom Logo, Hotel Hero Photo & Bottom Gallery Footer Management for Intranet HCJ
+ * Branding, Custom Logo, Hotel Hero Photo, Hero Editorial Text & Bottom Gallery Footer Management for Intranet HCJ
  * Synchronized with Firebase Firestore (systemConfig/app_branding) and local cache.
  */
 
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import { compressImageFile } from './fileCompressor';
+
+export interface GalleryItemCaption {
+  tag: string;
+  title: string;
+  subtitle: string;
+}
 
 export interface AppBranding {
   appName: string;
@@ -20,6 +26,7 @@ export interface AppBranding {
   footerBottomTitle: string;
   galleryTitle: string;
   galleryImages: Array<string | null>;
+  galleryCaptions: GalleryItemCaption[];
   footerAddress: string;
   footerContact: string;
   footerCopyright: string;
@@ -28,20 +35,45 @@ export interface AppBranding {
   updatedBy?: string;
 }
 
+export const DEFAULT_GALLERY_CAPTIONS: GalleryItemCaption[] = [
+  {
+    tag: 'SUITES & ACCOMMODATION',
+    title: 'Executive & Presidential Suites',
+    subtitle: 'Kemewahan akomodasi berstandar internasional dengan panorama cakrawala kota Jakarta.',
+  },
+  {
+    tag: 'SKYPOOL & WELLNESS',
+    title: 'Tropical Oasis & Infinity Pool',
+    subtitle: 'Fasilitas rekreasi dan kebugaran eksklusif di jantung pusat bisnis dan perbelanjaan.',
+  },
+  {
+    tag: 'FINE DINING & LOUNGE',
+    title: 'The Gallery & Artisan Culinary',
+    subtitle: 'Sajian kuliner berkelas dunia oleh tim chef profesional dengan cita rasa autentik.',
+  },
+  {
+    tag: 'GRAND BALLROOM & MICE',
+    title: 'Grand Ballroom & Executive Events',
+    subtitle: 'Venue konferensi, pertemuan eksekutif, dan perhelatan megah berkapasitas penuh.',
+  },
+];
+
 export const DEFAULT_BRANDING: AppBranding = {
-  appName: 'Intranet',
+  appName: 'Intranet HCJ',
   subTitle: 'Hotel Ciputra Jakarta',
   customLogoUrl: null,
   customBgUrl: null,
-  heroBadge: '',
-  heroTitle: '',
-  heroDescription: '',
+  heroBadge: 'LUXURY HOSPITALITY • SWISS-BELHOTEL INTERNATIONAL',
+  heroTitle: 'Keanggunan Layanan & Standar Operasional Kelas Dunia',
+  heroDescription:
+    'Selamat datang di Portal Digital Eksekutif & Karyawan Hotel Ciputra Jakarta. Pusat integrasi standar prosedur operasional (SOP), manajemen mutu layanan perhotelan, dan kolaborasi lintas departemen.',
   footerTitle: 'Hotel Ciputra Jakarta',
   footerDescription:
-    'Portal Intranet Resmi Manajemen & Karyawan. Pusat akses dokumen SOP, formulir operasional, pengumuman internal, dan evaluasi kinerja terpadu.',
+    'Sistem Informasi Intranet Terpadu. Seluruh dokumen, standar prosedur operasional (SOP), dan formulir di dalam portal ini bersifat rahasia untuk keperluan internal.',
   footerBottomTitle: 'Intranet HCJ',
-  galleryTitle: 'Galeri & Fasilitas Hotel',
+  galleryTitle: 'Destinasi & Fasilitas Unggulan Hotel',
   galleryImages: [null, null, null, null],
+  galleryCaptions: DEFAULT_GALLERY_CAPTIONS,
   footerAddress: 'Hospitality Operations & Human Capital Management Division',
   footerContact: 'Layanan Bantuan IT & HRD: it@hotelciputra.com',
   footerCopyright: '© 2026 Intranet HCJ JBagas • All Rights Reserved',
@@ -59,6 +91,22 @@ function normalizeGalleryImages(arr: unknown): Array<string | null> {
   return [0, 1, 2, 3].map((i) => (typeof arr[i] === 'string' && arr[i] ? arr[i] : null));
 }
 
+function normalizeGalleryCaptions(arr: unknown): GalleryItemCaption[] {
+  if (!Array.isArray(arr)) return DEFAULT_GALLERY_CAPTIONS.map((c) => ({ ...c }));
+  return [0, 1, 2, 3].map((i) => {
+    const item = arr[i] as Partial<GalleryItemCaption> | undefined;
+    const def = DEFAULT_GALLERY_CAPTIONS[i];
+    return {
+      tag: typeof item?.tag === 'string' && item.tag.trim() ? item.tag.trim() : def.tag,
+      title: typeof item?.title === 'string' && item.title.trim() ? item.title.trim() : def.title,
+      subtitle:
+        typeof item?.subtitle === 'string' && item.subtitle.trim()
+          ? item.subtitle.trim()
+          : def.subtitle,
+    };
+  });
+}
+
 let currentBranding: AppBranding = (() => {
   if (typeof window !== 'undefined') {
     try {
@@ -72,10 +120,18 @@ let currentBranding: AppBranding = (() => {
             parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
           customBgUrl:
             parsed.customBgUrl !== undefined ? parsed.customBgUrl : DEFAULT_BRANDING.customBgUrl,
-          heroBadge: parsed.heroBadge !== undefined ? parsed.heroBadge : DEFAULT_BRANDING.heroBadge,
-          heroTitle: parsed.heroTitle !== undefined ? parsed.heroTitle : DEFAULT_BRANDING.heroTitle,
+          heroBadge:
+            parsed.heroBadge && parsed.heroBadge.trim()
+              ? parsed.heroBadge
+              : DEFAULT_BRANDING.heroBadge,
+          heroTitle:
+            parsed.heroTitle && parsed.heroTitle.trim()
+              ? parsed.heroTitle
+              : DEFAULT_BRANDING.heroTitle,
           heroDescription:
-            parsed.heroDescription !== undefined ? parsed.heroDescription : DEFAULT_BRANDING.heroDescription,
+            parsed.heroDescription && parsed.heroDescription.trim()
+              ? parsed.heroDescription
+              : DEFAULT_BRANDING.heroDescription,
           footerTitle:
             parsed.footerTitle !== undefined ? parsed.footerTitle : DEFAULT_BRANDING.footerTitle,
           footerDescription:
@@ -89,6 +145,7 @@ let currentBranding: AppBranding = (() => {
           galleryTitle:
             parsed.galleryTitle !== undefined ? parsed.galleryTitle : DEFAULT_BRANDING.galleryTitle,
           galleryImages: normalizeGalleryImages(parsed.galleryImages),
+          galleryCaptions: normalizeGalleryCaptions(parsed.galleryCaptions),
           footerAddress:
             parsed.footerAddress !== undefined ? parsed.footerAddress : DEFAULT_BRANDING.footerAddress,
           footerContact:
@@ -154,10 +211,18 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
     subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
     customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
     customBgUrl: data.customBgUrl !== undefined ? data.customBgUrl : currentBranding.customBgUrl,
-    heroBadge: data.heroBadge !== undefined ? data.heroBadge : currentBranding.heroBadge,
-    heroTitle: data.heroTitle !== undefined ? data.heroTitle : currentBranding.heroTitle,
+    heroBadge:
+      data.heroBadge !== undefined && data.heroBadge.trim()
+        ? data.heroBadge
+        : currentBranding.heroBadge || DEFAULT_BRANDING.heroBadge,
+    heroTitle:
+      data.heroTitle !== undefined && data.heroTitle.trim()
+        ? data.heroTitle
+        : currentBranding.heroTitle || DEFAULT_BRANDING.heroTitle,
     heroDescription:
-      data.heroDescription !== undefined ? data.heroDescription : currentBranding.heroDescription,
+      data.heroDescription !== undefined && data.heroDescription.trim()
+        ? data.heroDescription
+        : currentBranding.heroDescription || DEFAULT_BRANDING.heroDescription,
     footerTitle: data.footerTitle !== undefined ? data.footerTitle : currentBranding.footerTitle,
     footerDescription:
       data.footerDescription !== undefined ? data.footerDescription : currentBranding.footerDescription,
@@ -168,6 +233,10 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
       data.galleryImages !== undefined
         ? normalizeGalleryImages(data.galleryImages)
         : currentBranding.galleryImages,
+    galleryCaptions:
+      data.galleryCaptions !== undefined
+        ? normalizeGalleryCaptions(data.galleryCaptions)
+        : currentBranding.galleryCaptions,
     footerAddress: data.footerAddress !== undefined ? data.footerAddress : currentBranding.footerAddress,
     footerContact: data.footerContact !== undefined ? data.footerContact : currentBranding.footerContact,
     footerCopyright:
@@ -207,6 +276,9 @@ export async function fetchAppBrandingFromFirestore(): Promise<AppBranding> {
         if (Array.isArray(gData?.galleryImages)) {
           mainData.galleryImages = gData.galleryImages;
         }
+        if (Array.isArray(gData?.galleryCaptions)) {
+          mainData.galleryCaptions = gData.galleryCaptions;
+        }
       }
       return applyIncomingBranding(mainData);
     }
@@ -237,12 +309,16 @@ export function initBrandingFirestoreSync(): void {
       (snap) => {
         if (snap.exists()) {
           const gData = snap.data();
+          const patch: Partial<AppBranding> = {
+            updatedAt: gData.updatedAt || currentBranding.updatedAt,
+          };
           if (Array.isArray(gData?.galleryImages)) {
-            applyIncomingBranding({
-              galleryImages: gData.galleryImages,
-              updatedAt: gData.updatedAt || currentBranding.updatedAt,
-            });
+            patch.galleryImages = gData.galleryImages;
           }
+          if (Array.isArray(gData?.galleryCaptions)) {
+            patch.galleryCaptions = gData.galleryCaptions;
+          }
+          applyIncomingBranding(patch);
         }
       },
       () => {}
@@ -325,6 +401,10 @@ export async function saveAppBranding(
       newBranding.galleryImages !== undefined
         ? normalizeGalleryImages(newBranding.galleryImages)
         : currentBranding.galleryImages ?? [null, null, null, null],
+    galleryCaptions:
+      newBranding.galleryCaptions !== undefined
+        ? normalizeGalleryCaptions(newBranding.galleryCaptions)
+        : currentBranding.galleryCaptions ?? DEFAULT_GALLERY_CAPTIONS,
     footerAddress:
       newBranding.footerAddress !== undefined
         ? newBranding.footerAddress.trim()
@@ -379,6 +459,7 @@ export async function saveAppBranding(
       footerBottomTitle: updated.footerBottomTitle,
       galleryTitle: updated.galleryTitle,
       galleryImages: splitGallery ? [null, null, null, null] : updated.galleryImages,
+      galleryCaptions: updated.galleryCaptions,
       footerAddress: updated.footerAddress,
       footerContact: updated.footerContact,
       footerCopyright: updated.footerCopyright,
@@ -395,6 +476,7 @@ export async function saveAppBranding(
         galleryRef,
         {
           galleryImages: updated.galleryImages,
+          galleryCaptions: updated.galleryCaptions,
           updatedAt: updated.updatedAt,
           updatedBy: updated.updatedBy || '',
         },

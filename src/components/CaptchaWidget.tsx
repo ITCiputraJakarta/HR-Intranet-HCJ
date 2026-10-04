@@ -135,7 +135,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
 
         const fontFam = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
         const fontSize = 19 + Math.floor(Math.random() * 4);
-        ctx.font = `900 ${fontSize}px ${fontFam}, sans-serif`;
+        ctx.font = `400 ${fontSize}px ${fontFam}, sans-serif`;
 
         ctx.fillStyle = colors[i % colors.length];
         ctx.shadowColor = 'rgba(0, 59, 92, 0.22)';
@@ -218,7 +218,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
       <div className={`space-y-1.5 ${className}`}>
         <label
           htmlFor={`${idPrefix}-captcha-input`}
-          className="block text-[11px] font-bold text-slate-700 flex items-center gap-1.5"
+          className="block text-[11px] font-normal text-slate-700 flex items-center gap-1.5"
         >
           <span className="w-4 h-4 rounded-md bg-gradient-to-br from-[#005a8d] to-sky-600 text-white flex items-center justify-center shadow-2xs shrink-0">
             <ShieldCheck className="w-2.5 h-2.5" />
@@ -273,7 +273,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
                 setPasteBlockedNotice(true);
               }}
               placeholder={isId ? 'Ketik kode' : 'Enter code'}
-              className={`block w-full px-2.5 sm:px-3 py-2 text-xs rounded-xl border font-black uppercase tracking-widest transition-colors ${
+              className={`block w-full px-2.5 sm:px-3 py-2 text-xs rounded-xl border font-normal uppercase tracking-widest transition-colors ${
                 touched
                   ? isMatched
                     ? 'border-emerald-400 bg-emerald-50/40 text-emerald-900 focus:ring-emerald-500'
@@ -295,7 +295,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
         </div>
 
         {pasteBlockedNotice && (
-          <p className="text-[10.5px] text-amber-700 font-semibold">
+          <p className="text-[10.5px] text-amber-700 font-normal">
             {isId
               ? 'Demi keamanan anti-bot, fitur tempel (paste) dinonaktifkan. Silakan ketik manual.'
               : 'For anti-bot security, pasting is disabled. Please type the code manually.'}
@@ -303,7 +303,7 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
         )}
 
         {touched && !isMatched && userInput.length >= CAPTCHA_LENGTH && (
-          <p className="text-[10.5px] text-rose-600 font-semibold">
+          <p className="text-[10.5px] text-rose-600 font-normal">
             {isId
               ? 'Kode keamanan belum sesuai. Harap periksa kembali.'
               : 'Security code does not match. Please check again.'}

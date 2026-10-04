@@ -1164,16 +1164,25 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Keterangan / Catatan Dokumen
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Keterangan / Catatan Dokumen
+                  </label>
+                  <span className={`text-[11px] font-normal ${editDesc.length >= 950 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 1.000 karakter • {editDesc.length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   placeholder="Keterangan, instruksi, atau versi revisi..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 resize-y min-h-[90px]"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  💡 Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1338,16 +1347,25 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Keterangan / Catatan Singkat
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Keterangan / Catatan Singkat
+                  </label>
+                  <span className={`text-[11px] font-normal ${upDesc.length >= 950 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 1.000 karakter • {upDesc.length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   value={upDesc}
                   onChange={(e) => setUpDesc(e.target.value)}
                   placeholder="Instruksi penggunaan atau deskripsi berkas..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 resize-y min-h-[90px]"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  💡 Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

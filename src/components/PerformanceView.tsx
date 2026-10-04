@@ -741,12 +741,16 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                       <td className="py-2.5 px-3 bg-emerald-50/20">
                         <textarea
                           rows={2}
+                          maxLength={300}
                           disabled={!canEditSelf && !canScore}
                           value={kpi.actual || ''}
                           onChange={(e) => handleKpiChange(idx, 'actual', e.target.value)}
                           placeholder="Ketik pencapaian aktual karyawan..."
-                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-600 bg-white"
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-600 bg-white resize-y min-h-[60px]"
                         />
+                        <span className="text-[10px] text-slate-400 block text-right mt-0.5">
+                          {(kpi.actual || '').length}/300
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         <select
@@ -889,45 +893,63 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Pencapaian Terbaik (Self Review)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Pencapaian Terbaik (Self Review)
+                  </label>
+                  <span className={`text-[11px] font-normal ${(activeForm.starBest || '').length >= 950 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 1.000 • {(activeForm.starBest || '').length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   disabled={!canEditSelf && !isSuperAdmin}
                   value={activeForm.starBest || ''}
                   onChange={(e) => setActiveForm({ ...activeForm, starBest: e.target.value })}
                   placeholder="Deskripsikan pencapaian utama Anda..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 resize-y min-h-[80px]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Tantangan & Solusi yang Diterapkan
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Tantangan & Solusi yang Diterapkan
+                  </label>
+                  <span className={`text-[11px] font-normal ${(activeForm.starChallenge || '').length >= 950 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 1.000 • {(activeForm.starChallenge || '').length}/1000
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   disabled={!canEditSelf && !isSuperAdmin}
                   value={activeForm.starChallenge || ''}
                   onChange={(e) => setActiveForm({ ...activeForm, starChallenge: e.target.value })}
                   placeholder="Tantangan kerja dan bagaimana solusinya..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 resize-y min-h-[80px]"
                 />
               </div>
             </div>
 
             {/* Manager Feedback */}
             <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
-              <label className="block text-xs font-bold text-amber-900">
-                Umpan Balik Manajer (Manager Overall Feedback)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-normal text-amber-900">
+                  Umpan Balik Manajer (Manager Overall Feedback)
+                </label>
+                <span className={`text-[11px] font-normal ${(activeForm.managerFeedback || '').length >= 950 ? 'text-rose-600' : 'text-amber-700/70'}`}>
+                  Maks. 1.000 • {(activeForm.managerFeedback || '').length}/1000
+                </span>
+              </div>
               <textarea
                 rows={3}
+                maxLength={1000}
                 disabled={!canScore}
                 value={activeForm.managerFeedback || ''}
                 onChange={(e) => setActiveForm({ ...activeForm, managerFeedback: e.target.value })}
                 placeholder="Ketik ulasan evaluasi kinerja karyawan secara objektif..."
-                className="w-full px-3 py-2 text-xs rounded-xl border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white resize-y min-h-[80px]"
               />
             </div>
 
@@ -1156,16 +1178,25 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Catatan Revisi untuk Karyawan:
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-normal text-slate-700 block">
+                    Catatan Revisi untuk Karyawan:
+                  </label>
+                  <span className={`text-[11px] font-normal ${revisionNoteInput.length >= 480 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 500 karakter • {revisionNoteInput.length}/500
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={500}
                   value={revisionNoteInput}
                   onChange={(e) => setRevisionNoteInput(e.target.value)}
                   placeholder="Contoh: Mohon lengkapi capaian aktual pilar Operational Speed..."
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 bg-slate-50"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 bg-slate-50 resize-y min-h-[75px]"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  💡 Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

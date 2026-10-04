@@ -694,16 +694,22 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Deskripsi / Lingkup Tugas
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Deskripsi / Lingkup Tugas
+                  </label>
+                  <span className={`text-[11px] font-normal ${formData.description.length >= 480 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 500 karakter • {formData.description.length}/500
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={500}
                   id="input-add-dept-desc"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Ringkasan operasional dan fungsi departemen di hotel..."
-                  className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y min-h-[80px]"
                 />
               </div>
 
@@ -836,15 +842,21 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Deskripsi Operasional
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-normal text-slate-700">
+                    Deskripsi Operasional
+                  </label>
+                  <span className={`text-[11px] font-normal ${formData.description.length >= 480 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    Maks. 500 karakter • {formData.description.length}/500
+                  </span>
+                </div>
                 <textarea
                   rows={3}
+                  maxLength={500}
                   id="input-edit-dept-desc"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y min-h-[80px]"
                 />
               </div>
 

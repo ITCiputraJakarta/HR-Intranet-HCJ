@@ -1,6 +1,6 @@
 export type UserRole = 'staff' | 'spv' | 'manager' | 'admin' | 'hod';
 
-export type UserStatus = 'Approved' | 'Pending';
+export type UserStatus = 'Approved' | 'Pending' | 'Rejected';
 
 export interface HotelUnitMaster {
   id: string;
@@ -177,6 +177,129 @@ export interface PushNotification {
 
 export type Announcement = IntranetDocument;
 export type NotificationItem = PushNotification;
+
+// =========================================================================
+// HOME & CAREER CMS TYPES
+// =========================================================================
+
+export interface HomeCmsServiceItem {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  color: 'indigo' | 'orange' | 'teal' | 'blue' | 'purple';
+}
+
+export interface HomeCmsTestimonial {
+  id: string;
+  name: string;
+  role: string;
+  quote: string;
+  photoUrl: string;
+  rating: number;
+}
+
+export interface HomeCmsContent {
+  heroTitlePrefix: string;
+  heroTitleHighlight: string;
+  heroTitleSuffix: string;
+  heroSubtitle: string;
+  heroImageUrl: string;
+  ctaExploreText: string;
+  ctaVideoText: string;
+  floatingCard1: {
+    title: string;
+    subtitle: string;
+    status: string;
+  };
+  floatingCard2: {
+    name: string;
+    message: string;
+    avatarUrl: string;
+  };
+  servicesTitle: string;
+  servicesSubtitle: string;
+  services: HomeCmsServiceItem[];
+  aboutTag: string;
+  aboutTitle: string;
+  aboutDescription: string;
+  aboutStatNumber: string;
+  aboutStatLabel: string;
+  aboutImage1: string;
+  aboutImage2: string;
+  aboutFeature1Title: string;
+  aboutFeature1Desc: string;
+  aboutFeature2Title: string;
+  aboutFeature2Desc: string;
+  aboutCtaText: string;
+  testimonialsTitle: string;
+  testimonialsSubtitle: string;
+  testimonials: HomeCmsTestimonial[];
+  newsletterTitle: string;
+  newsletterDescription: string;
+  contactAddress: string;
+  contactEmail: string;
+  contactPhone: string;
+  updatedAt: string;
+}
+
+export interface CareerBenefitItem {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  color: 'blue' | 'green' | 'purple' | 'orange';
+}
+
+export interface CareerJobPosting {
+  id: string;
+  title: string;
+  department: string;
+  experience: string;
+  deadline: string;
+  jobType: 'Full-time' | 'Kontrak' | 'Magang' | 'Daily Worker';
+  description: string;
+  requirements: string[];
+  status: 'Open' | 'Closed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CareerApplication {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  department: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  domisili: string;
+  education: string;
+  cvFileName: string;
+  cvFileType: string;
+  cvFileSize: number; // Max 1,048,576 bytes (1MB)
+  cvFileData: string; // Base64 data URI (PDF only)
+  notes?: string;
+  status: 'Pending' | 'Reviewed' | 'Interview' | 'Rejected';
+  submittedAt: string;
+}
+
+export interface CareerCmsContent {
+  heroTitle: string;
+  heroSubtitle: string;
+  heroBgUrl: string;
+  benefitsTag: string;
+  benefitsTitle: string;
+  benefitsDescription: string;
+  benefits: CareerBenefitItem[];
+  openingsTag: string;
+  openingsTitle: string;
+  openingsSubtitle: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactAddress: string;
+  updatedAt: string;
+}
 
 export interface SystemStorageConfig {
   storageProvider: 'firestore';

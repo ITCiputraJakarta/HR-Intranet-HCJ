@@ -21,7 +21,8 @@ import {
   Sparkles,
   ExternalLink,
   Lock,
-  Briefcase
+  Briefcase,
+  Building2
 } from 'lucide-react';
 import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
@@ -59,9 +60,9 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       ? content.testimonials[activeTestimonialIdx % content.testimonials.length]
       : null;
 
-  // Filter latest published announcements for the news section
+  // Filter latest published announcements for the public news section (prevent leaking internal-only announcements)
   const publishedNews = announcements
-    .filter((a) => a.category === 'Pengumuman')
+    .filter((a) => a.category === 'Pengumuman' && Boolean(a.isPublic))
     .slice(0, 3);
 
   return (
@@ -592,8 +593,12 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-[#2F327D] text-[10px] font-normal px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                      {item.akses_dept || 'Pengumuman'}
+                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-normal px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-orange-200">
+                      <Building2 className="w-3 h-3 text-[#F48C06]" />
+                      <span className="truncate max-w-[130px]">{item.unit || 'Hotel Ciputra Jakarta'}</span>
+                    </div>
+                    <div className="absolute top-3 right-3 bg-[#2F327D]/90 backdrop-blur-md text-white text-[9px] font-normal px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                      {item.akses_dept || 'Umum'}
                     </div>
                   </div>
                   <div className="p-6 flex-1 flex flex-col">

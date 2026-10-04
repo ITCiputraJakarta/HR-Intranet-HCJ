@@ -43,6 +43,7 @@ import {
   subscribeToHotelUnits,
   firestoreFindUserByEmail,
 } from '../lib/firestoreService';
+import { verifyPassword, hashPassword, sanitizeInput } from '../lib/security';
 
 const AUTH_LOCKOUT_STORAGE_KEY = 'hcj_auth_security_lockout_v1';
 const MAX_FAILED_ATTEMPTS = 5;
@@ -320,7 +321,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // Password verification
-      if (matchedUser.password !== cleanPassword) {
+      const isPasswordValid = await verifyPassword(cleanPassword, matchedUser.password);
+      if (!isPasswordValid) {
         recordFailedAttempt(cleanEmail, 'Password salah', matchedUser);
         loginCaptchaRef.current?.reset();
         setIsLoggingIn(false);
@@ -330,6 +332,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
             : 'Kata sandi tidak sesuai. Harap periksa kembali password Anda.'
         );
         return;
+      }
+
+      // Upgrade legacy password to SHA-256 salted hash transparently
+      if (!matchedUser.password.startsWith('SHA256:')) {
+        try {
+          const newHashed = await hashPassword(cleanPassword);
+          const allUsers = getUsers();
+          const idx = allUsers.findIndex((u) => u.id === matchedUser.id);
+          if (idx !== -1) {
+            allUsers[idx] = { ...matchedUser, password: newHashed };
+            saveUsers(allUsers);
+            matchedUser.password = newHashed;
+          }
+        } catch (upgradeErr) {
+          // Non-blocking hash upgrade
+        }
       }
 
       // Login Successful: Reset security lockouts
@@ -401,14 +419,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
+    const hashedPassword = await hashPassword(regPassword);
+    const sanitizedName = sanitizeInput(cleanName);
+
     const newUser: User = {
       id: `usr-${Date.now()}`,
       email: cleanEmail,
-      nama: cleanName,
+      nama: sanitizedName,
       unit: regUnit,
       departemen: regDept,
       role: regRole,
-      password: regPassword,
+      password: hashedPassword,
       status: 'Pending',
       createdAt: new Date().toISOString(),
     };

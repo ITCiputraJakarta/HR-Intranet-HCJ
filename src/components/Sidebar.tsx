@@ -166,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="truncate font-normal">
               {isAdmin
                 ? 'Super Admin Otoritas Penuh'
-                : 'Hotel Ciputra Jakarta'}
+                : (currentUser.unit || 'Hotel Ciputra Jakarta')}
             </span>
           </div>
         </div>

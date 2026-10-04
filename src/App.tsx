@@ -64,7 +64,7 @@ import {
   getCareerApplications,
   subscribeToCareerApplications,
 } from './lib/cmsService';
-import { useIdleTimeout, recordUserActivity, clearActivityTimer } from './lib/useIdleTimeout';
+import { useIdleTimeout, recordUserActivity, clearActivityTimer, isSessionExpiredByInactivity } from './lib/useIdleTimeout';
 import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
@@ -88,7 +88,13 @@ import {
 } from './lib/firestoreService';
 
 export default function App() {
-  const [currentUser, setUserState] = useState<User | null>(() => getCurrentUser());
+  const [currentUser, setUserState] = useState<User | null>(() => {
+    if (isSessionExpiredByInactivity()) {
+      clearAllSessionCache();
+      return null;
+    }
+    return getCurrentUser();
+  });
   const [activeTab, setActiveTab] = useState<string>('announcements');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [currentLang, setCurrentLang] = useState<Language>(() => getSavedLanguage());

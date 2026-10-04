@@ -34,6 +34,7 @@ import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
+import { hashPassword, sanitizeInput } from '../lib/security';
 
 interface UserManagementViewProps {
   users: User[];
@@ -130,7 +131,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   };
 
-  const handleCreateUserSubmit = (e: React.FormEvent) => {
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim() || !newPassword.trim()) {
       setFormError('Lengkapi semua kolom.');
@@ -144,15 +145,17 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
+    const hashedPassword = await hashPassword(newPassword.trim());
+
     const newUser: User = {
       id: `usr-${Date.now()}`,
-      nama: newName.trim(),
+      nama: sanitizeInput(newName.trim()),
       email: cleanEmail,
       unit: newUnit,
       departemen: newDept,
       role: newRole,
       status: newStatus,
-      password: newPassword,
+      password: hashedPassword,
       createdAt: new Date().toISOString(),
     };
 
@@ -178,7 +181,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setEditFormError('');
   };
 
-  const handleEditUserSubmit = (e: React.FormEvent) => {
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userToEdit) return;
 
@@ -187,16 +190,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
+    const hashedPassword = editPassword.trim() ? await hashPassword(editPassword.trim()) : undefined;
+
     const res = updateUserByAdmin(
       userToEdit.id,
       {
-        nama: editName,
-        email: editEmail,
+        nama: sanitizeInput(editName.trim()),
+        email: editEmail.trim().toLowerCase(),
         unit: editUnit,
         departemen: editDept,
         role: editRole,
         status: editStatus,
-        password: editPassword.trim() ? editPassword.trim() : undefined,
+        password: hashedPassword,
       },
       currentUser
     );
@@ -776,7 +781,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 </div>
               </div>
               <p className="text-[11px] text-rose-700 font-medium">
-                Data akun akan dihapus dari penyimpanan intranet dan disinkronkan ke Google Spreadsheet.
+                Data akun akan dihapus secara permanen dari basis data arsip digital intranet.
               </p>
             </div>
 

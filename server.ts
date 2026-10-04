@@ -9,6 +9,17 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
+// Security hardening: Disable X-Powered-By fingerprinting
+app.disable("x-powered-by");
+
+// Security Headers middleware (Anti-XSS, Anti-Sniffing, Anti-Clickjacking)
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -36,10 +47,16 @@ apiRouter.get("/health", (_req, res) => {
 // AI Announcement drafter endpoint
 apiRouter.post("/ai/draft-announcement", async (req, res) => {
   try {
-    const { title, department } = req.body;
-    if (!title) {
+    const rawTitle = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const rawDepartment = typeof req.body?.department === "string" ? req.body.department.trim() : "";
+    
+    if (!rawTitle) {
       return res.status(400).json({ error: "Judul pengumuman diperlukan." });
     }
+
+    // Input bounds & sanitization (anti-injection & anti-DoS)
+    const title = rawTitle.slice(0, 300).replace(/[<>{}\\]/g, "");
+    const department = rawDepartment.slice(0, 100).replace(/[<>{}\\]/g, "");
 
     const ai = getGenAI();
     if (!ai) {
@@ -57,10 +74,11 @@ apiRouter.post("/ai/draft-announcement", async (req, res) => {
     const text = response.text || "Pengumuman berhasil dibuat.";
     return res.json({ result: text });
   } catch (error: any) {
-    console.error("AI Draft Error:", error);
+    // Log securely server-side without leaking stack or keys to client
+    console.error("AI Draft Internal Error:", error?.message || "Unknown error");
     res.status(500).json({
-      error: error?.message || "Gagal menghasilkan draf pengumuman dengan AI.",
-      fallback: `Diberitahukan kepada seluruh tim mengenai ${req.body?.title || "agenda kerja"}. Mohon koordinasi lebih lanjut dengan atasan departemen masing-masing. Terima kasih.`,
+      error: "Gagal menghasilkan draf pengumuman dengan AI.",
+      fallback: `Diberitahukan kepada seluruh tim mengenai agenda kerja. Mohon koordinasi lebih lanjut dengan atasan departemen masing-masing. Terima kasih.`,
     });
   }
 });
@@ -68,11 +86,25 @@ apiRouter.post("/ai/draft-announcement", async (req, res) => {
 // AI Performance Appraisal Feedback endpoint
 apiRouter.post("/ai/performance-feedback", async (req, res) => {
   try {
-    const { employeeName, role, department, kpiScore, grandTotal, grade, bestAchievement, challenge } = req.body;
+    const rawName = typeof req.body?.employeeName === "string" ? req.body.employeeName.trim() : "";
+    const rawRole = typeof req.body?.role === "string" ? req.body.role.trim() : "";
+    const rawDept = typeof req.body?.department === "string" ? req.body.department.trim() : "";
+    const rawKpi = typeof req.body?.kpiScore === "number" || typeof req.body?.kpiScore === "string" ? String(req.body.kpiScore).slice(0, 10) : "0";
+    const rawTotal = typeof req.body?.grandTotal === "number" || typeof req.body?.grandTotal === "string" ? String(req.body.grandTotal).slice(0, 10) : "0";
+    const rawGrade = typeof req.body?.grade === "string" ? req.body.grade.slice(0, 10) : "M";
+    const rawBest = typeof req.body?.bestAchievement === "string" ? req.body.bestAchievement.slice(0, 500) : "";
+    const rawChallenge = typeof req.body?.challenge === "string" ? req.body.challenge.slice(0, 500) : "";
+
+    // Input bounds & sanitization
+    const employeeName = rawName.slice(0, 100).replace(/[<>{}\\]/g, "");
+    const role = rawRole.slice(0, 80).replace(/[<>{}\\]/g, "");
+    const department = rawDept.slice(0, 100).replace(/[<>{}\\]/g, "");
+    const bestAchievement = rawBest.replace(/[<>{}\\]/g, "");
+    const challenge = rawChallenge.replace(/[<>{}\\]/g, "");
 
     const ai = getGenAI();
     if (!ai) {
-      const fallback = `Terima kasih kepada ${employeeName || "Anda"} atas dedikasi dan kontribusi kerja di departemen ${department || "perusahaan"}. Dengan capaian KPI ${kpiScore || "0"}% dan predikat ${grade || "Good"}, kami mengapresiasi pencapaian terbaik Anda dan mendukung penyelesaian tantangan kerja ke depannya agar semakin prima.`;
+      const fallback = `Terima kasih kepada ${employeeName || "Anda"} atas dedikasi dan kontribusi kerja di departemen ${department || "perusahaan"}. Dengan capaian KPI ${rawKpi}% dan predikat ${rawGrade}, kami mengapresiasi pencapaian terbaik Anda dan mendukung penyelesaian tantangan kerja ke depannya agar semakin prima.`;
       return res.json({ result: fallback });
     }
 
@@ -80,9 +112,9 @@ apiRouter.post("/ai/performance-feedback", async (req, res) => {
 - Nama Karyawan: ${employeeName || "Karyawan"}
 - Jabatan: ${role || "Staff"}
 - Departemen: ${department || "Operasional"}
-- Capaian KPI: ${kpiScore || "0"}%
-- Skor Akhir: ${grandTotal || "0"} (Skala 5.0)
-- Predikat Kinerja: ${grade || "M"}
+- Capaian KPI: ${rawKpi}%
+- Skor Akhir: ${rawTotal} (Skala 5.0)
+- Predikat Kinerja: ${rawGrade}
 - Pencapaian Terbaik: ${bestAchievement || "Tidak disebutkan"}
 - Tantangan yang Dihadapi: ${challenge || "Tidak disebutkan"}
 
@@ -96,10 +128,10 @@ Instruksi: Tulis dalam 1 paragraf (3-4 kalimat singkat), menyapa langsung dengan
     const text = response.text || "Umpan balik berhasil dihasilkan.";
     return res.json({ result: text });
   } catch (error: any) {
-    console.error("AI Feedback Error:", error);
+    console.error("AI Feedback Internal Error:", error?.message || "Unknown error");
     res.status(500).json({
-      error: error?.message || "Gagal menghasilkan feedback dengan AI.",
-      fallback: `Apresiasi atas kerja keras ${req.body?.employeeName || "Anda"} selama periode evaluasi ini. Terus pertahankan standar pelayanan dan koordinasi tim yang solid.`,
+      error: "Gagal menghasilkan feedback dengan AI.",
+      fallback: `Apresiasi atas kerja keras Anda selama periode evaluasi ini. Terus pertahankan standar pelayanan dan koordinasi tim yang solid.`,
     });
   }
 });
@@ -107,6 +139,14 @@ Instruksi: Tulis dalam 1 paragraf (3-4 kalimat singkat), menyapa langsung dengan
 // Mount the API router on /api and root
 app.use("/api", apiRouter);
 app.use(apiRouter);
+
+// Global API error handler to prevent stack traces or internal leaking
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled Server Error:", err?.message || "Internal error");
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Terjadi kendala pada layanan server internal." });
+  }
+});
 
 // Vite middleware in dev or static files in production / Cloud Run
 async function startServer() {

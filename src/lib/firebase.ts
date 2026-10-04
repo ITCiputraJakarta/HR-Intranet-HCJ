@@ -24,7 +24,7 @@ export interface FirebaseAppConfig {
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 export const firebaseConfig: FirebaseAppConfig = {
-  apiKey: 'AIzaSyCbWSyLab5imSjZNI4mYH_KDDII1a4hayI',
+  apiKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) || 'AIzaSyCbWSyLab5imSjZNI4mYH_KDDII1a4hayI',
   authDomain: 'hr-intranet-31ff4.firebaseapp.com',
   projectId: 'hr-intranet-31ff4',
   storageBucket: 'hr-intranet-31ff4.firebasestorage.app',

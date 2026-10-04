@@ -43,6 +43,7 @@ import { processFileForFirestore, formatBytes, downloadFileFromDataUrl } from '.
 import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
+import { validateAndScanFileUpload, sanitizeInput } from '../lib/security';
 
 export type DocumentSortOption = 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc' | 'dept-asc';
 
@@ -247,13 +248,23 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     setEditError('');
 
     try {
+      // Security scanning for replacement file
+      if (editFileInput) {
+        const scan = await validateAndScanFileUpload(editFileInput);
+        if (!scan.valid) {
+          setEditError(scan.error || 'Berkas ditolak oleh sistem keamanan.');
+          setIsSavingEdit(false);
+          return;
+        }
+      }
+
       let updatedDoc: IntranetDocument = {
         ...editDoc,
-        title: editTitle.trim(),
+        title: sanitizeInput(editTitle.trim()),
         unit: currentUser.role === 'admin' ? editUnit : userUnit,
         akses_dept: editDept,
         sub_kategori: editSubcat || editDoc.sub_kategori,
-        keterangan: editDesc.trim(),
+        keterangan: sanitizeInput(editDesc.trim()),
         updatedAt: new Date().toISOString(),
       };
 
@@ -306,6 +317,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     setUploadError('');
 
     try {
+      if (fileInput) {
+        const scan = await validateAndScanFileUpload(fileInput);
+        if (!scan.valid) {
+          setUploadError(scan.error || 'Berkas ditolak oleh sistem keamanan.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
       let fileUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
       let previewUrl = fileUrl;
       let downloadUrl = fileUrl;
@@ -327,12 +347,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       const newDoc: IntranetDocument = {
         id: `doc-${Date.now()}`,
-        title: upTitle.trim(),
+        title: sanitizeInput(upTitle.trim()),
         category: category,
         sub_kategori: upSubcat || availableSubcats[0] || 'Umum',
         unit: currentUser.role === 'admin' ? (upUnit || userUnit) : userUnit,
         akses_dept: upDept || 'All Departments',
-        keterangan: upDesc.trim(),
+        keterangan: sanitizeInput(upDesc.trim()),
         fileUrl,
         previewUrl,
         downloadUrl,
@@ -394,7 +414,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   : t('headerFormsTitle', currentLang)}
               </h1>
               <span className="px-2.5 py-0.5 rounded-lg bg-sky-50 text-[#005a8d] border border-sky-200 text-[11px] font-bold">
-                Hotel Ciputra Jakarta
+                {currentUser.unit || 'Hotel Ciputra Jakarta'}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">

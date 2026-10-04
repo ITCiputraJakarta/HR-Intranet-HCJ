@@ -18,7 +18,8 @@ import {
   ArrowUpZA,
 } from 'lucide-react';
 import { DepartmentMaster, User, IntranetDocument } from '../types';
-import { getDepartmentMasters, addDepartment, updateDepartment, deleteDepartment } from '../lib/storage';
+import { getDepartmentMasters, addDepartment, updateDepartment, deleteDepartment, getHotelUnits } from '../lib/storage';
+import { sanitizeInput } from '../lib/security';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
@@ -51,7 +52,9 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       setDepartments(propDepartments);
     }
   }, [propDepartments]);
+  const hotelUnits = getHotelUnits();
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUnit, setFilterUnit] = useState<string>('All');
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -63,6 +66,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 
   // Form State
   const [formData, setFormData] = useState({
+    unit: 'All Units',
     name: '',
     code: '',
     description: '',
@@ -89,11 +93,18 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 
   // Filtered departments
   const filteredDepartments = departments.filter((d) => {
+    if (filterUnit !== 'All') {
+      const dUnit = d.unit || 'All Units';
+      if (dUnit !== filterUnit && dUnit !== 'All Units') {
+        return false;
+      }
+    }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
       d.name.toLowerCase().includes(q) ||
       d.code.toLowerCase().includes(q) ||
+      (d.unit && d.unit.toLowerCase().includes(q)) ||
       (d.description && d.description.toLowerCase().includes(q))
     );
   });
@@ -144,7 +155,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
   );
 
   const handleOpenAdd = () => {
-    setFormData({ name: '', code: '', description: '' });
+    setFormData({ unit: currentUser.unit || 'All Units', name: '', code: '', description: '' });
     setFeedback({ type: null, message: '' });
     setShowAddModal(true);
   };
@@ -152,6 +163,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
   const handleOpenEdit = (dept: DepartmentMaster) => {
     setEditingDept(dept);
     setFormData({
+      unit: dept.unit || 'All Units',
       name: dept.name,
       code: dept.code,
       description: dept.description || '',
@@ -163,20 +175,25 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
     e.preventDefault();
     setFeedback({ type: null, message: '' });
 
-    if (!formData.name.trim()) {
+    const cleanName = sanitizeInput(formData.name.trim());
+    const cleanCode = sanitizeInput(formData.code.trim().toUpperCase());
+    const cleanDesc = sanitizeInput(formData.description.trim());
+
+    if (!cleanName) {
       setFeedback({ type: 'error', message: 'Nama departemen wajib diisi.' });
       return;
     }
-    if (!formData.code.trim()) {
+    if (!cleanCode) {
       setFeedback({ type: 'error', message: 'Kode singkatan departemen wajib diisi (contoh: IT, FO, HK).' });
       return;
     }
 
     const res = addDepartment(
       {
-        name: formData.name,
-        code: formData.code,
-        description: formData.description,
+        unit: formData.unit || 'All Units',
+        name: cleanName,
+        code: cleanCode,
+        description: cleanDesc,
       },
       currentUser
     );
@@ -199,11 +216,15 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
     if (!editingDept) return;
     setFeedback({ type: null, message: '' });
 
-    if (!formData.name.trim()) {
+    const cleanName = sanitizeInput(formData.name.trim());
+    const cleanCode = sanitizeInput(formData.code.trim().toUpperCase());
+    const cleanDesc = sanitizeInput(formData.description.trim());
+
+    if (!cleanName) {
       setFeedback({ type: 'error', message: 'Nama departemen tidak boleh kosong.' });
       return;
     }
-    if (!formData.code.trim()) {
+    if (!cleanCode) {
       setFeedback({ type: 'error', message: 'Kode singkatan tidak boleh kosong.' });
       return;
     }
@@ -211,9 +232,10 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
     const res = updateDepartment(
       editingDept.id,
       {
-        name: formData.name,
-        code: formData.code,
-        description: formData.description,
+        unit: formData.unit || 'All Units',
+        name: cleanName,
+        code: cleanCode,
+        description: cleanDesc,
       },
       currentUser
     );
@@ -268,7 +290,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                     {t('headerDepartmentsTitle', currentLang)}
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                    Hotel Ciputra Jakarta
+                    {currentUser.unit || 'Hotel Ciputra Jakarta'}
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-500 font-medium">
@@ -355,9 +377,9 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       {/* Main List & Controls */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
         {/* Search & Actions Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <div className="relative flex-1 min-w-[200px] max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -381,6 +403,28 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
+            </div>
+
+            {/* Unit Hotel Group Filter */}
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
+              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                id="filter-dept-unit"
+                value={filterUnit}
+                onChange={(e) => {
+                  setFilterUnit(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer text-xs"
+              >
+                <option value="All">Semua Unit Hotel</option>
+                <option value="All Units">Group Wide (All Units)</option>
+                {hotelUnits.map((u) => (
+                  <option key={u.id} value={u.name}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <button

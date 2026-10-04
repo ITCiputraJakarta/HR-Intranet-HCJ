@@ -25,6 +25,8 @@
         "title": { "type": "string", "maxLength": 300 },
         "category": { "type": "string", "enum": ["SOP", "Form", "Pengumuman"] },
         "sub_kategori": { "type": "string" },
+        "unit": { "type": "string" },
+        "isPublic": { "type": "boolean" },
         "akses_dept": { "type": "string" },
         "keterangan": { "type": "string" },
         "fileUrl": { "type": "string" },
@@ -72,6 +74,18 @@
     "department": {
       "title": "Department Master",
       "description": "Department code and name",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "unit": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" }
+      },
+      "required": ["id", "name", "code"]
+    },
+    "hotelUnit": {
+      "title": "Hotel Unit Master",
+      "description": "Hotel Unit Group master entity",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -172,6 +186,10 @@
     "/systemConfig/{configId}": {
       "schema": "systemConfig",
       "description": "Global branding and system config"
+    },
+    "/hotelUnits/{unitId}": {
+      "schema": "hotelUnit",
+      "description": "Hotel Unit Group master records"
     }
   }
 }

@@ -54,6 +54,7 @@ export interface IntranetDocument {
   attachmentName?: string;
   attachmentType?: string;
   attachmentSize?: string;
+  isPublic?: boolean; // True jika dipublikasikan ke portal publik & dashboard, false jika hanya internal intranet
   isChunked?: boolean;
   chunksCount?: number;
   driveFileId?: string; // deprecated

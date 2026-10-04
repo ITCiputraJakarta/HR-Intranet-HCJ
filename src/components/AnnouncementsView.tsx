@@ -28,9 +28,11 @@ import {
   Info,
   Lock,
   Download,
-  Paperclip
+  Paperclip,
+  Globe
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster } from '../types';
+import { validateAndScanFileUpload, sanitizeInput } from '../lib/security';
 import {
   addDocument,
   updateDocument,
@@ -150,6 +152,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
+  const [filterVisibility, setFilterVisibility] = useState<'All' | 'internal' | 'public'>('All');
   const [sortOrder, setSortOrder] = useState<AnnouncementSortOption>('newest');
   const [sortField, setSortField] = useState<string>('uploadedAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -189,6 +192,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [upKet, setUpKet] = useState('');
   const [upEffectiveDate, setUpEffectiveDate] = useState(todayStr);
   const [upExpiryDate, setUpExpiryDate] = useState(defaultExpiryStr);
+  const [upIsPublic, setUpIsPublic] = useState(false);
   const [photoInput, setPhotoInput] = useState<File | null>(null);
   const [docAttachmentInput, setDocAttachmentInput] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -204,6 +208,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   const [editKet, setEditKet] = useState('');
   const [editEffectiveDate, setEditEffectiveDate] = useState(todayStr);
   const [editExpiryDate, setEditExpiryDate] = useState(todayStr);
+  const [editIsPublic, setEditIsPublic] = useState(false);
   const [editPhotoInput, setEditPhotoInput] = useState<File | null>(null);
   const [editDocAttachmentInput, setEditDocAttachmentInput] = useState<File | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -226,11 +231,24 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     }
   }, []);
 
-  // Unit & Department Filtering Logic
+  // Unit & Department & Visibility Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
 
-  // Announcements filtered by department access
+  // 1. Filter by Unit Hotel Group
+  if (isSuperAdmin) {
+    if (filterUnit !== 'All') {
+      filteredAnnouncements = filteredAnnouncements.filter(
+        (d) => d.unit === filterUnit || d.unit === 'All Units' || !d.unit
+      );
+    }
+  } else {
+    // Regular employees see announcements targeting their assigned unit OR 'All Units' (Group wide)
+    filteredAnnouncements = filteredAnnouncements.filter(
+      (d) => d.unit === userUnit || d.unit === 'All Units' || !d.unit
+    );
+  }
 
+  // 2. Filter by Department Access
   if (isLevel1) {
     filteredAnnouncements = filteredAnnouncements.filter(
       (d) => d.akses_dept === 'All Departments' || d.akses_dept === currentUser.departemen
@@ -239,6 +257,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     filteredAnnouncements = filteredAnnouncements.filter(
       (d) => d.akses_dept === filterDept || d.akses_dept === 'All Departments'
     );
+  }
+
+  // 3. Filter by Visibility (Hanya Internal Intranet vs Publik Beranda)
+  if (filterVisibility === 'internal') {
+    filteredAnnouncements = filteredAnnouncements.filter((d) => !d.isPublic);
+  } else if (filterVisibility === 'public') {
+    filteredAnnouncements = filteredAnnouncements.filter((d) => Boolean(d.isPublic));
   }
 
   if (searchQuery.trim()) {
@@ -352,6 +377,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setEditKet(doc.keterangan || '');
     setEditEffectiveDate(doc.effectiveDate || (doc.uploadedAt ? doc.uploadedAt.split('T')[0] : todayStr));
     setEditExpiryDate(doc.expiryDate || todayStr);
+    setEditIsPublic(Boolean(doc.isPublic));
     setEditPhotoInput(null);
     setEditDocAttachmentInput(null);
     setRemovePhoto(false);
@@ -374,14 +400,34 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setEditError('');
 
     try {
+      // Security scanning for uploads
+      if (editPhotoInput) {
+        const scan = await validateAndScanFileUpload(editPhotoInput);
+        if (!scan.valid) {
+          setEditError(scan.error || 'Berkas foto ditolak oleh sistem keamanan.');
+          setIsSavingEdit(false);
+          return;
+        }
+      }
+
+      if (editDocAttachmentInput) {
+        const scan = await validateAndScanFileUpload(editDocAttachmentInput);
+        if (!scan.valid) {
+          setEditError(scan.error || 'Berkas lampiran ditolak oleh sistem keamanan.');
+          setIsSavingEdit(false);
+          return;
+        }
+      }
+
       let updatedDoc: IntranetDocument = {
         ...editDoc,
-        title: editTitle.trim(),
+        title: sanitizeInput(editTitle.trim()),
         unit: isSuperAdmin ? editUnit : userUnit,
         akses_dept: targetDept,
-        keterangan: editKet.trim(),
+        keterangan: sanitizeInput(editKet.trim()),
         effectiveDate: editEffectiveDate,
         expiryDate: editExpiryDate,
+        isPublic: editIsPublic,
         updatedAt: new Date().toISOString(),
       };
 
@@ -456,6 +502,25 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setUploadError('');
 
     try {
+      // Security scanning for uploads
+      if (photoInput) {
+        const scan = await validateAndScanFileUpload(photoInput);
+        if (!scan.valid) {
+          setUploadError(scan.error || 'Berkas foto ditolak oleh sistem keamanan.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      if (docAttachmentInput) {
+        const scan = await validateAndScanFileUpload(docAttachmentInput);
+        if (!scan.valid) {
+          setUploadError(scan.error || 'Berkas lampiran ditolak oleh sistem keamanan.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
       let fileUrl = '';
       let thumbUrl = '';
       let fileName = '';
@@ -486,12 +551,13 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
       const newDoc: IntranetDocument = {
         id: `doc-${Date.now()}`,
-        title: upTitle.trim(),
+        title: sanitizeInput(upTitle.trim()),
         category: 'Pengumuman',
         sub_kategori: upSubcat || 'Umum',
         unit: isSuperAdmin ? (upUnit || 'Hotel Ciputra Jakarta') : userUnit,
         akses_dept: targetDept,
-        keterangan: upKet.trim(),
+        keterangan: sanitizeInput(upKet.trim()),
+        isPublic: upIsPublic,
         fileUrl: fileUrl || '',
         previewUrl: fileUrl || '',
         downloadUrl: fileUrl || '',
@@ -517,6 +583,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       setShowUploadForm(false);
       setUpTitle('');
       setUpKet('');
+      setUpIsPublic(false);
       setPhotoInput(null);
       setDocAttachmentInput(null);
       setUpExpiryDate(defaultExpiryStr);
@@ -557,7 +624,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-sky-50 border border-sky-200 text-[#005a8d] flex items-center justify-center">
                 <Building2 className="w-3 h-3" />
               </span>
-              <span>Unit Hotel: <strong className="text-[#004872]">Hotel Ciputra Jakarta</strong></span>
+              <span>Unit Hotel Group: <strong className="text-[#004872]">{userUnit}</strong></span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
               <span className="w-5 h-5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
@@ -569,11 +636,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
                 <Clock className="w-3 h-3" />
               </span>
-              <span>Rule Retensi: <strong className="text-emerald-700">7 Hari</strong></span>
+              <span>Rule Retensi: <strong className="text-emerald-700">{activeUnitRule.announcementPruneDays || 7} Hari</strong></span>
             </div>
           </div>
           <p className="text-[11px] text-slate-600 mt-3 bg-white/90 px-3.5 py-2 rounded-xl border border-sky-200/80 shadow-2xs">
-            Masa tayang standar 7 hari, distribusi khusus staf Hotel Ciputra Jakarta.
+            {activeUnitRule.announcementRuleNote || `Masa tayang standar ${activeUnitRule.announcementPruneDays || 7} hari untuk unit ${userUnit}.`}
           </p>
         </div>
 
@@ -662,30 +729,70 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
+            {/* Unit Filter (Super Admin) */}
+            {isSuperAdmin && (
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  id="filter-announcement-unit"
+                  value={filterUnit}
+                  onChange={(e) => {
+                    setFilterUnit(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="All">Semua Unit Hotel</option>
+                  <option value="All Units">Group Wide (All Units)</option>
+                  {hotelUnits.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Department Filter */}
             {isSuperAdmin && (
-              <>
-                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                  <select
-                    id="filter-announcement-dept"
-                    value={filterDept}
-                    onChange={(e) => {
-                      setFilterDept(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
-                  >
-                    <option value="All">Semua Departemen</option>
-                    {departments.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  id="filter-announcement-dept"
+                  value={filterDept}
+                  onChange={(e) => {
+                    setFilterDept(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="All">Semua Departemen</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
+
+            {/* Visibility Filter (Internal vs Public) */}
+            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <Globe className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                id="filter-announcement-visibility"
+                value={filterVisibility}
+                onChange={(e) => {
+                  setFilterVisibility(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
+              >
+                <option value="All">Semua Publikasi</option>
+                <option value="internal">🔒 Hanya Internal</option>
+                <option value="public">🌐 Publik (Beranda)</option>
+              </select>
+            </div>
 
             {/* View Mode Toggle */}
             <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-slate-500">
@@ -876,6 +983,55 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     : 'Sebagai Head of Department, Anda membagikan pengumuman khusus untuk departemen Anda.'}
                 </p>
               </div>
+
+              {/* Status Publikasi: Hanya Internal Intranet vs Publik Beranda */}
+              <div className="sm:col-span-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Jangkauan Publikasi (Rule Pengumuman) *</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setUpIsPublic(false)}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      !upIsPublic
+                        ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${!upIsPublic ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-900">Hanya Internal Intranet</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Hanya staf dan karyawan hotel yang telah login. Tidak ditampilkan di beranda web publik.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setUpIsPublic(true)}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      upIsPublic
+                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${upIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Dapat diakses di Beranda Publik website dan portal karyawan internal.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Foto Sampul & Dokumen Lampiran Tambahan */}
@@ -1054,7 +1210,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         onClick={() => onOpenPreview(doc)}
                         className="cursor-pointer space-y-1"
                       >
-                        <div className="flex items-center gap-1.5 mb-1">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <span
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                               (doc.unit || 'Hotel Ciputra Jakarta').includes('Unit 2')
@@ -1065,6 +1221,18 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                             <Building2 className="w-2.5 h-2.5" />
                             <span>{doc.unit || 'Hotel Ciputra Jakarta'}</span>
                           </span>
+
+                          {doc.isPublic ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                              <Globe className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>Publik (Beranda)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+                              <Lock className="w-2.5 h-2.5 text-slate-500" />
+                              <span>Internal Saja</span>
+                            </span>
+                          )}
                         </div>
                         <h3 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
                           {doc.title}
@@ -1251,8 +1419,22 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                             )}
                           </div>
                           <div className="truncate max-w-sm">
-                            <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                              {doc.title}
+                            <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate flex items-center gap-1.5 flex-wrap">
+                              <span className="truncate">{doc.title}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold shrink-0">
+                                {doc.unit || 'All Units'}
+                              </span>
+                              {doc.isPublic ? (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold shrink-0 flex items-center gap-0.5">
+                                  <Globe className="w-2.5 h-2.5" />
+                                  <span>Publik</span>
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium shrink-0 flex items-center gap-0.5">
+                                  <Lock className="w-2.5 h-2.5" />
+                                  <span>Internal</span>
+                                </span>
+                              )}
                             </div>
                             {doc.attachmentName && (
                               <div className="flex items-center gap-1 text-[10px] text-indigo-700 font-semibold mt-0.5">
@@ -1414,6 +1596,55 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                       </option>
                     ))}
                 </select>
+              </div>
+
+              {/* Status Publikasi Edit */}
+              <div className="sm:col-span-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Jangkauan Publikasi (Rule Pengumuman) *</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditIsPublic(false)}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      !editIsPublic
+                        ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${!editIsPublic ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-900">Hanya Internal Intranet</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Hanya staf dan karyawan login. Tidak tampil di portal web publik.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditIsPublic(true)}
+                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                      editIsPublic
+                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${editIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Tampil di Beranda Publik website dan portal karyawan internal.
+                      </span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Upload Ganti Foto / Banner */}

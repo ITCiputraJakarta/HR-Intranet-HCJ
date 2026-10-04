@@ -89,6 +89,12 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(configId);
     }
 
+    // Hotel Unit Group master records
+    match /hotelUnits/{unitId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(unitId);
+    }
+
     // Career job postings
     match /career_jobs/{jobId} {
       allow read: if true;

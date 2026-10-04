@@ -432,10 +432,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.nama.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-xs font-normal text-slate-800 leading-tight">
+                  <div className="text-xs font-semibold text-slate-800 leading-tight">
                     {currentUser.nama}
                   </div>
-                  <div className="text-[10px] font-normal text-[#005a8d] uppercase tracking-wider">
+                  <div className="text-[10px] font-medium text-amber-700 leading-tight truncate max-w-[130px]">
+                    {currentUser.unit || 'Hotel Ciputra Jakarta'}
+                  </div>
+                  <div className="text-[9px] font-medium text-[#005a8d] uppercase tracking-wider">
                     {currentUser.role} • {currentUser.departemen}
                   </div>
                 </div>

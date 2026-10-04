@@ -229,18 +229,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Unit & Department Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
 
-  // Strict Unit isolation for non-Super Admin (Unit 1 vs Unit 2)
-  if (!isSuperAdmin) {
-    filteredAnnouncements = filteredAnnouncements.filter((d) => {
-      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
-      return docUnit === userUnit || docUnit === 'All Units';
-    });
-  } else if (filterUnit !== 'All') {
-    filteredAnnouncements = filteredAnnouncements.filter((d) => {
-      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
-      return docUnit === filterUnit || docUnit === 'All Units';
-    });
-  }
+  // Announcements filtered by department access
 
   if (isLevel1) {
     filteredAnnouncements = filteredAnnouncements.filter(
@@ -568,7 +557,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-sky-50 border border-sky-200 text-[#005a8d] flex items-center justify-center">
                 <Building2 className="w-3 h-3" />
               </span>
-              <span>Unit Hotel: <strong className="text-[#004872]">{isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit}</strong></span>
+              <span>Unit Hotel: <strong className="text-[#004872]">Hotel Ciputra Jakarta</strong></span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
               <span className="w-5 h-5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
@@ -580,11 +569,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
                 <Clock className="w-3 h-3" />
               </span>
-              <span>Rule Retensi Unit: <strong className="text-emerald-700">{getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementPruneDays} Hari</strong></span>
+              <span>Rule Retensi: <strong className="text-emerald-700">7 Hari</strong></span>
             </div>
           </div>
           <p className="text-[11px] text-slate-600 mt-3 bg-white/90 px-3.5 py-2 rounded-xl border border-sky-200/80 shadow-2xs">
-            {getHotelUnitRule(isSuperAdmin && filterUnit !== 'All' ? filterUnit : userUnit).announcementRuleNote}
+            Masa tayang standar 7 hari, distribusi khusus staf Hotel Ciputra Jakarta.
           </p>
         </div>
 
@@ -673,28 +662,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-            {/* Unit & Department Filter (Super Admin only) */}
+            {/* Department Filter */}
             {isSuperAdmin && (
               <>
-                <div className="flex items-center gap-1.5 bg-indigo-50/70 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                  <select
-                    id="filter-announcement-unit"
-                    value={filterUnit}
-                    onChange={(e) => {
-                      setFilterUnit(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="bg-transparent font-bold text-indigo-900 focus:outline-none cursor-pointer text-xs"
-                  >
-                    <option value="All">Semua Unit Hotel</option>
-                    {hotelUnits.map((u) => (
-                      <option key={u.id} value={u.name}>
-                        {u.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
                   <Building2 className="w-3.5 h-3.5 text-slate-400" />
                   <select
@@ -773,12 +743,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
             )}
           </div>
 
-          {(searchQuery || filterDept !== 'All' || filterUnit !== 'All') && (
+          {(searchQuery || filterDept !== 'All') && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setFilterDept('All');
-                setFilterUnit('All');
                 setCurrentPage(1);
               }}
               className="text-indigo-600 hover:text-indigo-800 font-bold text-xs inline-flex items-center gap-1 cursor-pointer"

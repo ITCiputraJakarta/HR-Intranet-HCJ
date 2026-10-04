@@ -122,18 +122,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   // Filter docs by category (SOP or Form)
   let catDocs = (documents || []).filter((d) => d.category === category);
 
-  // Strict Unit isolation: Non-Admin users only see their own Unit's SOPs & Forms
-  if (currentUser.role !== 'admin') {
-    catDocs = catDocs.filter((d) => {
-      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
-      return docUnit === userUnit || docUnit === 'All Units';
-    });
-  } else if (filterUnit !== 'All') {
-    catDocs = catDocs.filter((d) => {
-      const docUnit = d.unit || 'Hotel Ciputra Jakarta';
-      return docUnit === filterUnit || docUnit === 'All Units';
-    });
-  }
+  // Documents for Hotel Ciputra Jakarta
 
   // Filter by user's department for Staff/SPV
   if (isStaffOrSpv) {
@@ -405,12 +394,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   : t('headerFormsTitle', currentLang)}
               </h1>
               <span className="px-2.5 py-0.5 rounded-lg bg-sky-50 text-[#005a8d] border border-sky-200 text-[11px] font-bold">
-                {currentUser.role === 'admin' && filterUnit !== 'All' ? filterUnit : userUnit}
+                Hotel Ciputra Jakarta
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               {category === 'SOP'
-                ? getHotelUnitRule(currentUser.role === 'admin' && filterUnit !== 'All' ? filterUnit : userUnit).sopRuleNote
+                ? 'Standar Operasional Prosedur baku Hotel Ciputra Jakarta.'
                 : t('headerFormsSubtitle', currentLang)}
             </p>
           </div>
@@ -511,27 +500,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
           {/* Filters & Mode */}
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Unit Filter (Super Admin) */}
-            {currentUser.role === 'admin' && (
-              <div className="flex items-center gap-1.5 bg-indigo-50/70 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs">
-                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                <select
-                  value={filterUnit}
-                  onChange={(e) => {
-                    setFilterUnit(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent font-bold text-indigo-900 focus:outline-none cursor-pointer"
-                >
-                  <option value="All">Semua Unit Hotel</option>
-                  {hotelUnits.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+
 
             {/* Department Filter (Admins/Managers) */}
             {isManagerOrAdmin && (
@@ -635,12 +604,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             )}
           </div>
 
-          {(searchQuery || filterDept !== 'All' || filterUnit !== 'All' || selectedSubcat !== 'All') && (
+          {(searchQuery || filterDept !== 'All' || selectedSubcat !== 'All') && (
             <button
               onClick={() => {
                 setSearchQuery('');
                 setFilterDept('All');
-                setFilterUnit('All');
                 setSelectedSubcat('All');
                 setCurrentPage(1);
               }}

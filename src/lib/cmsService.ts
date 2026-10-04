@@ -113,9 +113,8 @@ export const DEFAULT_HOME_CMS: HomeCmsContent = {
       rating: 5,
     },
   ],
-  newsletterTitle: 'Buletin Internal',
-  newsletterDescription:
-    'Pastikan Anda tidak tertinggal update penting dari manajemen. Dapatkan ringkasan pengumuman mingguan.',
+  newsletterTitle: '',
+  newsletterDescription: '',
   contactAddress:
     'Jl. Letnan Jenderal S. Parman No.11, Tanjung Duren Utara, Grogol Petamburan, Jakarta Barat 11470',
   contactEmail: 'it@hotelciputra.com',

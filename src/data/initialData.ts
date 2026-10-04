@@ -4,20 +4,11 @@ export const HOTEL_UNITS: HotelUnitMaster[] = [
   {
     id: 'unit-hcj',
     name: 'Hotel Ciputra Jakarta',
-    shortName: 'Unit 1 (HCJ Jakarta)',
+    shortName: 'Hotel Ciputra Jakarta',
     code: 'HCJ',
     announcementPruneDays: 7,
-    announcementRuleNote: 'Rule Pengumuman Unit 1 (HCJ): Masa tayang standar 7 hari, wajib persetujuan HOD/HR Unit 1, distribusi terisolasi khusus staf Hotel Ciputra Jakarta.',
-    sopRuleNote: 'Standar SOP Unit 1 (HCJ): Mengacu pada standar operasional Business & City Hotel Bintang 4 Hotel Ciputra Jakarta.'
-  },
-  {
-    id: 'unit-hcg2',
-    name: 'Hotel Ciputra Group (Unit 2)',
-    shortName: 'Unit 2 (HC Group)',
-    code: 'HCG-2',
-    announcementPruneDays: 14,
-    announcementRuleNote: 'Rule Pengumuman Unit 2 (HC Group): Masa tayang standar 14 hari, wajib otorisasi HOD/GM Unit 2, distribusi terisolasi khusus staf Hotel Ciputra Group (Unit 2).',
-    sopRuleNote: 'Standar SOP Unit 2 (HC Group): Mengacu pada prosedur operasional independen Unit 2 Hotel Ciputra Group & Hospitality.'
+    announcementRuleNote: 'Masa tayang standar 7 hari, distribusi khusus staf Hotel Ciputra Jakarta.',
+    sopRuleNote: 'Standar SOP mengacu pada operasional Hotel Ciputra Jakarta.'
   }
 ];
 

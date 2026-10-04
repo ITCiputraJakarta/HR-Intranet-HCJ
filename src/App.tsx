@@ -52,10 +52,10 @@ import { UserManagementView } from './components/UserManagementView';
 import { AccessLogsView } from './components/AccessLogsView';
 import { CategoriesMasterView } from './components/CategoriesMasterView';
 import { DepartmentsMasterView } from './components/DepartmentsMasterView';
-import { UnitsMasterView } from './components/UnitsMasterView';
 import { QuotaAnalyticsView } from './components/QuotaAnalyticsView';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { FirestoreSyncModal } from './components/FirestoreSyncModal';
+import { BrandingSettingsModal } from './components/BrandingSettingsModal';
 import { PublicHomeView } from './components/public/PublicHomeView';
 import { PublicCareerView } from './components/public/PublicCareerView';
 import { HomeCmsAdminView } from './components/HomeCmsAdminView';
@@ -118,6 +118,7 @@ export default function App() {
   // Modals
   const [previewDoc, setPreviewDoc] = useState<IntranetDocument | null>(null);
   const [showFirestoreModal, setShowFirestoreModal] = useState<boolean>(false);
+  const [showBrandingModal, setShowBrandingModal] = useState<boolean>(false);
   const [idleTimeoutMessage, setIdleTimeoutMessage] = useState<string>('');
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
@@ -533,6 +534,7 @@ export default function App() {
         currentLang={currentLang}
         onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
+        onOpenBranding={() => setShowBrandingModal(true)}
         onOpenConfig={() => setShowFirestoreModal(true)}
         onOpenFirestoreModal={() => setShowFirestoreModal(true)}
         onLogout={handleLogout}
@@ -643,17 +645,6 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'units' && isHodOrAdmin && (
-            <UnitsMasterView
-              currentUser={currentUser}
-              units={hotelUnits}
-              users={users}
-              documents={documents}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
-
           {activeTab === 'departments' && isHodOrAdmin && (
             <DepartmentsMasterView
               currentUser={currentUser}
@@ -758,6 +749,15 @@ export default function App() {
         onClose={() => setShowFirestoreModal(false)}
         currentUser={currentUser}
         onRefreshAll={refreshAllData}
+      />
+
+      {/* Branding & Logo Settings Modal (Super Admin only) */}
+      <BrandingSettingsModal
+        isOpen={showBrandingModal}
+        onClose={() => setShowBrandingModal(false)}
+        currentUser={currentUser}
+        currentLang={currentLang}
+        onBrandingSaved={refreshAllData}
       />
 
       {/* Super Admin Preview Home Modal */}

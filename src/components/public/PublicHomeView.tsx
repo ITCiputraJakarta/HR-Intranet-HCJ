@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
+import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/branding';
 
 interface PublicHomeViewProps {
   onNavigateToLogin: () => void;
@@ -40,26 +41,18 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
   onOpenAnnouncementPreview,
 }) => {
   const [content, setContent] = useState<HomeCmsContent>(getHomeCmsContent());
+  const [branding, setBranding] = useState<AppBranding>(() => getAppBranding());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
   const [activeTestimonialIdx, setActiveTestimonialIdx] = useState(0);
 
   useEffect(() => {
     const unsub = subscribeToHomeCms((data) => setContent(data));
-    return () => unsub();
+    const unsubBrand = subscribeToAppBranding((brand) => setBranding(brand));
+    return () => {
+      unsub();
+      unsubBrand();
+    };
   }, []);
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newsletterEmail.trim()) {
-      setNewsletterSubscribed(true);
-      setTimeout(() => {
-        setNewsletterEmail('');
-        setNewsletterSubscribed(false);
-      }, 4000);
-    }
-  };
 
   const activeTestimonial =
     content.testimonials && content.testimonials.length > 0
@@ -80,9 +73,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="flex items-center gap-3 cursor-pointer select-none group"
         >
-          <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300">
-            <Hotel className="w-6 h-6 stroke-[2.2]" />
-          </div>
+          {branding.customLogoUrl ? (
+            <img
+              src={branding.customLogoUrl}
+              alt="Logo Hotel Ciputra"
+              className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl object-cover shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0"
+            />
+          ) : (
+            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0">
+              <Hotel className="w-6 h-6 stroke-[2.2]" />
+            </div>
+          )}
           <div>
             <span className="text-[#2F327D] font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none block">
               Hotel Ciputra
@@ -678,17 +679,25 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       <footer className="bg-[#1a1c4b] pt-16 sm:pt-20 pb-10 text-white/70 border-t-8 border-[#F48C06] relative overflow-hidden">
         <div className="container mx-auto px-4 sm:px-8 md:px-16 relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8 mb-14">
           {/* Col 1: Brand */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-11 h-11 bg-[#F48C06] rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-md">
-                <Hotel className="w-6 h-6 stroke-[2.2]" />
-              </div>
+              {branding.customLogoUrl ? (
+                <img
+                  src={branding.customLogoUrl}
+                  alt="Logo Hotel Ciputra"
+                  className="w-11 h-11 rounded-xl object-cover shadow-md"
+                />
+              ) : (
+                <div className="w-11 h-11 bg-[#F48C06] rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-md">
+                  <Hotel className="w-6 h-6 stroke-[2.2]" />
+                </div>
+              )}
               <span className="text-white font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none">
                 Hotel Ciputra<br />
                 <span className="text-xs font-normal text-white/70">Jakarta</span>
               </span>
             </div>
-            <p className="text-xs sm:text-sm leading-relaxed mb-6 font-normal">
+            <p className="text-xs sm:text-sm leading-relaxed mb-6 font-normal max-w-md">
               Portal Internal dan Sistem Informasi Karir terpadu yang didedikasikan untuk operasional dan pengembangan SDM di lingkungan Hotel Ciputra Jakarta.
             </p>
             <div className="flex gap-3">
@@ -720,7 +729,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </div>
 
           {/* Col 2: Quick Links */}
-          <div className="lg:col-span-2 lg:col-start-6">
+          <div className="lg:col-span-3 lg:col-start-7">
             <h4 className="text-white font-normal text-base mb-5">Tautan Cepat</h4>
             <ul className="space-y-3 text-xs sm:text-sm font-normal">
               <li>
@@ -756,7 +765,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </div>
 
           {/* Col 3: Karir & Pelatihan */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <h4 className="text-white font-normal text-base mb-5">Karir & Pelatihan</h4>
             <ul className="space-y-3 text-xs sm:text-sm font-normal">
               <li>
@@ -792,40 +801,6 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 </button>
               </li>
             </ul>
-          </div>
-
-          {/* Col 4: Newsletter */}
-          <div className="lg:col-span-4">
-            <h4 className="text-white font-normal text-base mb-4">
-              {content.newsletterTitle}
-            </h4>
-            <p className="text-xs sm:text-sm mb-4 leading-relaxed font-normal">
-              {content.newsletterDescription}
-            </p>
-            <form onSubmit={handleNewsletterSubmit} className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/40">
-                <Mail className="w-4 h-4" />
-              </div>
-              <input
-                type="email"
-                required
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-                placeholder="nama@hotelciputra.com"
-                className="w-full bg-white/10 border border-white/20 rounded-xl py-3 pl-10 pr-28 text-xs sm:text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#F48C06] focus:bg-white/15 transition"
-              />
-              <button
-                type="submit"
-                className="absolute right-1 top-1 bottom-1 bg-[#F48C06] text-white px-4 rounded-lg text-xs font-normal hover:bg-[#e07f04] transition shadow-md cursor-pointer"
-              >
-                Kirim
-              </button>
-            </form>
-            {newsletterSubscribed && (
-              <p className="text-xs text-emerald-400 mt-2 font-normal animate-in fade-in">
-                Terima kasih! Email Anda telah terdaftar dalam buletin internal.
-              </p>
-            )}
           </div>
         </div>
 

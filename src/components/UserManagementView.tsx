@@ -215,9 +215,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   // Filter list
   let filtered = [...safeUsers];
-  if (filterUnit !== 'All') {
-    filtered = filtered.filter((u) => (u.unit || 'Hotel Ciputra Jakarta') === filterUnit);
-  }
   if (filterDept !== 'All') {
     filtered = filtered.filter((u) => u.departemen === filterDept);
   }
@@ -445,26 +442,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               )}
             </button>
 
-            {/* Hotel Group Unit Filter */}
-            <div className="flex items-center gap-1 bg-indigo-50/70 border border-indigo-200 rounded-xl px-2 py-1">
-              <Building2 className="w-3.5 h-3.5 text-indigo-600 ml-1 shrink-0" />
-              <select
-                id="filter-user-unit"
-                value={filterUnit}
-                onChange={(e) => {
-                  setFilterUnit(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent text-xs font-bold text-indigo-900 focus:outline-none py-1 pr-1 cursor-pointer max-w-[175px] truncate"
-              >
-                <option value="All">Semua Unit Hotel ({safeUsers.length})</option>
-                {hotelUnits.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.shortName} ({safeUsers.filter((usr) => (usr.unit || 'Hotel Ciputra Jakarta') === u.name).length})
-                  </option>
-                ))}
-              </select>
-            </div>
+
 
             {/* Department Filter */}
             <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
@@ -534,11 +512,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             Menampilkan <strong>{filtered.length}</strong> dari <strong>{safeUsers.length}</strong> pengguna
           </div>
 
-          {(searchQuery || filterUnit !== 'All' || filterDept !== 'All' || filterRole !== 'All' || filterStatus !== 'All') && (
+          {(searchQuery || filterDept !== 'All' || filterRole !== 'All' || filterStatus !== 'All') && (
             <button
               onClick={() => {
                 setSearchQuery('');
-                setFilterUnit('All');
                 setFilterDept('All');
                 setFilterRole('All');
                 setFilterStatus('All');

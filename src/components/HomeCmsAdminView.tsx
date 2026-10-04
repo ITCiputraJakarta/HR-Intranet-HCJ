@@ -30,7 +30,8 @@ import {
   Phone,
   MapPin,
   ChevronRight,
-  Info
+  Info,
+  Hotel
 } from 'lucide-react';
 import { HomeCmsContent, HomeCmsTestimonial, HomeCmsServiceItem, User } from '../types';
 import {
@@ -38,6 +39,14 @@ import {
   saveHomeCmsContent,
   DEFAULT_HOME_CMS,
 } from '../lib/cmsService';
+import {
+  getAppBranding,
+  subscribeToAppBranding,
+  uploadCustomLogo,
+  resetCustomLogo,
+  AppBranding
+} from '../lib/branding';
+import { compressImageFile } from '../lib/fileCompressor';
 
 interface HomeCmsAdminViewProps {
   currentUser: User;
@@ -198,6 +207,14 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   const [activeSection, setActiveSection] = useState<SectionKey>('hero');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [branding, setBranding] = useState<AppBranding>(() => getAppBranding());
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingBg, setIsUploadingBg] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeToAppBranding((b) => setBranding(b));
+    return () => unsub();
+  }, []);
 
   // Testimonial modal state
   const [newTestimonialName, setNewTestimonialName] = useState('');
@@ -213,13 +230,13 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
       key: 'hero',
       label: '1. Hero Banner & Visual',
       icon: <Sparkles className="w-4 h-4 text-[#F48C06]" />,
-      desc: 'Judul, narasi, CTA tombol, foto utama & kartu mengambang',
+      desc: 'Logo resmi, latar belakang, judul, narasi, CTA & foto utama',
     },
     {
       key: 'services',
       label: '2. Layanan Terintegrasi',
       icon: <Layers className="w-4 h-4 text-indigo-600" />,
-      desc: '3 kartu pilar layanan: SOP, KPI, Keamanan Multi-Role',
+      desc: '2 kartu pilar layanan: Arsip SOP & Evaluasi Kinerja (KPI)',
     },
     {
       key: 'about',
@@ -247,11 +264,57 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
     },
     {
       key: 'footer',
-      label: '7. Buletin, Kontak & Footer',
+      label: '7. Kontak & Informasi Footer',
       icon: <Mail className="w-4 h-4 text-rose-600" />,
-      desc: 'Email langganan, nomor telepon, alamat & hak cipta',
+      desc: 'Nomor telepon, email resmi, alamat & hak cipta',
     },
   ];
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingLogo(true);
+    try {
+      const url = await uploadCustomLogo(file, currentUser.email);
+      setBranding((prev) => ({ ...prev, customLogoUrl: url }));
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleResetLogo = async () => {
+    setIsUploadingLogo(true);
+    try {
+      await resetCustomLogo(currentUser.email);
+      setBranding((prev) => ({ ...prev, customLogoUrl: null }));
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleHeroBgChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBg(true);
+    try {
+      const compressed = await compressImageFile(file, 1600, 0.85);
+      setFormData((prev) => ({ ...prev, heroImageUrl: compressed.dataUrl }));
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsUploadingBg(false);
+    }
+  };
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -450,8 +513,100 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                   1. Pengaturan Hero Banner & Visual
                 </h3>
                 <p className="text-slate-500 font-normal mt-0.5">
-                  Atur judul utama, teks sorotan oranye, subtitle narasi, gambar utama serta dua kartu mengambang di beranda.
+                  Atur logo resmi portal, visual latar belakang/hero, judul utama, narasi, dan CTA beranda.
                 </p>
+              </div>
+
+              {/* Logo & Background Configuration */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-orange-50/70 border border-orange-200/90 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#2F327D]">
+                    <Hotel className="w-4 h-4 text-[#F48C06]" />
+                    <span>Pengaturan Logo Resmi Portal & Latar Belakang (Background)</span>
+                  </div>
+                  <span className="text-[10px] text-[#F48C06] font-normal bg-white px-2.5 py-0.5 rounded-full border border-orange-200 w-fit">
+                    Otomatis Sinkron ke Seluruh Halaman
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Logo Box */}
+                  <div className="bg-white p-3.5 rounded-xl border border-orange-100 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-slate-700">Logo Portal / Hotel</label>
+                      {branding.customLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={handleResetLogo}
+                          disabled={isUploadingLogo}
+                          className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Reset ke Default
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {branding.customLogoUrl ? (
+                        <img
+                          src={branding.customLogoUrl}
+                          alt="Custom Logo"
+                          className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-sm">
+                          <Hotel className="w-7 h-7 stroke-[2.2]" />
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-1.5">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#F48C06] text-xs font-medium cursor-pointer border border-[#F48C06]/30 transition">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{isUploadingLogo ? 'Mengunggah...' : 'Ganti Logo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoChange}
+                            disabled={isUploadingLogo}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400">
+                          Format PNG/JPG transparan. Tampil di header, login & footer portal.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hero Background / Main Image Box */}
+                  <div className="bg-white p-3.5 rounded-xl border border-orange-100 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-slate-700">Foto Utama / Latar Hero</label>
+                      <span className="text-[10px] text-slate-400">Visual Beranda</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={formData.heroImageUrl}
+                        alt="Hero Visual"
+                        className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200"
+                      />
+                      <div className="flex-1 space-y-1.5">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer border border-slate-200 transition">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{isUploadingBg ? 'Mengunggah...' : 'Ganti Foto Hero'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleHeroBgChange}
+                            disabled={isUploadingBg}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400">
+                          Foto staf profesional atau interior Hotel Ciputra Jakarta.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Title Fields */}
@@ -1213,44 +1368,11 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
             <div className="space-y-5 animate-in fade-in duration-200">
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-base font-normal text-[#2F327D]">
-                  7. Buletin, Kontak HRD & Footer
+                  7. Kontak HRD & Informasi Footer
                 </h3>
                 <p className="text-slate-500 font-normal mt-0.5">
-                  Atur ajakan berlangganan buletin, alamat hotel, email kontak, dan nomor telepon resmi.
+                  Atur alamat hotel, email kontak, dan nomor telepon resmi pada footer beranda.
                 </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-700 font-normal mb-1">
-                    Judul Buletin
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.newsletterTitle}
-                    onChange={(e) =>
-                      setFormData({ ...formData, newsletterTitle: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-normal mb-1">
-                    Deskripsi Buletin
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.newsletterDescription}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        newsletterDescription: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl"
-                  />
-                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

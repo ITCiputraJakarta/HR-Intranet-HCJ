@@ -165,8 +165,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <span className="truncate font-normal">
               {isAdmin
-                ? 'Akses Lintas Unit & Departemen'
-                : `Unit: ${getHotelUnitRule(currentUser.unit).code}`}
+                ? 'Super Admin Otoritas Penuh'
+                : 'Hotel Ciputra Jakarta'}
             </span>
           </div>
         </div>
@@ -303,30 +303,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {t('masterAndConfig', currentLang)}
             </div>
             <nav className="space-y-1.5">
-              {(() => {
-                const isActive = activeTab === 'units';
-                return (
-                  <button
-                    id="menu-units"
-                    onClick={() => handleNav('units')}
-                    className={getNavButtonClass(isActive)}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                        isActive
-                          ? 'bg-white text-[#005a8d] border border-sky-300 shadow-2xs'
-                          : 'bg-sky-50/80 text-[#005a8d] border border-sky-200/80'
-                      }`}
-                    >
-                      <Globe className="w-4 h-4" />
-                    </div>
-                    <span className="flex-1 text-left">
-                      {currentLang === 'en' ? 'Hotel Units Master' : 'Master Unit Hotel'}
-                    </span>
-                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#005a8d] shrink-0" />}
-                  </button>
-                );
-              })()}
 
               {(() => {
                 const isActive = activeTab === 'departments';

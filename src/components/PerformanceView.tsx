@@ -133,9 +133,6 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
       (p) => p.departemen === currentUser.departemen && getAppraisalUnit(p) === userUnit
     );
   } else if (isSuperAdmin) {
-    if (filterUnit !== 'All') {
-      scopedList = scopedList.filter((p) => getAppraisalUnit(p) === filterUnit);
-    }
     if (filterDept !== 'All') {
       scopedList = scopedList.filter((p) => p.departemen === filterDept);
     }
@@ -206,7 +203,6 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
   const hasActiveFilters =
     searchName.trim() !== '' ||
     filterYear !== 'All' ||
-    (isSuperAdmin && filterUnit !== 'All') ||
     (isSuperAdmin && filterDept !== 'All') ||
     filterType !== 'All' ||
     filterStatus !== 'All' ||
@@ -216,7 +212,6 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     setSearchName('');
     setFilterYear('All');
     if (isSuperAdmin) {
-      setFilterUnit('All');
       setFilterDept('All');
     }
     setFilterType('All');
@@ -1538,24 +1533,9 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
-          {/* Unit & Department Filter: Disabled for Manager, Editable for Super Admin */}
+          {/* Department Filter for Super Admin */}
           {isSuperAdmin ? (
             <>
-              <select
-                value={filterUnit}
-                onChange={(e) => {
-                  setFilterUnit(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/50 font-bold text-indigo-900"
-              >
-                <option value="All">Semua Unit Hotel</option>
-                {hotelUnits.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
               <select
                 value={filterDept}
                 onChange={(e) => {

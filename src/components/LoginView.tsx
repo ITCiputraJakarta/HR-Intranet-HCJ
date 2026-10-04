@@ -445,9 +445,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
             onClick={onNavigateToHome || (() => {})}
             className="flex items-center gap-3 select-none cursor-pointer group"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0">
-              <Hotel className="w-6 h-6 stroke-[2.2]" />
-            </div>
+            {branding.customLogoUrl ? (
+              <img
+                src={branding.customLogoUrl}
+                alt="Logo Hotel Ciputra"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl object-cover shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0"
+              />
+            ) : (
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0">
+                <Hotel className="w-6 h-6 stroke-[2.2]" />
+              </div>
+            )}
             <div>
               <span className="text-[#2F327D] font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none block">
                 Hotel Ciputra
@@ -527,8 +535,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
               Satu pintu masuk untuk seluruh kebutuhan operasional Anda: Standar Operasional Prosedur (SOP), Formulir Kerja, Penilaian Kinerja Karyawan (KPI), Pengumuman Manajemen, dan Administrasi Kepegawaian.
             </p>
 
-            {/* 3 Pillars in Beranda Theme */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 pt-2 max-w-2xl">
+            {/* Pillars in Beranda Theme */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 pt-2 max-w-xl">
               <div className="p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
                 <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#F48C06] flex items-center justify-center">
                   <FileText className="w-4 h-4" />
@@ -546,16 +554,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <h4 className="font-normal text-[#2F327D] text-sm">Evaluasi Kinerja (KPI)</h4>
                 <p className="text-[11px] text-[#696984] leading-snug">
                   Penilaian transparan, target tahunan, dan evaluasi berkala.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white/90 border border-teal-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
-                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <h4 className="font-normal text-[#2F327D] text-sm">Keamanan Multi-Role</h4>
-                <p className="text-[11px] text-[#696984] leading-snug">
-                  Akses terenkripsi, proteksi anti-bot & audit log otomatis.
                 </p>
               </div>
             </div>
@@ -786,20 +784,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
-                      Unit Hotel *
+                      Unit Hotel
                     </label>
-                    <select
-                      id="reg-input-unit"
-                      value={regUnit}
-                      onChange={(e) => setRegUnit(e.target.value)}
-                      className="block w-full px-2 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
-                    >
-                      {hotelUnits.map((u) => (
-                        <option key={u.id} value={u.name}>
-                          {formatShortUnitOption(u.name, u.code)}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-normal">
+                      Hotel Ciputra Jakarta
+                    </div>
                   </div>
                 </div>
 

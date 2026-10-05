@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell,
   Hotel,
@@ -65,6 +65,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
+
+  const notifRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close notifications or profile dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (showNotifDropdown && notifRef.current && !notifRef.current.contains(target)) {
+        setShowNotifDropdown(false);
+      }
+      if (showUserDropdown && userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    if (showNotifDropdown || showUserDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [showNotifDropdown, showUserDropdown]);
 
   useEffect(() => {
     const unsub = subscribeToAppBranding((b) => setBranding(b));
@@ -296,7 +321,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Notification Bell with Dropdown */}
-            <div className="relative">
+            <div ref={notifRef} className="relative">
               <button
                 id="btn-notification-bell"
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -422,7 +447,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* User Profile Pill */}
-            <div className="relative">
+            <div ref={userMenuRef} className="relative">
               <button
                 id="btn-user-profile-toggle"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster } from '../types';
 import { validateAndScanFileUpload, sanitizeInput } from '../lib/security';
+import { getBackdropProps } from '../lib/modalHelper';
 import {
   addDocument,
   updateDocument,
@@ -144,13 +145,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
-  const hotelUnits = getHotelUnits();
-  const userUnit = currentUser.unit || 'Hotel Ciputra Jakarta';
-  const activeUnitRule = getHotelUnitRule(userUnit);
+  const userUnit = 'Hotel Ciputra Jakarta';
   const driveConfig = getDriveStorageConfig();
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
   const [filterVisibility, setFilterVisibility] = useState<'All' | 'internal' | 'public'>('All');
   const [sortOrder, setSortOrder] = useState<AnnouncementSortOption>('newest');
@@ -231,24 +229,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     }
   }, []);
 
-  // Unit & Department & Visibility Filtering Logic
+  // Department & Visibility Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
 
-  // 1. Filter by Unit Hotel Group
-  if (isSuperAdmin) {
-    if (filterUnit !== 'All') {
-      filteredAnnouncements = filteredAnnouncements.filter(
-        (d) => d.unit === filterUnit || d.unit === 'All Units' || !d.unit
-      );
-    }
-  } else {
-    // Regular employees see announcements targeting their assigned unit OR 'All Units' (Group wide)
-    filteredAnnouncements = filteredAnnouncements.filter(
-      (d) => d.unit === userUnit || d.unit === 'All Units' || !d.unit
-    );
-  }
-
-  // 2. Filter by Department Access
+  // 1. Filter by Department Access
   if (isLevel1) {
     filteredAnnouncements = filteredAnnouncements.filter(
       (d) => d.akses_dept === 'All Departments' || d.akses_dept === currentUser.departemen
@@ -624,7 +608,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-sky-50 border border-sky-200 text-[#005a8d] flex items-center justify-center">
                 <Building2 className="w-3 h-3" />
               </span>
-              <span>Unit Hotel Group: <strong className="text-[#004872]">{userUnit}</strong></span>
+              <span>Hotel: <strong className="text-[#004872]">Hotel Ciputra Jakarta</strong></span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold flex items-center gap-2 border border-sky-200/90 shadow-2xs">
               <span className="w-5 h-5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
@@ -636,12 +620,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               <span className="w-5 h-5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
                 <Clock className="w-3 h-3" />
               </span>
-              <span>Rule Retensi: <strong className="text-emerald-700">{activeUnitRule.announcementPruneDays || 7} Hari</strong></span>
+              <span>Masa Tayang: <strong className="text-emerald-700">{driveConfig.autoPruneAnnouncementsDays || 7} Hari</strong></span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-600 mt-3 bg-white/90 px-3.5 py-2 rounded-xl border border-sky-200/80 shadow-2xs">
-            {activeUnitRule.announcementRuleNote || `Masa tayang standar ${activeUnitRule.announcementPruneDays || 7} hari untuk unit ${userUnit}.`}
-          </p>
         </div>
 
         <div className="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-[0.06] pointer-events-none">
@@ -729,30 +710,6 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
           {/* Filters, Sort & Upload Controls */}
           <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-            {/* Unit Filter (Super Admin) */}
-            {isSuperAdmin && (
-              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  id="filter-announcement-unit"
-                  value={filterUnit}
-                  onChange={(e) => {
-                    setFilterUnit(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer text-xs"
-                >
-                  <option value="All">Semua Unit Hotel</option>
-                  <option value="All Units">Group Wide (All Units)</option>
-                  {hotelUnits.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Department Filter */}
             {isSuperAdmin && (
               <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
@@ -901,7 +858,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
           )}
 
           <form onSubmit={handleUploadSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Judul Pengumuman *
@@ -915,40 +872,6 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                   placeholder="Contoh: Jadwal Shift Libur Nasional"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Unit Hotel Group (Rule Pengumuman) *
-                </label>
-                {isSuperAdmin ? (
-                  <select
-                    value={upUnit}
-                    onChange={(e) => {
-                      const nextU = e.target.value;
-                      setUpUnit(nextU);
-                      const rule = getHotelUnitRule(nextU);
-                      const nextExp = new Date(
-                        Date.now() + (rule.announcementPruneDays || 7) * 24 * 60 * 60 * 1000
-                      )
-                        .toISOString()
-                        .split('T')[0];
-                      setUpExpiryDate(nextExp);
-                    }}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
-                  >
-                    {hotelUnits.map((u) => (
-                      <option key={u.id} value={u.name}>
-                        {u.name} (Rule {u.announcementPruneDays} Hari)
-                      </option>
-                    ))}
-                    <option value="All Units">All Units (Seluruh Unit Hotel Group)</option>
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/60 font-bold text-indigo-900">
-                    {userUnit}
-                  </div>
-                )}
               </div>
 
               <div>
@@ -1211,16 +1134,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                         className="cursor-pointer space-y-1"
                       >
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                              (doc.unit || 'Hotel Ciputra Jakarta').includes('Unit 2')
-                                ? 'bg-teal-50 text-teal-800 border-teal-200'
-                                : 'bg-sky-50 text-sky-800 border-sky-200'
-                            }`}
-                          >
-                            <Building2 className="w-2.5 h-2.5" />
-                            <span>{doc.unit || 'Hotel Ciputra Jakarta'}</span>
-                          </span>
+                          <DepartmentBadge department={doc.akses_dept} size="xs" />
 
                           {doc.isPublic ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
@@ -1421,9 +1335,6 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                           <div className="truncate max-w-sm">
                             <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate flex items-center gap-1.5 flex-wrap">
                               <span className="truncate">{doc.title}</span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold shrink-0">
-                                {doc.unit || 'All Units'}
-                              </span>
                               {doc.isPublic ? (
                                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold shrink-0 flex items-center gap-0.5">
                                   <Globe className="w-2.5 h-2.5" />
@@ -1524,7 +1435,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       {editDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setEditDoc(null)}
+          {...getBackdropProps(() => setEditDoc(null))}
         >
           <div
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
@@ -1862,7 +1773,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       {deleteConfirmDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setDeleteConfirmDoc(null)}
+          {...getBackdropProps(() => setDeleteConfirmDoc(null))}
         >
           <div
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 space-y-4 text-center"

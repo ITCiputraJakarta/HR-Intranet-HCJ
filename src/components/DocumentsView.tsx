@@ -44,6 +44,7 @@ import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { validateAndScanFileUpload, sanitizeInput } from '../lib/security';
+import { getBackdropProps } from '../lib/modalHelper';
 
 export type DocumentSortOption = 'title-asc' | 'title-desc' | 'date-desc' | 'date-asc' | 'dept-asc';
 
@@ -71,11 +72,9 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
-  const hotelUnits = getHotelUnits();
-  const userUnit = currentUser.unit || 'Hotel Ciputra Jakarta';
+  const userUnit = 'Hotel Ciputra Jakarta';
   const [selectedSubcat, setSelectedSubcat] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
   const [sortField, setSortField] = useState<string>('uploadedAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -88,7 +87,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   // Upload modal state
   const [upTitle, setUpTitle] = useState('');
-  const [upUnit, setUpUnit] = useState(userUnit);
   const [upDept, setUpDept] = useState(
     currentUser.role === 'admin'
       ? 'All Departments'
@@ -103,7 +101,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   // Edit / Update Modal State
   const [editDoc, setEditDoc] = useState<IntranetDocument | null>(null);
   const [editTitle, setEditTitle] = useState('');
-  const [editUnit, setEditUnit] = useState(userUnit);
   const [editDept, setEditDept] = useState('');
   const [editSubcat, setEditSubcat] = useState('');
   const [editDesc, setEditDesc] = useState('');
@@ -261,7 +258,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       let updatedDoc: IntranetDocument = {
         ...editDoc,
         title: sanitizeInput(editTitle.trim()),
-        unit: currentUser.role === 'admin' ? editUnit : userUnit,
+        unit: userUnit,
         akses_dept: editDept,
         sub_kategori: editSubcat || editDoc.sub_kategori,
         keterangan: sanitizeInput(editDesc.trim()),

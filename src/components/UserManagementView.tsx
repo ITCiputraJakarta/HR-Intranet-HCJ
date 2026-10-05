@@ -35,6 +35,7 @@ import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
 import { hashPassword, sanitizeInput } from '../lib/security';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface UserManagementViewProps {
   users: User[];
@@ -50,9 +51,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
-  const hotelUnits = getHotelUnits();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterUnit, setFilterUnit] = useState('All');
   const [filterDept, setFilterDept] = useState('All');
   const [filterRole, setFilterRole] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -67,7 +66,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editUnit, setEditUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
+  const [editUnit] = useState('Hotel Ciputra Jakarta');
   const [editDept, setEditDept] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('staff');
   const [editStatus, setEditStatus] = useState<UserStatus>('Approved');
@@ -85,7 +84,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   // New user form state
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newUnit, setNewUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
+  const [newUnit] = useState('Hotel Ciputra Jakarta');
   const [newDept, setNewDept] = useState('Front Office');
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [newPassword, setNewPassword] = useState('password123');
@@ -739,10 +738,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Delete Confirmation Modal */}
       {userToDelete && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !isDeletingUser) setUserToDelete(null);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          {...getBackdropProps(() => { if (!isDeletingUser) setUserToDelete(null); })}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -821,10 +818,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Self-Delete Warning Notice Modal */}
       {selfDeleteNotice && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelfDeleteNotice(false);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          {...getBackdropProps(() => setSelfDeleteNotice(false))}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -853,10 +848,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Add User Modal */}
       {showAddModal && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAddModal(false);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          {...getBackdropProps(() => setShowAddModal(false))}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -906,23 +899,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="jessica@ciputra.com"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Unit Hotel Group (Pemisah Staf & SOP) *
-                </label>
-                <select
-                  value={newUnit}
-                  onChange={(e) => setNewUnit(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
-                >
-                  {hotelUnits.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.code})
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -1013,10 +989,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Edit User Modal */}
       {userToEdit && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setUserToEdit(null);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          {...getBackdropProps(() => setUserToEdit(null))}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1074,23 +1048,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="user@ciputra.com"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Unit Hotel Group (Pemisah Staf & SOP) *
-                </label>
-                <select
-                  value={editUnit}
-                  onChange={(e) => setEditUnit(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
-                >
-                  {hotelUnits.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.code})
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

@@ -20,6 +20,7 @@ import {
 import { DepartmentMaster, User, IntranetDocument } from '../types';
 import { getDepartmentMasters, addDepartment, updateDepartment, deleteDepartment, getHotelUnits } from '../lib/storage';
 import { sanitizeInput } from '../lib/security';
+import { getBackdropProps } from '../lib/modalHelper';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
@@ -52,9 +53,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       setDepartments(propDepartments);
     }
   }, [propDepartments]);
-  const hotelUnits = getHotelUnits();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterUnit, setFilterUnit] = useState<string>('All');
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -66,7 +65,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 
   // Form State
   const [formData, setFormData] = useState({
-    unit: 'All Units',
+    unit: 'Hotel Ciputra Jakarta',
     name: '',
     code: '',
     description: '',
@@ -93,12 +92,6 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
 
   // Filtered departments
   const filteredDepartments = departments.filter((d) => {
-    if (filterUnit !== 'All') {
-      const dUnit = d.unit || 'All Units';
-      if (dUnit !== filterUnit && dUnit !== 'All Units') {
-        return false;
-      }
-    }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -405,28 +398,6 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
               )}
             </div>
 
-            {/* Unit Hotel Group Filter */}
-            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-              <select
-                id="filter-dept-unit"
-                value={filterUnit}
-                onChange={(e) => {
-                  setFilterUnit(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer text-xs"
-              >
-                <option value="All">Semua Unit Hotel</option>
-                <option value="All Units">Group Wide (All Units)</option>
-                {hotelUnits.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <button
               onClick={() => {
                 if (sortField === 'name' && sortDirection === 'asc') {
@@ -654,9 +625,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       {/* Modal: Tambah Departemen */}
       {showAddModal && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAddModal(false);
-          }}
+          {...getBackdropProps(() => setShowAddModal(false))}
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
         >
           <div
@@ -799,9 +768,7 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       {/* Modal: Edit Departemen */}
       {editingDept && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditingDept(null);
-          }}
+          {...getBackdropProps(() => setEditingDept(null))}
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
         >
           <div

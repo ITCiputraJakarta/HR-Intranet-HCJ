@@ -30,6 +30,34 @@ b:not(.brand-top-left-bold) {
   font-weight: 700 !important;
 }
 
+/* Custom Visible Scrollbar for Left Navigation Menu & Smooth Scrolling */
+.sidebar-scroll {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: #38bdf8 #f0f9ff;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: #f0f9ff;
+  border-radius: 9999px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #38bdf8;
+  border-radius: 9999px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #0284c7;
+}
+
 @media print {
   @page {
     size: A4 portrait;

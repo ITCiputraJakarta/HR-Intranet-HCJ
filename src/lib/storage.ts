@@ -733,7 +733,8 @@ export async function addDocument(doc: IntranetDocument, actor: User): Promise<v
   try {
     await firestoreSaveDocument(doc);
   } catch (err) {
-    console.warn('[Storage] firestoreSaveDocument error on addDocument:', err);
+    console.error('[Storage] firestoreSaveDocument error on addDocument:', err);
+    throw err;
   }
 
   // Record Structured Access Log
@@ -803,7 +804,8 @@ export async function updateDocument(updatedDoc: IntranetDocument, actor: User):
   try {
     await firestoreSaveDocument(updatedWithTimestamp);
   } catch (err) {
-    console.warn('[Storage] firestoreSaveDocument error on updateDocument:', err);
+    console.error('[Storage] firestoreSaveDocument error on updateDocument:', err);
+    throw err;
   }
 
   addAccessLog({

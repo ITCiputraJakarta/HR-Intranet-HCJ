@@ -505,6 +505,16 @@ async function hydrateChunkedDocument(docItem: any): Promise<IntranetDocument> {
   };
 }
 
+/**
+ * Fetch full file (reassembling chunks if needed) for viewing or downloading
+ */
+export async function fetchDocumentFullFile(docItem: IntranetDocument): Promise<IntranetDocument> {
+  if (docItem.fileUrl && docItem.fileUrl.length > 50) {
+    return docItem;
+  }
+  return hydrateChunkedDocument(docItem);
+}
+
 export function subscribeToDocuments(onUpdate: (docs: IntranetDocument[]) => void): () => void {
   if (!isFirebaseConfigured()) return () => {};
   try {
@@ -873,7 +883,7 @@ export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Rec
   return result;
 }
 
-const CHUNK_SIZE_CHARS = 550000; // ~550KB per chunk document, well below Firestore's 1MB limit
+const CHUNK_SIZE_CHARS = 350000; // ~350KB per chunk document, guaranteed safe within Firestore 1MB document limit
 
 async function saveDocumentWithChunksToFirestore(docItem: IntranetDocument): Promise<void> {
   const rawFileUrl = docItem.fileUrl || docItem.downloadUrl || docItem.previewUrl || '';
@@ -955,18 +965,14 @@ export async function firestoreSaveDocument(docItem: IntranetDocument): Promise<
   pendingDocumentSaves.set(docItem.id, { doc: docItem, timestamp: Date.now() });
 
   try {
-    const writePromise = saveDocumentWithChunksToFirestore(docItem).finally(() => {
-      // Keep pendingDocumentSaves for 10s after write completes so concurrent snapshots never drop the file
-      setTimeout(() => {
-        pendingDocumentSaves.delete(docItem.id);
-      }, 10000);
-    });
-    const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 3500);
-    });
-    await Promise.race([writePromise, timeoutPromise]);
+    await saveDocumentWithChunksToFirestore(docItem);
+    // Keep pendingDocumentSaves for 10s after write completes so concurrent snapshots never drop the file
+    setTimeout(() => {
+      pendingDocumentSaves.delete(docItem.id);
+    }, 10000);
   } catch (err: any) {
     console.error('[Firestore] firestoreSaveDocument error:', err);
+    throw err;
   }
 }
 

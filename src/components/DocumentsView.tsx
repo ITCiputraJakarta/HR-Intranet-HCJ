@@ -1005,7 +1005,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {editDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setEditDoc(null)}
+          {...getBackdropProps(() => setEditDoc(null))}
         >
           <div
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
@@ -1053,30 +1053,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   placeholder="Contoh: Standard Prosedur FO Check-In"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 font-semibold"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Unit Hotel Group (Pemisah SOP & Formulir) *
-                </label>
-                {currentUser.role === 'admin' ? (
-                  <select
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
-                  >
-                    {hotelUnits.map((u) => (
-                      <option key={u.id} value={u.name}>
-                        {u.name} ({u.code})
-                      </option>
-                    ))}
-                    <option value="All Units">All Units (Lintas Unit Hotel Group)</option>
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/60 font-bold text-indigo-900">
-                    {userUnit}
-                  </div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -1202,7 +1178,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {showUploadModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setShowUploadModal(false)}
+          {...getBackdropProps(() => setShowUploadModal(false))}
         >
           <div
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4"
@@ -1250,30 +1226,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   placeholder={`Contoh: Prosedur Standar Operasional ${category}`}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Unit Hotel Group (Pemisah SOP & Formulir) *
-                </label>
-                {currentUser.role === 'admin' ? (
-                  <select
-                    value={upUnit}
-                    onChange={(e) => setUpUnit(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-indigo-50/40 font-bold text-indigo-950"
-                  >
-                    {hotelUnits.map((u) => (
-                      <option key={u.id} value={u.name}>
-                        {u.name} ({u.code})
-                      </option>
-                    ))}
-                    <option value="All Units">All Units (Lintas Unit Hotel Group)</option>
-                  </select>
-                ) : (
-                  <div className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-200 bg-indigo-50/60 font-bold text-indigo-900">
-                    {userUnit}
-                  </div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -1385,7 +1337,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {deleteConfirmDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setDeleteConfirmDoc(null)}
+          {...getBackdropProps(() => setDeleteConfirmDoc(null))}
         >
           <div
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 space-y-4 text-center"

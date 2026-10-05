@@ -186,48 +186,12 @@ export default function App() {
       setBranding(b);
     });
 
-    // Security: Do not subscribe to sensitive collections (Users, SOPs, Logs, KPIs) until user is authenticated
-    if (!currentUser?.id) {
-      return () => {
-        unsubState();
-        unsubBranding();
-      };
-    }
-
-    refreshAllData();
-
-    // Real-time Firestore snapshot subscriptions (Authenticated Session Only)
-    const unsubUsers = subscribeToUsers((newUsers) => {
-      saveUsers(newUsers);
-      const syncedUsers = getUsers();
-      setUsers(syncedUsers);
-      setUserState((prev) => {
-        if (!prev) return null;
-        const matched = syncedUsers.find((u) => u.id === prev.id);
-        if (
-          matched &&
-          (matched.unit !== prev.unit ||
-            matched.departemen !== prev.departemen ||
-            matched.role !== prev.role ||
-            matched.nama !== prev.nama)
-        ) {
-          setCurrentUser(matched);
-          return matched;
-        }
-        return prev;
-      });
-    });
-
+    // Real-time Firestore document & announcement sync for all clients (including public portal view)
     const unsubDocs = subscribeToDocuments((newDocs) => {
       saveDocuments(newDocs);
       const syncedDocs = getDocuments();
       setDocuments(syncedDocs);
       setAnnouncements(syncedDocs.filter((d) => d.category === 'Pengumuman'));
-    });
-
-    const unsubLogs = subscribeToAccessLogs((newLogs) => {
-      saveAccessLogs(newLogs);
-      setLogs(getAccessLogs());
     });
 
     const unsubCats = subscribeToCategories((newCats) => {
@@ -245,42 +209,80 @@ export default function App() {
       setHotelUnits(getHotelUnits());
     });
 
-    const unsubKPIs = subscribeToKPIs((newKPIs) => {
-      saveKPIMaster(newKPIs);
-      setKpiMaster(getKPIMaster());
-    });
-
-    const unsubPerfs = subscribeToPerformances((newPerfs) => {
-      savePerformances(newPerfs);
-      setPerformances(getPerformances());
-    });
-
-    const unsubNotifs = subscribeToNotifications((newNotifs) => {
-      saveNotifications(newNotifs);
-      setNotifications(getNotifications());
-    });
-
     const unsubConfig = subscribeToSystemConfig((newConfig) => {
       setConfig((prev) => ({ ...prev, ...newConfig }));
     });
 
-    const unsubApps = subscribeToCareerApplications((apps) => {
-      setCareerApplications(apps);
-    });
+    // Authenticated Session Only: Subscribe to sensitive collections (Users, Access Logs, KPIs, Appraisals)
+    let unsubUsers = () => {};
+    let unsubLogs = () => {};
+    let unsubKPIs = () => {};
+    let unsubPerfs = () => {};
+    let unsubNotifs = () => {};
+    let unsubApps = () => {};
+
+    if (currentUser?.id) {
+      refreshAllData();
+
+      unsubUsers = subscribeToUsers((newUsers) => {
+        saveUsers(newUsers);
+        const syncedUsers = getUsers();
+        setUsers(syncedUsers);
+        setUserState((prev) => {
+          if (!prev) return null;
+          const matched = syncedUsers.find((u) => u.id === prev.id);
+          if (
+            matched &&
+            (matched.unit !== prev.unit ||
+              matched.departemen !== prev.departemen ||
+              matched.role !== prev.role ||
+              matched.nama !== prev.nama)
+          ) {
+            setCurrentUser(matched);
+            return matched;
+          }
+          return prev;
+        });
+      });
+
+      unsubLogs = subscribeToAccessLogs((newLogs) => {
+        saveAccessLogs(newLogs);
+        setLogs(getAccessLogs());
+      });
+
+      unsubKPIs = subscribeToKPIs((newKPIs) => {
+        saveKPIMaster(newKPIs);
+        setKpiMaster(getKPIMaster());
+      });
+
+      unsubPerfs = subscribeToPerformances((newPerfs) => {
+        savePerformances(newPerfs);
+        setPerformances(getPerformances());
+      });
+
+      unsubNotifs = subscribeToNotifications((newNotifs) => {
+        saveNotifications(newNotifs);
+        setNotifications(getNotifications());
+      });
+
+      unsubApps = subscribeToCareerApplications((apps) => {
+        setCareerApplications(apps);
+      });
+    }
 
     return () => {
       unsubState();
-      unsubUsers();
+      unsubBranding();
       unsubDocs();
-      unsubLogs();
       unsubCats();
       unsubDepts();
       unsubUnits();
+      unsubConfig();
+      unsubUsers();
+      unsubLogs();
       unsubKPIs();
       unsubPerfs();
       unsubNotifs();
-      unsubConfig();
-      unsubBranding();
       unsubApps();
     };
   }, [currentUser?.id]);

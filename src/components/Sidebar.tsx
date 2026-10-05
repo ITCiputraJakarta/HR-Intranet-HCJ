@@ -111,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }`;
 
   const renderContent = (isMobile = false) => (
-    <div className="flex flex-col h-full select-none bg-white">
+    <div className="flex flex-col h-full min-h-0 bg-white">
       {/* Top Gold Accent Line matching Beranda */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#F48C06] via-[#2F327D] to-[#65C2B4] shrink-0" />
 
@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-6 h-6 rounded-lg bg-sky-50 border border-sky-200 text-[#005a8d] flex items-center justify-center shrink-0">
               <Building2 className="w-3.5 h-3.5" />
             </div>
-            <span className="truncate">{currentUser.unit || 'Hotel Ciputra Jakarta'}</span>
+            <span className="truncate">Hotel Ciputra Jakarta</span>
           </div>
           <div>
             <DepartmentBadge department={currentUser.departemen} size="sm" />
@@ -166,14 +166,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="truncate font-normal">
               {isAdmin
                 ? 'Super Admin Otoritas Penuh'
-                : (currentUser.unit || 'Hotel Ciputra Jakarta')}
+                : 'Hotel Ciputra Jakarta'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Navigation Links with custom scrollbar */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-3.5">
+      {/* Navigation Links with custom smooth scrollbar */}
+      <div className="sidebar-scroll flex-1 min-h-0 px-2.5 py-2.5 space-y-3.5 pb-8 select-auto">
         {/* Utama (Intranet & Dokumen) */}
         <div>
           <div className="px-3 mb-2 text-[10px] font-normal uppercase tracking-widest text-sky-700/80">
@@ -544,7 +544,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sticky Sidebar (Pure Bright Pearl & Soft Sky Theme) */}
-      <aside className="hidden lg:flex w-64 xl:w-68 bg-white text-slate-700 flex-col shrink-0 rounded-2xl overflow-hidden border border-sky-200/90 shadow-[0_8px_30px_rgb(2,132,199,0.06)] sticky top-20 max-h-[calc(100vh-5.5rem)] self-start z-20">
+      <aside className="hidden lg:flex w-64 xl:w-68 bg-white text-slate-700 flex-col shrink-0 rounded-2xl overflow-hidden border border-sky-200/90 shadow-[0_8px_30px_rgb(2,132,199,0.06)] sticky top-20 h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] self-start z-20 min-h-0">
         {renderContent(false)}
       </aside>
 
@@ -555,7 +555,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="fixed inset-0 bg-slate-500/25 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
           />
-          <aside className="relative z-10 w-72 max-w-[85vw] bg-white text-slate-700 flex flex-col h-full shadow-2xl border-r border-sky-200 animate-in slide-in-from-left duration-200">
+          <aside className="relative z-10 w-72 max-w-[85vw] bg-white text-slate-700 flex flex-col h-full max-h-screen min-h-0 shadow-2xl border-r border-sky-200 animate-in slide-in-from-left duration-200">
             {renderContent(true)}
           </aside>
         </div>

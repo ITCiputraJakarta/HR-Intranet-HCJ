@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { IntranetDocument, User } from '../types';
 import { addAccessLog, deleteDocument, updateDocument, getDepartments } from '../lib/storage';
+import { fetchDocumentFullFile } from '../lib/firestoreService';
+import { getBackdropProps } from '../lib/modalHelper';
 import { DepartmentBadge } from '../lib/departmentColors';
 import {
   processFileForFirestore,
@@ -50,6 +52,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   if (!doc) return null;
 
   const departments = getDepartments();
+  const [activeDoc, setActiveDoc] = useState<IntranetDocument>(doc);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editTitle, setEditTitle] = useState(doc.title);
@@ -59,27 +63,54 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
+  useEffect(() => {
+    setActiveDoc(doc);
+    setEditTitle(doc.title);
+    setEditDept(doc.akses_dept);
+    setEditKeterangan(doc.keterangan || '');
+    if ((!doc.fileUrl || doc.isChunkedFile) && doc.id) {
+      setIsLoadingFile(true);
+      fetchDocumentFullFile(doc)
+        .then((hydrated) => {
+          setActiveDoc(hydrated);
+          if (onUpdate) onUpdate(hydrated);
+        })
+        .catch((e) => console.warn('Chunk load error:', e))
+        .finally(() => setIsLoadingFile(false));
+    }
+  }, [doc.id]);
+
   const canManage =
     currentUser.role === 'admin' ||
     currentUser.role === 'hod' ||
     currentUser.role === 'manager';
   const folderPath = `${doc.category} / ${doc.akses_dept} / ${doc.fileName}`;
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    let target = activeDoc;
+    if ((!target.fileUrl || target.isChunkedFile) && target.id) {
+      target = await fetchDocumentFullFile(target);
+      setActiveDoc(target);
+    }
     addAccessLog({
       user: currentUser,
       actionCategory: 'DOCUMENT',
       action: 'Unduh Dokumen',
-      target: doc.title,
+      target: target.title,
       status: 'SUCCESS',
-      details: `Berkas ID ${doc.id} (${doc.fileName}) diunduh.`,
+      details: `Berkas ID ${target.id} (${target.fileName}) diunduh.`,
     });
 
-    downloadFileFromDataUrl(doc.downloadUrl || doc.fileUrl, doc.fileName);
+    downloadFileFromDataUrl(target.downloadUrl || target.fileUrl, target.fileName);
   };
 
-  const handleOpenExternal = () => {
-    openFileFromDataUrl(doc.fileUrl || doc.downloadUrl, doc.fileName);
+  const handleOpenExternal = async () => {
+    let target = activeDoc;
+    if ((!target.fileUrl || target.isChunkedFile) && target.id) {
+      target = await fetchDocumentFullFile(target);
+      setActiveDoc(target);
+    }
+    openFileFromDataUrl(target.fileUrl || target.downloadUrl, target.fileName);
   };
 
   const handleDownloadAttachment = () => {
@@ -171,24 +202,25 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
 
   useEffect(() => {
-    if (!isPdf || !doc.fileUrl) {
+    const targetUrl = activeDoc.fileUrl || activeDoc.downloadUrl;
+    if (!isPdf || !targetUrl) {
       setPdfPreviewUrl('');
       return;
     }
-    if (doc.fileUrl.startsWith('data:')) {
-      const blob = dataUrlToBlob(doc.fileUrl);
+    if (targetUrl.startsWith('data:')) {
+      const blob = dataUrlToBlob(targetUrl);
       if (blob) {
         const url = URL.createObjectURL(blob);
         setPdfPreviewUrl(url);
         return () => URL.revokeObjectURL(url);
       }
     }
-    setPdfPreviewUrl(doc.fileUrl);
-  }, [doc.fileUrl, isPdf]);
+    setPdfPreviewUrl(targetUrl);
+  }, [activeDoc.fileUrl, activeDoc.downloadUrl, isPdf]);
 
   return (
     <div
-      onClick={onClose}
+      {...getBackdropProps(onClose)}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
     >
       <div
@@ -203,10 +235,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
             <div>
               <span className="text-xs font-bold text-[#005a8d] uppercase tracking-wider block">
-                Penyimpanan Cloud • {doc.category}
+                Penyimpanan Cloud • {activeDoc.category}
               </span>
               <h3 className="text-base font-bold text-slate-900 truncate max-w-lg">
-                {doc.title}
+                {activeDoc.title}
               </h3>
             </div>
           </div>
@@ -217,6 +249,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {isLoadingFile && (
+          <div className="bg-sky-50 px-6 py-2 border-b border-sky-100 flex items-center justify-between text-xs text-[#005a8d] animate-pulse">
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#005a8d] animate-ping" />
+              Memuat berkas dari Cloud Firestore...
+            </span>
+            <span className="text-[11px] font-medium text-slate-500">{activeDoc.fileSize || ''}</span>
+          </div>
+        )}
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -542,9 +584,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setShowDeleteConfirm(false);
-            }}
+            {...getBackdropProps(() => setShowDeleteConfirm(false))}
             className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs cursor-pointer"
           >
             <div

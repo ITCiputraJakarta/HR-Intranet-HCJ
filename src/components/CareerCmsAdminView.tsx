@@ -42,6 +42,7 @@ import {
   subscribeToCareerApplications,
   DEFAULT_CAREER_CMS,
 } from '../lib/cmsService';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface CareerCmsAdminViewProps {
   currentUser: User;
@@ -777,7 +778,13 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
 
       {/* MODAL: POST / EDIT JOB OPENING */}
       {isJobModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in"
+          {...getBackdropProps(() => {
+            setIsJobModalOpen(false);
+            setEditingJob(null);
+          })}
+        >
           <div
             onClick={(e) => e.stopPropagation()}
             className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh]"
@@ -956,7 +963,10 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
 
       {/* MODAL: PREVIEW CV PDF (MAX 1MB) */}
       {previewPdfModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          {...getBackdropProps(() => setPreviewPdfModal(null))}
+        >
           <div
             onClick={(e) => e.stopPropagation()}
             className="bg-white w-full max-w-3xl h-[85vh] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"

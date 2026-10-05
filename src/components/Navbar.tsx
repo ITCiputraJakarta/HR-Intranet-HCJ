@@ -198,6 +198,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-orange-200/60 shadow-xs">
+      {/* Click-outside backdrop overlay to instantly close notif or profile on any click */}
+      {(showNotifDropdown || showUserDropdown) && (
+        <div
+          className="fixed inset-0 z-30 bg-transparent"
+          onClick={() => {
+            setShowNotifDropdown(false);
+            setShowUserDropdown(false);
+          }}
+        />
+      )}
+
       {/* Top Gold Accent Line matching Beranda */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#F48C06] via-[#2F327D] to-[#65C2B4]" />
       <div className="w-full max-w-[1920px] mx-auto px-3 sm:px-5 lg:px-6">
@@ -321,7 +332,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Notification Bell with Dropdown */}
-            <div ref={notifRef} className="relative">
+            <div ref={notifRef} className="relative z-40">
               <button
                 id="btn-notification-bell"
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -447,7 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* User Profile Pill */}
-            <div ref={userMenuRef} className="relative">
+            <div ref={userMenuRef} className="relative z-40">
               <button
                 id="btn-user-profile-toggle"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}

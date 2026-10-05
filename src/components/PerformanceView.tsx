@@ -43,6 +43,7 @@ import {
   unlockPerformanceItem,
 } from '../lib/storage';
 import { AppraisalPrintModal } from './AppraisalPrintModal';
+import { getBackdropProps } from '../lib/modalHelper';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
@@ -1045,11 +1046,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         {/* Modal: Konfirmasi Submit for Review */}
         {showSubmitConfirm && (
           <div
-            onClick={() => setShowSubmitConfirm(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+            {...getBackdropProps(() => setShowSubmitConfirm(false))}
           >
             <div
-              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
             >
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
@@ -1093,11 +1093,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         {/* Modal: Konfirmasi Persetujuan (Approve) & Kunci */}
         {showApproveConfirm && (
           <div
-            onClick={() => setShowApproveConfirm(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+            {...getBackdropProps(() => setShowApproveConfirm(false))}
           >
             <div
-              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
             >
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
@@ -1151,11 +1150,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         {/* Modal: Permintaan Catatan Revisi */}
         {showRevisionModal && (
           <div
-            onClick={() => setShowRevisionModal(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+            {...getBackdropProps(() => setShowRevisionModal(false))}
           >
             <div
-              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
             >
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
@@ -1217,11 +1215,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         {/* Modal: Buka Kunci (Super Admin) */}
         {showUnlockModal && (
           <div
-            onClick={() => setShowUnlockModal(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+            {...getBackdropProps(() => setShowUnlockModal(false))}
           >
             <div
-              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 space-y-4 cursor-default"
             >
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
@@ -2033,11 +2030,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
       {/* ----------------------------------------------------------------------- */}
       {selectedSubordinate && (
         <div
-          onClick={() => setSelectedSubordinate(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          {...getBackdropProps(() => setSelectedSubordinate(null))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh] cursor-default"
           >
             {/* Modal Header */}

@@ -31,6 +31,7 @@ import {
   FirebaseDiagnosticReport,
 } from '../lib/firestoreService';
 import { firebaseConfig } from '../lib/firebase';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface FirestoreSyncModalProps {
   isOpen: boolean;
@@ -115,7 +116,10 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      {...getBackdropProps(onClose)}
+    >
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-5 bg-linear-to-r from-amber-600 via-orange-600 to-amber-700 text-white flex items-center justify-between shrink-0">

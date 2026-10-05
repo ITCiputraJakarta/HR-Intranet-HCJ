@@ -29,6 +29,7 @@ import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface KPIMasterViewProps {
   kpiMaster: KPIMasterItem[];
@@ -683,13 +684,10 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
       {/* Deploy Confirmation Modal */}
       {showDeployConfirm && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowDeployConfirm(false);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          {...getBackdropProps(() => setShowDeployConfirm(false))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 cursor-default"
           >
             <div className="flex items-center gap-3">
@@ -727,10 +725,8 @@ export const KPIMasterView: React.FC<KPIMasterViewProps> = ({
       {/* Delete Confirmation Modal */}
       {kpiToDelete && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setKpiToDelete(null);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          {...getBackdropProps(() => setKpiToDelete(null))}
         >
           <div
             onClick={(e) => e.stopPropagation()}

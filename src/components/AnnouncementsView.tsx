@@ -179,12 +179,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Upload Form States
   const todayStr = new Date().toISOString().split('T')[0];
   const defaultExpiryStr = new Date(
-    Date.now() + (activeUnitRule.announcementPruneDays || 7) * 24 * 60 * 60 * 1000
+    Date.now() + 7 * 24 * 60 * 60 * 1000
   )
     .toISOString()
     .split('T')[0];
   const [upTitle, setUpTitle] = useState('');
-  const [upUnit, setUpUnit] = useState(isSuperAdmin ? 'Hotel Ciputra Jakarta' : userUnit);
   const [upDept, setUpDept] = useState('All Departments');
   const [upSubcat, setUpSubcat] = useState('Pengumuman');
   const [upKet, setUpKet] = useState('');
@@ -538,7 +537,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         title: sanitizeInput(upTitle.trim()),
         category: 'Pengumuman',
         sub_kategori: upSubcat || 'Umum',
-        unit: isSuperAdmin ? (upUnit || 'Hotel Ciputra Jakarta') : userUnit,
+        unit: 'Hotel Ciputra Jakarta',
         akses_dept: targetDept,
         keterangan: sanitizeInput(upKet.trim()),
         isPublic: upIsPublic,

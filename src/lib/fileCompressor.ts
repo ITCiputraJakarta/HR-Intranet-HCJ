@@ -173,7 +173,7 @@ export async function compressImageFile(
 }
 
 /**
- * Prepares a non-image file (PDF, Doc, Spreadsheet) for direct Firestore storage.
+ * Prepares a non-image file (PDF, Dokumen Kantor, Arsip Digital) for direct Firestore storage.
  * Supports up to 15MB with automatic Firestore chunking in firestoreService.
  */
 export async function prepareDocumentFile(
@@ -181,6 +181,14 @@ export async function prepareDocumentFile(
   maxSizeBytes: number = 15 * 1024 * 1024 // 15 MB max limit with Firestore auto-chunking
 ): Promise<CompressionResult> {
   return new Promise((resolve, reject) => {
+    // Strict security scan: block potentially dangerous executable or script files
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.sh', '.vbs', '.js', '.msi', '.ps1', '.php', '.py', '.scr', '.dll'];
+    const lowerName = (file.name || '').toLowerCase();
+    if (dangerousExtensions.some((ext) => lowerName.endsWith(ext))) {
+      reject(new Error('Format berkas eksekusi tidak diizinkan demi keamanan server dan pengguna.'));
+      return;
+    }
+
     if (file.size > maxSizeBytes) {
       reject(
         new Error(

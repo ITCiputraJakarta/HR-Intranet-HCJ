@@ -11,7 +11,7 @@ export const translations = {
     
     // Page Headers Translations
     headerAnnouncementsTitle: 'Pengumuman & Berita Perusahaan',
-    headerAnnouncementsSubtitle: 'Informasi resmi, buletin manajemen, dan kegiatan internal hotel',
+    headerAnnouncementsSubtitle: 'Informasi resmi, komunikasi manajemen, dan kegiatan internal hotel',
     headerSOPTitle: 'Standar Operasional Prosedur (SOP)',
     headerSOPSubtitle: 'Panduan kerja resmi departemen dan standardisasi operasional hotel',
     headerFormsTitle: 'Formulir Kerja Departemen',

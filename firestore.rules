@@ -9,15 +9,15 @@ service cloud.firestore {
 
     function hasValidUserFields(data) {
       return data.keys().hasAll(['nama', 'email', 'role', 'status'])
-        && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 150
-        && data.email is string && data.email.size() > 0 && data.email.size() <= 150
+        && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 200
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
         && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']
-        && data.status is string && data.status in ['Approved', 'Pending'];
+        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected'];
     }
 
     function hasValidDocumentFields(data) {
       return data.keys().hasAll(['title', 'category'])
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 300
+        && data.title is string && data.title.size() > 0
         && data.category is string;
     }
 

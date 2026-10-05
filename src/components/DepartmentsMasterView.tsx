@@ -896,13 +896,10 @@ export const DepartmentsMasterView: React.FC<DepartmentsMasterViewProps> = ({
       {/* Modal: Konfirmasi Hapus Departemen */}
       {deptToDelete && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDeptToDelete(null);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          {...getBackdropProps(() => setDeptToDelete(null))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 cursor-default"
           >
             <div className="flex items-center gap-3">

@@ -6,6 +6,7 @@
 
 import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
+import { sanitizeForFirestore } from './firestoreService';
 import {
   HomeCmsContent,
   CareerCmsContent,
@@ -374,7 +375,7 @@ export async function saveHomeCmsContent(content: HomeCmsContent): Promise<void>
   if (isFirebaseConfigured()) {
     try {
       const ref = doc(db, 'systemConfig', 'home_cms');
-      await setDoc(ref, updated, { merge: true });
+      await setDoc(ref, sanitizeForFirestore(updated), { merge: true });
     } catch (e) {
       console.warn('Firestore save Home CMS error:', e);
     }
@@ -440,7 +441,7 @@ export async function saveCareerCmsContent(content: CareerCmsContent): Promise<v
   if (isFirebaseConfigured()) {
     try {
       const ref = doc(db, 'systemConfig', 'career_cms');
-      await setDoc(ref, updated, { merge: true });
+      await setDoc(ref, sanitizeForFirestore(updated), { merge: true });
     } catch (e) {
       console.warn('Firestore save Career CMS error:', e);
     }
@@ -506,7 +507,7 @@ export async function saveCareerJobs(jobs: CareerJobPosting[]): Promise<void> {
     try {
       for (const job of jobs) {
         const ref = doc(db, 'career_jobs', job.id);
-        await setDoc(ref, job, { merge: true });
+        await setDoc(ref, sanitizeForFirestore(job), { merge: true });
       }
     } catch (e) {
       console.warn('Firestore save career jobs error:', e);
@@ -610,7 +611,7 @@ export async function saveCareerApplications(
     try {
       for (const app of apps) {
         const ref = doc(db, 'career_applications', app.id);
-        await setDoc(ref, app, { merge: true });
+        await setDoc(ref, sanitizeForFirestore(app), { merge: true });
       }
     } catch (e) {
       console.warn('Firestore save career applications error:', e);

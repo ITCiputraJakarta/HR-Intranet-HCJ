@@ -3,8 +3,10 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export interface SortableHeaderProps {
   field: string;
-  currentSort: string;
-  currentDirection: 'asc' | 'desc';
+  currentSort?: string;
+  currentSortField?: string;
+  currentDirection?: 'asc' | 'desc';
+  currentSortDirection?: 'asc' | 'desc';
   onSort: (field: string) => void;
   children: React.ReactNode;
   className?: string;
@@ -15,14 +17,18 @@ export interface SortableHeaderProps {
 export const SortableHeader: React.FC<SortableHeaderProps> = ({
   field,
   currentSort,
+  currentSortField,
   currentDirection,
+  currentSortDirection,
   onSort,
   children,
   className = '',
   align = 'left',
   title,
 }) => {
-  const isActive = currentSort === field;
+  const activeSort = currentSort || currentSortField || '';
+  const activeDirection = currentDirection || currentSortDirection || 'asc';
+  const isActive = activeSort === field;
 
   const getAlignmentClass = () => {
     if (align === 'center') return 'justify-center text-center';

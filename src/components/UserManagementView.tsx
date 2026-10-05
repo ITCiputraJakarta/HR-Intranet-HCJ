@@ -172,7 +172,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setUserToEdit(user);
     setEditName(user.nama);
     setEditEmail(user.email);
-    setEditUnit(user.unit || 'Hotel Ciputra Jakarta');
     setEditDept(user.departemen);
     setEditRole(user.role);
     setEditStatus(user.status);

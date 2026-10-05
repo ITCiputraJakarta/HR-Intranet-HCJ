@@ -19,6 +19,7 @@ import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface CategoriesMasterViewProps {
   categories: CategoryMaster[];
@@ -402,13 +403,10 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
       {/* Add Modal */}
       {showAddModal && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowAddModal(false);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          {...getBackdropProps(() => setShowAddModal(false))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 cursor-default"
           >
             <div className="flex items-center gap-3 mb-5">
@@ -487,13 +485,10 @@ export const CategoriesMasterView: React.FC<CategoriesMasterViewProps> = ({
       {/* Delete Confirmation Modal */}
       {categoryToDelete && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setCategoryToDelete(null);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          {...getBackdropProps(() => setCategoryToDelete(null))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 cursor-default"
           >
             <div className="flex items-center gap-3">

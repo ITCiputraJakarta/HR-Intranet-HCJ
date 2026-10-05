@@ -51,6 +51,7 @@ import {
   subscribeToQuotaTelemetry,
   CloudQuotaTelemetry,
   LiveFirestorePullResult,
+  FirebaseConnectionState,
 } from '../lib/firestoreService';
 import { firebaseConfig } from '../lib/firebase';
 import { Language } from '../lib/i18n';
@@ -65,7 +66,7 @@ interface QuotaAnalyticsViewProps {
   categories: CategoryMaster[];
   departments: DepartmentMaster[];
   hotelUnits: HotelUnitMaster[];
-  firebaseState: 'connected' | 'permission-denied' | 'not-found' | 'offline' | 'checking';
+  firebaseState: FirebaseConnectionState;
   currentLang: Language;
   onRefresh: () => void;
 }
@@ -571,13 +572,13 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
         d.id,
         `"${(d.title || '').replace(/"/g, '""')}"`,
         d.category,
-        d.department,
+        d.akses_dept || 'All Departments',
         d.unit || 'HCJ',
-        d.version || '1.0',
-        d.updatedAt || '-',
+        (d as any).version || '1.0',
+        d.updatedAt || d.uploadedAt || '-',
         `${ageDays} Hari`,
         d.fileSize || '-',
-        `"${(d.author || '').replace(/"/g, '""')}"`,
+        `"${(d.uploadedBy || (d as any).author || '').replace(/"/g, '""')}"`,
       ].join(',');
     });
 

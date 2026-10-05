@@ -224,7 +224,6 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const handleOpenEdit = (doc: IntranetDocument) => {
     setEditDoc(doc);
     setEditTitle(doc.title);
-    setEditUnit(doc.unit || userUnit);
     setEditDept(doc.akses_dept);
     setEditSubcat(doc.sub_kategori || '');
     setEditDesc(doc.keterangan || '');
@@ -347,7 +346,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         title: sanitizeInput(upTitle.trim()),
         category: category,
         sub_kategori: upSubcat || availableSubcats[0] || 'Umum',
-        unit: currentUser.role === 'admin' ? (upUnit || userUnit) : userUnit,
+        unit: 'Hotel Ciputra Jakarta',
         akses_dept: upDept || 'All Departments',
         keterangan: sanitizeInput(upDesc.trim()),
         fileUrl,

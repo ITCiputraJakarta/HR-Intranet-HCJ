@@ -26,6 +26,7 @@ import { clearAccessLogs, deleteAccessLog, getDepartments } from '../lib/storage
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
+import { getBackdropProps } from '../lib/modalHelper';
 
 interface AccessLogsViewProps {
   logs: AccessLog[];
@@ -676,11 +677,10 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       {/* Log Detail Inspector Modal */}
       {selectedLog && (
         <div
-          onClick={() => setSelectedLog(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+          {...getBackdropProps(() => setSelectedLog(null))}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-slate-200 space-y-4 cursor-default"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -791,10 +791,8 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       {/* Clear Logs Confirmation Modal */}
       {showClearConfirm && (
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowClearConfirm(false);
-          }}
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          {...getBackdropProps(() => setShowClearConfirm(false))}
         >
           <div
             onClick={(e) => e.stopPropagation()}

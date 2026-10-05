@@ -580,7 +580,13 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               publishedNews.map((item) => (
                 <article
                   key={item.id}
-                  onClick={() => onOpenAnnouncementPreview?.(item) || onNavigateToLogin()}
+                  onClick={() => {
+                    if (onOpenAnnouncementPreview) {
+                      onOpenAnnouncementPreview(item);
+                    } else {
+                      onNavigateToLogin();
+                    }
+                  }}
                   className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
                 >
                   <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">

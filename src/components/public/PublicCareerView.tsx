@@ -39,6 +39,7 @@ import {
   submitCareerApplication,
   MAX_PDF_BYTES,
 } from '../../lib/cmsService';
+import { getBackdropProps } from '../../lib/modalHelper';
 
 interface PublicCareerViewProps {
   onNavigateToHome: () => void;
@@ -605,7 +606,10 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
 
       {/* 6. MODAL LAMARAN KERJA (APPLY MODAL WITH 1MB PDF LIMIT) */}
       {selectedJob && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+          {...getBackdropProps(() => setSelectedJob(null))}
+        >
           <div
             onClick={(e) => e.stopPropagation()}
             className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"

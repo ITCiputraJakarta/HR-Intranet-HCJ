@@ -88,8 +88,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [newDept, setNewDept] = useState('Front Office');
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [newPassword, setNewPassword] = useState('password123');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [newStatus, setNewStatus] = useState<UserStatus>('Approved');
   const [formError, setFormError] = useState('');
+
+  // Edit user password preview state
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   const togglePasswordVisibility = (id: string) => {
     setRevealedPasswords((prev) => ({
@@ -158,12 +162,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    createUserByAdmin(newUser, currentUser);
+    await createUserByAdmin(newUser, currentUser);
 
     setShowAddModal(false);
     setNewName('');
     setNewEmail('');
     setNewPassword('password123');
+    setShowNewPassword(false);
     setFormError('');
     onRefresh();
   };
@@ -661,14 +666,28 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2 font-mono">
-                          <span className="text-slate-700 font-semibold">
-                            {isPwRevealed ? user.password || '••••' : '••••••••'}
+                          <span className="text-slate-700 font-semibold text-xs">
+                            {isPwRevealed ? (
+                              user.password?.startsWith('SHA256:') ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  title="Kata sandi diamankan dengan enkripsi SHA-256 dan salt unik. Anda dapat mengubahnya kapan saja melalui tombol Edit."
+                                >
+                                  <Shield className="w-2.5 h-2.5 text-emerald-600" />
+                                  <span>Terenkripsi SHA-256</span>
+                                </span>
+                              ) : (
+                                user.password || '••••'
+                              )
+                            ) : (
+                              '••••••••'
+                            )}
                           </span>
                           <button
                             type="button"
                             onClick={() => togglePasswordVisibility(user.id)}
-                            className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                            title={isPwRevealed ? 'Sembunyikan' : 'Lihat Kata Sandi'}
+                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                            title={isPwRevealed ? 'Sembunyikan' : 'Lihat Status Kata Sandi'}
                           >
                             {isPwRevealed ? (
                               <EyeOff className="w-3.5 h-3.5" />
@@ -939,15 +958,30 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Kata Sandi
+                    Kata Sandi *
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-3 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title={showNewPassword ? 'Sembunyikan Kata Sandi' : 'Intip Kata Sandi'}
+                      aria-label="Intip Kata Sandi"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-3.5 h-3.5 text-slate-600" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1106,13 +1140,28 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Reset Sandi (Opsional)
                   </label>
-                  <input
-                    type="text"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Kosongkan jika tak ubah"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 placeholder:text-slate-400"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="Kosongkan jika tak ubah"
+                      className="w-full pl-3 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50 placeholder:text-slate-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title={showEditPassword ? 'Sembunyikan Kata Sandi' : 'Intip Kata Sandi'}
+                      aria-label="Intip Kata Sandi"
+                    >
+                      {showEditPassword ? (
+                        <EyeOff className="w-3.5 h-3.5 text-slate-600" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 

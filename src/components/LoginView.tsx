@@ -17,7 +17,9 @@ import {
   Shield,
   ArrowLeft,
   ChevronRight,
-  Building2
+  Building2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import {
@@ -118,6 +120,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
 
   // Register form state
   const [hotelUnits, setHotelUnits] = useState(() => getHotelUnits());
@@ -268,21 +272,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoggingIn(true);
 
     try {
-      let localUsers = getUsers();
-      let matchedUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-
-      // Fallback: check Firebase Firestore if not in local cache
-      if (!matchedUser) {
-        try {
-          const remoteUser = await firestoreFindUserByEmail(cleanEmail);
-          if (remoteUser) {
-            localUsers = [...localUsers.filter((u) => u.id !== remoteUser.id), remoteUser];
-            saveUsers(localUsers);
-            matchedUser = remoteUser;
-          }
-        } catch (err) {
-          console.warn('Firestore fallback check:', err);
+      // 1. Always prioritize live data from Cloud Firestore to get the freshest approval status & updated password
+      let matchedUser: User | null = null;
+      try {
+        const remoteUser = await firestoreFindUserByEmail(cleanEmail);
+        if (remoteUser) {
+          matchedUser = remoteUser;
+          // Synchronize remote record to local cache
+          const currentLocal = getUsers().filter((u) => u.id !== remoteUser.id);
+          saveUsers([...currentLocal, remoteUser]);
         }
+      } catch (remoteErr) {
+        console.warn('Firestore live user lookup notice:', remoteErr);
+      }
+
+      // 2. Fallback to local cache if offline or Firestore query returned null
+      if (!matchedUser) {
+        const localUsers = getUsers();
+        matchedUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail) || null;
       }
 
       if (!matchedUser) {
@@ -434,7 +441,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    registerUser(newUser);
+    await registerUser(newUser);
 
     addAccessLog({
       user: newUser,
@@ -734,13 +741,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     </div>
                     <input
                       id="input-login-password"
-                      type="password"
+                      type={showLoginPassword ? 'text' : 'password'}
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="block w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06] focus:border-transparent transition"
+                      className="block w-full pl-9 pr-10 py-2.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06] focus:border-transparent transition"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-[#F48C06] transition-colors cursor-pointer"
+                      title={showLoginPassword ? 'Sembunyikan Kata Sandi' : 'Intip Kata Sandi'}
+                      aria-label="Intip Kata Sandi"
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="w-4 h-4 text-slate-600" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -870,16 +890,31 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
                       {t('createPasswordLabel', currentLang)} *
                     </label>
-                    <input
-                      id="reg-input-password"
-                      type="password"
-                      required
-                      minLength={8}
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="Min. 8 karakter"
-                      className="block w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
-                    />
+                    <div className="relative">
+                      <input
+                        id="reg-input-password"
+                        type={showRegPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Min. 8 karakter"
+                        className="block w-full pl-2.5 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-[#F48C06] transition-colors cursor-pointer"
+                        title={showRegPassword ? 'Sembunyikan Kata Sandi' : 'Intip Kata Sandi'}
+                        aria-label="Intip Kata Sandi"
+                      >
+                        {showRegPassword ? (
+                          <EyeOff className="w-3.5 h-3.5 text-slate-600" />
+                        ) : (
+                          <Eye className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

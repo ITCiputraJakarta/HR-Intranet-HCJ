@@ -65,11 +65,12 @@ import {
   subscribeToCareerApplications,
 } from './lib/cmsService';
 import { useIdleTimeout, recordUserActivity, clearActivityTimer, isSessionExpiredByInactivity } from './lib/useIdleTimeout';
-import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert } from 'lucide-react';
+import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert, Hotel } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
 import {
   seedInitialFirestoreData,
+  cleanupPreDeployDummyData,
   subscribeToUsers,
   subscribeToDocuments,
   subscribeToAccessLogs,
@@ -107,6 +108,7 @@ export default function App() {
   // Connection State
   const [firebaseState, setFirebaseState] = useState<FirebaseConnectionState>('checking');
   const [firebaseErrorMsg, setFirebaseErrorMsg] = useState<string>('');
+  const [isInitialSyncing, setIsInitialSyncing] = useState<boolean>(true);
 
   // Master Data States with synchronous fallback initialization
   const [documents, setDocuments] = useState<IntranetDocument[]>(() => getDocuments());
@@ -181,6 +183,11 @@ export default function App() {
 
     testFirestoreConnection().catch(() => {});
     seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
+    cleanupPreDeployDummyData().catch((err) => console.warn('Pre-deploy cleanup check:', err));
+
+    const initialSyncTimer = setTimeout(() => {
+      setIsInitialSyncing(false);
+    }, 1200);
 
     const unsubBranding = subscribeToAppBranding((b) => {
       setBranding(b);
@@ -271,6 +278,7 @@ export default function App() {
     }
 
     return () => {
+      clearTimeout(initialSyncTimer);
       unsubState();
       unsubBranding();
       unsubDocs();
@@ -485,32 +493,80 @@ export default function App() {
     setActiveTab(tab);
   };
 
+  // Full-screen Loading Blocker to prevent clicking or flashing before all data is fully synchronized
+  const FullScreenLoadingBlocker = isInitialSyncing ? (
+    <div
+      id="portal-full-screen-loader"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md transition-all duration-300 select-none cursor-wait"
+      style={{ pointerEvents: 'all' }}
+    >
+      <div className="flex flex-col items-center max-w-sm px-6 text-center animate-in fade-in zoom-in-95 duration-200">
+        {branding.customLogoUrl ? (
+          <img
+            src={branding.customLogoUrl}
+            alt={branding.appName || 'Hotel Ciputra Jakarta'}
+            className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-orange-500/20 mb-4 animate-pulse"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#F48C06] to-[#2F327D] flex items-center justify-center text-white shadow-xl shadow-orange-500/20 mb-4 animate-pulse">
+            <Hotel className="w-8 h-8" />
+          </div>
+        )}
+
+        <h3 className="font-bold text-slate-800 text-base tracking-tight mb-1">
+          {branding.appName || 'Hotel Ciputra Jakarta'}
+        </h3>
+        <p className="text-xs text-slate-500 font-medium mb-5">
+          {branding.subTitle || 'Portal Intranet & Manajemen Operasional'}
+        </p>
+
+        <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-50/90 border border-orange-200/80 shadow-xs mb-3">
+          <div className="w-4 h-4 border-2 border-[#F48C06] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-semibold text-[#F48C06]">
+            Menyelaraskan Data Sistem...
+          </span>
+        </div>
+
+        <p className="text-[11px] text-slate-400">
+          Memuat basis data terverifikasi dan membersihkan cache lama...
+        </p>
+      </div>
+    </div>
+  ) : null;
+
   // If user is not logged in, render public pages (Home, Career, or Login)
   if (!currentUser) {
     if (publicPage === 'career') {
       return (
-        <PublicCareerView
-          onNavigateToHome={() => setPublicPage('home')}
-          onNavigateToLogin={() => setPublicPage('login')}
-        />
+        <>
+          {FullScreenLoadingBlocker}
+          <PublicCareerView
+            onNavigateToHome={() => setPublicPage('home')}
+            onNavigateToLogin={() => setPublicPage('login')}
+          />
+        </>
       );
     }
 
     if (publicPage === 'login') {
       return (
-        <LoginView
-          onLoginSuccess={handleLoginSuccess}
-          currentLang={currentLang}
-          onLanguageChange={handleLanguageChange}
-          sessionMessage={idleTimeoutMessage}
-          onNavigateToHome={() => setPublicPage('home')}
-          onNavigateToCareer={() => setPublicPage('career')}
-        />
+        <>
+          {FullScreenLoadingBlocker}
+          <LoginView
+            onLoginSuccess={handleLoginSuccess}
+            currentLang={currentLang}
+            onLanguageChange={handleLanguageChange}
+            sessionMessage={idleTimeoutMessage}
+            onNavigateToHome={() => setPublicPage('home')}
+            onNavigateToCareer={() => setPublicPage('career')}
+          />
+        </>
       );
     }
 
     return (
       <>
+        {FullScreenLoadingBlocker}
         <PublicHomeView
           onNavigateToLogin={() => setPublicPage('login')}
           onNavigateToCareer={() => setPublicPage('career')}
@@ -520,7 +576,7 @@ export default function App() {
         {previewDoc && (
           <DocumentPreviewModal
             document={previewDoc}
-            currentUser={null as any}
+            currentUser={null}
             onClose={() => setPreviewDoc(null)}
           />
         )}
@@ -532,6 +588,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+      {FullScreenLoadingBlocker}
       
       {/* Top Navigation Bar */}
       <Navbar

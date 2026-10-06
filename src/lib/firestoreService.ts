@@ -868,6 +868,69 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
 }
 
 /**
+ * Permanently cleans up any pre-deploy legacy mock items (dummy users, dummy documents, dummy appraisals)
+ * from Cloud Firestore and local caches so database is completely clean for production deploy.
+ */
+export async function cleanupPreDeployDummyData(): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+
+  const legacyDummyDocIds = [
+    'doc-101', 'doc-102', 'doc-103', 'doc-104', 'doc-105', 'doc-106', 'doc-107', 'doc-108',
+    'doc-201', 'doc-202', 'doc-203', 'doc-204', 'doc-001', 'doc-002', 'doc-mock-1', 'doc-mock-2'
+  ];
+
+  const legacyDummyUserIds = [
+    'usr-002', 'usr-003', 'usr-004', 'usr-005', 'usr-006', 'usr-007',
+    'usr-201', 'usr-202', 'usr-203', 'usr-204', 'usr-205', 'usr-test-1', 'usr-dummy-1'
+  ];
+
+  const legacyDummyPerfIds = [
+    'perf-001', 'perf-002', 'perf-003', 'perf-004', 'perf-005',
+    'perf-2026-001', 'perf-2026-002', 'perf-2026-003', 'perf-2026-004', 'perf-2026-005'
+  ];
+
+  const legacyDummyNotifIds = ['notif-001', 'notif-002', 'notif-test-1'];
+
+  try {
+    const deletePromises: Promise<any>[] = [];
+
+    legacyDummyDocIds.forEach((id) => {
+      markFirestoreIdDeleted(id);
+      deletePromises.push(
+        deleteDoc(doc(db, DOCS_COL, id))
+          .then(async () => {
+            const chunksSnap = await getDocs(collection(db, DOCS_COL, id, 'chunks')).catch(() => null);
+            if (chunksSnap && !chunksSnap.empty) {
+              await Promise.all(chunksSnap.docs.map((c) => deleteDoc(c.ref).catch(() => {})));
+            }
+          })
+          .catch(() => {})
+      );
+    });
+
+    legacyDummyUserIds.forEach((id) => {
+      markFirestoreIdDeleted(id);
+      deletePromises.push(deleteDoc(doc(db, USERS_COL, id)).catch(() => {}));
+    });
+
+    legacyDummyPerfIds.forEach((id) => {
+      markFirestoreIdDeleted(id);
+      deletePromises.push(deleteDoc(doc(db, PERFS_COL, id)).catch(() => {}));
+    });
+
+    legacyDummyNotifIds.forEach((id) => {
+      markFirestoreIdDeleted(id);
+      deletePromises.push(deleteDoc(doc(db, NOTIFS_COL, id)).catch(() => {}));
+    });
+
+    await Promise.all(deletePromises);
+    console.log('[Firestore] Legacy pre-deploy dummy items & orphan chunks purged successfully.');
+  } catch (err) {
+    console.warn('cleanupPreDeployDummyData error:', err);
+  }
+}
+
+/**
  * Recursively strips undefined values so Firestore setDoc does not throw "Unsupported field value: undefined"
  */
 export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {

@@ -601,13 +601,13 @@ export async function registerUser(newUser: User): Promise<void> {
   }
 }
 
-export function createUserByAdmin(newUser: User, actor: User): void {
+export async function createUserByAdmin(newUser: User, actor: User): Promise<void> {
   const users = getUsers();
   const exists = users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase());
   if (!exists) {
     const updated = [...users, newUser];
     saveUsers(updated);
-    firestoreSaveUser(newUser);
+    await firestoreSaveUser(newUser);
 
     addAccessLog({
       user: actor,

@@ -6,7 +6,7 @@
 
 import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
-import { sanitizeForFirestore } from './firestoreService';
+import { sanitizeForFirestore, isFirestoreIdDeleted, markFirestoreIdDeleted } from './firestoreService';
 import {
   HomeCmsContent,
   CareerCmsContent,
@@ -486,26 +486,27 @@ export function subscribeToCareerCms(callback: (content: CareerCmsContent) => vo
 export function getCareerJobs(): CareerJobPosting[] {
   try {
     const local = localStorage.getItem(CAREER_JOBS_STORAGE_KEY);
-    if (local) {
+    if (local !== null) {
       const parsed = JSON.parse(local);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed.filter((j) => !isFirestoreIdDeleted(j.id));
     }
   } catch (e) {
     console.warn('Error reading local career jobs:', e);
   }
-  return INITIAL_CAREER_JOBS;
+  return INITIAL_CAREER_JOBS.filter((j) => !isFirestoreIdDeleted(j.id));
 }
 
 export async function saveCareerJobs(jobs: CareerJobPosting[]): Promise<void> {
+  const clean = (jobs || []).filter((j) => !isFirestoreIdDeleted(j.id));
   try {
-    localStorage.setItem(CAREER_JOBS_STORAGE_KEY, JSON.stringify(jobs));
+    localStorage.setItem(CAREER_JOBS_STORAGE_KEY, JSON.stringify(clean));
   } catch (e) {
     console.warn('LocalStorage save career jobs error:', e);
   }
 
   if (isFirebaseConfigured()) {
     try {
-      for (const job of jobs) {
+      for (const job of clean) {
         const ref = doc(db, 'career_jobs', job.id);
         await setDoc(ref, sanitizeForFirestore(job), { merge: true });
       }
@@ -532,6 +533,7 @@ export async function addOrUpdateCareerJob(job: CareerJobPosting): Promise<void>
 }
 
 export async function deleteCareerJob(jobId: string): Promise<void> {
+  markFirestoreIdDeleted(jobId);
   const current = getCareerJobs();
   const filtered = current.filter((j) => j.id !== jobId);
   try {
@@ -590,7 +592,7 @@ export function getCareerApplications(): CareerApplication[] {
     const local = localStorage.getItem(CAREER_APPLICATIONS_STORAGE_KEY);
     if (local) {
       const parsed = JSON.parse(local);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.filter((a) => !isFirestoreIdDeleted(a.id));
     }
   } catch (e) {
     console.warn('Error reading local career applications:', e);
@@ -601,15 +603,16 @@ export function getCareerApplications(): CareerApplication[] {
 export async function saveCareerApplications(
   apps: CareerApplication[]
 ): Promise<void> {
+  const clean = (apps || []).filter((a) => !isFirestoreIdDeleted(a.id));
   try {
-    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(apps));
+    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(clean));
   } catch (e) {
     console.warn('LocalStorage save career applications error:', e);
   }
 
   if (isFirebaseConfigured()) {
     try {
-      for (const app of apps) {
+      for (const app of clean) {
         const ref = doc(db, 'career_applications', app.id);
         await setDoc(ref, sanitizeForFirestore(app), { merge: true });
       }
@@ -637,6 +640,7 @@ export async function updateApplicationStatus(
 }
 
 export async function deleteCareerApplication(appId: string): Promise<void> {
+  markFirestoreIdDeleted(appId);
   const current = getCareerApplications();
   const filtered = current.filter((a) => a.id !== appId);
   try {

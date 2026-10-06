@@ -34,7 +34,7 @@ import {
 
 interface DocumentPreviewModalProps {
   document: IntranetDocument | null;
-  currentUser: User;
+  currentUser?: User | null;
   onClose: () => void;
   onUpdate?: (updatedDoc: IntranetDocument) => void;
   onDelete?: (docId: string) => void;
@@ -81,9 +81,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   }, [doc.id]);
 
   const canManage =
-    currentUser.role === 'admin' ||
-    currentUser.role === 'hod' ||
-    currentUser.role === 'manager';
+    currentUser != null &&
+    (currentUser.role === 'admin' ||
+      currentUser.role === 'hod' ||
+      currentUser.role === 'manager');
   const folderPath = `${doc.category} / ${doc.akses_dept} / ${doc.fileName}`;
 
   const handleDownload = async () => {
@@ -92,14 +93,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       target = await fetchDocumentFullFile(target);
       setActiveDoc(target);
     }
-    addAccessLog({
-      user: currentUser,
-      actionCategory: 'DOCUMENT',
-      action: 'Unduh Dokumen',
-      target: target.title,
-      status: 'SUCCESS',
-      details: `Berkas ID ${target.id} (${target.fileName}) diunduh.`,
-    });
+    if (currentUser) {
+      addAccessLog({
+        user: currentUser,
+        actionCategory: 'DOCUMENT',
+        action: 'Unduh Dokumen',
+        target: target.title,
+        status: 'SUCCESS',
+        details: `Berkas ID ${target.id} (${target.fileName}) diunduh.`,
+      });
+    }
 
     downloadFileFromDataUrl(target.downloadUrl || target.fileUrl, target.fileName);
   };
@@ -150,6 +153,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         };
       }
 
+      if (!currentUser) return;
       // Save to local storage & Firestore
       await updateDocument(updated, currentUser);
 
@@ -171,6 +175,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   };
 
   const handleConfirmDelete = async () => {
+    if (!currentUser) return;
     await deleteDocument(doc.id, currentUser);
     if (typeof onDelete === 'function') {
       onDelete(doc.id);
@@ -263,7 +268,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Storage Location Banner - Super Admin Only */}
-          {currentUser.role === 'admin' && (
+          {currentUser?.role === 'admin' && (
             <div className="p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 font-mono">
               <div className="flex items-center gap-2 truncate">
                 <Database className="w-4 h-4 text-indigo-600 shrink-0" />

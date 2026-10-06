@@ -7,6 +7,7 @@ import {
   EyeOff,
   Trash2,
   Pencil,
+  Check,
   CheckCircle2,
   Clock,
   Building2,
@@ -102,13 +103,38 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }));
   };
 
-  const handleStatusChange = (user: User, newStatus: UserStatus) => {
-    updateUserStatus(user.id, newStatus, currentUser);
-    onRefresh();
+  const [approvingUserId, setApprovingUserId] = useState<string | null>(null);
+
+  const handleStatusChange = async (user: User, newStatus: UserStatus) => {
+    setApprovingUserId(user.id);
+    try {
+      await updateUserStatus(user.id, newStatus, currentUser);
+      setEditSuccessMsg(`Status akun "${user.nama}" (${user.email}) berhasil diperbarui menjadi ${newStatus}!`);
+      onRefresh();
+      setTimeout(() => setEditSuccessMsg(null), 5000);
+    } catch (e: any) {
+      setDeleteErrorMsg('Gagal memperbarui status: ' + (e?.message || 'Terjadi kesalahan sistem.'));
+    } finally {
+      setApprovingUserId(null);
+    }
   };
 
-  const handleRoleChange = (user: User, newRole: UserRole) => {
-    updateUserRole(user.id, newRole, currentUser);
+  const handleQuickApprove = async (user: User) => {
+    setApprovingUserId(user.id);
+    try {
+      await updateUserStatus(user.id, 'Approved', currentUser);
+      setEditSuccessMsg(`Akun karyawan "${user.nama}" (${user.email}) berhasil disetujui (Approved)! Karyawan kini dapat langsung login ke portal.`);
+      onRefresh();
+      setTimeout(() => setEditSuccessMsg(null), 6000);
+    } catch (e: any) {
+      setDeleteErrorMsg('Gagal menyetujui akun: ' + (e?.message || 'Terjadi kesalahan sistem.'));
+    } finally {
+      setApprovingUserId(null);
+    }
+  };
+
+  const handleRoleChange = async (user: User, newRole: UserRole) => {
+    await updateUserRole(user.id, newRole, currentUser);
     onRefresh();
   };
 
@@ -193,9 +219,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
-    const hashedPassword = editPassword.trim() ? await hashPassword(editPassword.trim()) : undefined;
+    const hashedPassword = editPassword.trim()
+      ? await hashPassword(editPassword.trim())
+      : userToEdit.password;
 
-    const res = updateUserByAdmin(
+    const res = await updateUserByAdmin(
       userToEdit.id,
       {
         nama: sanitizeInput(editName.trim()),
@@ -391,6 +419,22 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               }`}
             >
               {filterStatus === 'Pending' ? 'Sedang Memfilter Pending' : 'Tampilkan Akun Pending'}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const pendingUsers = safeUsers.filter((u) => u.status === 'Pending');
+                for (const pu of pendingUsers) {
+                  await updateUserStatus(pu.id, 'Approved', currentUser);
+                }
+                setEditSuccessMsg(`Semua ${pendingUsers.length} akun pending berhasil disetujui sekaligus!`);
+                onRefresh();
+                setTimeout(() => setEditSuccessMsg(null), 5000);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Setujui Semua ({pendingCount})</span>
             </button>
           </div>
         </div>
@@ -648,20 +692,48 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       </td>
 
                       <td className="py-4 px-4 text-center">
-                        <select
-                          value={user.status}
-                          onChange={(e) =>
-                            handleStatusChange(user, e.target.value as UserStatus)
-                          }
-                          className={`px-3 py-1 text-xs rounded-full font-bold border-0 cursor-pointer shadow-xs ${
-                            user.status === 'Approved'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800 ring-2 ring-amber-400/40'
-                          }`}
-                        >
-                          <option value="Approved">Approved</option>
-                          <option value="Pending">Pending</option>
-                        </select>
+                        <div className="flex flex-col items-center gap-1.5">
+                          {user.status === 'Pending' ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickApprove(user)}
+                                disabled={approvingUserId === user.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                                title="Klik untuk langsung menyetujui pendaftaran akun karyawan ini"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>{approvingUserId === user.id ? '...' : 'Setujui (Approve)'}</span>
+                              </button>
+                              <select
+                                value={user.status}
+                                onChange={(e) =>
+                                  handleStatusChange(user, e.target.value as UserStatus)
+                                }
+                                className="px-2 py-1 text-[11px] rounded-lg border border-amber-300 font-semibold bg-white text-slate-700 cursor-pointer"
+                              >
+                                <option value="Pending">Pending</option>
+                                <option value="Approved">Approved</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <select
+                              value={user.status}
+                              onChange={(e) =>
+                                handleStatusChange(user, e.target.value as UserStatus)
+                              }
+                              className="px-3 py-1 text-xs rounded-full font-bold border-0 cursor-pointer shadow-xs bg-emerald-100 text-emerald-800"
+                            >
+                              <option value="Approved">Approved</option>
+                              <option value="Pending">Pending</option>
+                            </select>
+                          )}
+                          {user.status === 'Pending' && (
+                            <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                              Menunggu Persetujuan
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-4 px-4">

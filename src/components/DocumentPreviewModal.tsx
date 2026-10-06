@@ -17,7 +17,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  Megaphone
+  Megaphone,
+  ArrowRight
 } from 'lucide-react';
 import { IntranetDocument, User } from '../types';
 import { addAccessLog, deleteDocument, updateDocument, getDepartments } from '../lib/storage';
@@ -39,6 +40,7 @@ interface DocumentPreviewModalProps {
   onUpdate?: (updatedDoc: IntranetDocument) => void;
   onDelete?: (docId: string) => void;
   onRefresh?: () => void;
+  onNavigateToLogin?: () => void;
 }
 
 export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
@@ -48,6 +50,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   onUpdate,
   onDelete,
   onRefresh,
+  onNavigateToLogin,
 }) => {
   if (!doc) return null;
 
@@ -374,7 +377,11 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   <span className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
                     Distribusi
                   </span>
-                  <DepartmentBadge department={doc.akses_dept} size="xs" />
+                  {doc.akses_dept.toLowerCase().includes('all') ? (
+                    <span className="text-xs font-semibold text-slate-700">Seluruh Karyawan</span>
+                  ) : (
+                    <DepartmentBadge department={doc.akses_dept} size="xs" />
+                  )}
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-slate-400 block text-[10px] uppercase font-semibold">
@@ -565,6 +572,19 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            {onNavigateToLogin && !currentUser && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigateToLogin();
+                }}
+                className="px-4 py-2 text-xs font-bold text-white bg-[#F48C06] hover:bg-[#e07f04] rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-[#F48C06]/20 cursor-pointer"
+              >
+                <span>Selengkapnya (Login Karyawan)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
             {doc.fileUrl && (
               <button
                 type="button"

@@ -44,6 +44,7 @@ import {
   subscribeToDepartments,
   subscribeToHotelUnits,
   firestoreFindUserByEmail,
+  firestoreSaveUser,
 } from '../lib/firestoreService';
 import { verifyPassword, hashPassword, sanitizeInput } from '../lib/security';
 
@@ -278,8 +279,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
         const remoteUser = await firestoreFindUserByEmail(cleanEmail);
         if (remoteUser) {
           matchedUser = remoteUser;
-          // Synchronize remote record to local cache
-          const currentLocal = getUsers().filter((u) => u.id !== remoteUser.id);
+          // Synchronize remote record to local cache so approval status & credentials match
+          const currentLocal = getUsers().filter((u) => u.id !== remoteUser.id && u.email.toLowerCase() !== cleanEmail);
           saveUsers([...currentLocal, remoteUser]);
         }
       } catch (remoteErr) {
@@ -304,8 +305,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      // Check account approval status
-      if (matchedUser.status === 'Pending') {
+      // Check account approval status safely (case-insensitive)
+      const statusNormalized = (matchedUser.status || '').trim().toLowerCase();
+      if (statusNormalized === 'pending') {
         setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
         setErrorMessage(
@@ -316,7 +318,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      if (matchedUser.status === 'Rejected') {
+      if (statusNormalized === 'rejected') {
         setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
         setErrorMessage(
@@ -328,6 +330,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // Password verification
+      if (!matchedUser.password) {
+        setIsLoggingIn(false);
+        loginCaptchaRef.current?.reset();
+        setErrorMessage(
+          'Data kata sandi akun belum lengkap. Silakan hubungi Super Admin untuk mereset kata sandi.'
+        );
+        return;
+      }
+
       const isPasswordValid = await verifyPassword(cleanPassword, matchedUser.password);
       if (!isPasswordValid) {
         recordFailedAttempt(cleanEmail, 'Password salah', matchedUser);
@@ -342,7 +353,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // Upgrade legacy password to SHA-256 salted hash transparently
-      if (!matchedUser.password.startsWith('SHA256:')) {
+      if (typeof matchedUser.password === 'string' && !matchedUser.password.startsWith('SHA256:')) {
         try {
           const newHashed = await hashPassword(cleanPassword);
           const allUsers = getUsers();
@@ -351,6 +362,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             allUsers[idx] = { ...matchedUser, password: newHashed };
             saveUsers(allUsers);
             matchedUser.password = newHashed;
+            firestoreSaveUser(allUsers[idx]).catch(() => {});
           }
         } catch (upgradeErr) {
           // Non-blocking hash upgrade
@@ -379,10 +391,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       setIsLoggingIn(false);
       onLoginSuccess(matchedUser);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Login process error:', err);
       setIsLoggingIn(false);
       loginCaptchaRef.current?.reset();
-      setErrorMessage('Terjadi kesalahan saat memproses login. Silakan coba beberapa saat lagi.');
+      setErrorMessage(
+        'Terjadi kesalahan saat memproses login: ' +
+          (err?.message || 'Silakan coba beberapa saat lagi.')
+      );
     }
   };
 

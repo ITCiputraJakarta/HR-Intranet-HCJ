@@ -10,6 +10,7 @@ import {
   query,
   orderBy,
   limit,
+  where,
   writeBatch
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
@@ -845,26 +846,50 @@ export async function firestoreFetchUsers(): Promise<User[]> {
 
 export async function firestoreFindUserByEmail(email: string): Promise<User | null> {
   if (!isFirebaseConfigured()) return null;
-  try {
-    const cleanEmail = email.trim().toLowerCase();
-    const snap = await getDocs(collection(db, USERS_COL));
-    for (const d of snap.docs) {
-      const u = d.data() as User;
-      const id = u.id || d.id;
-      if (
-        u &&
-        u.email &&
-        u.email.trim().toLowerCase() === cleanEmail &&
-        !isFirestoreIdDeleted(id) &&
-        !isFirestoreIdDeleted(d.id)
-      ) {
-        return { ...u, id };
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return null;
+
+  const lookupTask = (async (): Promise<User | null> => {
+    try {
+      // 1. Try targeted index query first for fast response
+      try {
+        const q = query(collection(db, USERS_COL), where('email', '==', cleanEmail));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          const firstDoc = qSnap.docs[0];
+          const u = firstDoc.data() as User;
+          const id = u.id || firstDoc.id;
+          if (u && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(firstDoc.id)) {
+            return { ...u, id };
+          }
+        }
+      } catch (targetedErr) {
+        // Fallback to scan if targeted query encounters index or permission delay
       }
+
+      // 2. Scan users collection as fallback
+      const snap = await getDocs(collection(db, USERS_COL));
+      for (const d of snap.docs) {
+        const u = d.data() as User;
+        const id = u.id || d.id;
+        if (
+          u &&
+          u.email &&
+          u.email.trim().toLowerCase() === cleanEmail &&
+          !isFirestoreIdDeleted(id) &&
+          !isFirestoreIdDeleted(d.id)
+        ) {
+          return { ...u, id };
+        }
+      }
+    } catch (err) {
+      console.warn('firestoreFindUserByEmail error:', err);
     }
-  } catch (err) {
-    console.warn('firestoreFindUserByEmail error:', err);
-  }
-  return null;
+    return null;
+  })();
+
+  const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000));
+  return Promise.race([lookupTask, timeoutPromise]);
 }
 
 /**

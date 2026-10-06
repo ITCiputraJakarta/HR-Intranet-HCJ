@@ -578,6 +578,10 @@ export default function App() {
             document={previewDoc}
             currentUser={null}
             onClose={() => setPreviewDoc(null)}
+            onNavigateToLogin={() => {
+              setPreviewDoc(null);
+              setPublicPage('login');
+            }}
           />
         )}
       </>

@@ -472,15 +472,15 @@ export function clearAllSessionCache(): void {
   }
 }
 
-export function updateUserStatus(userId: string, status: UserStatus, actor: User): User[] {
+export async function updateUserStatus(userId: string, status: UserStatus, actor: User): Promise<User[]> {
   const users = getUsers();
   const target = users.find((u) => u.id === userId);
   const updated = users.map((u) => (u.id === userId ? { ...u, status } : u));
   saveUsers(updated);
 
   if (target) {
-    const updatedTarget = { ...target, status };
-    firestoreSaveUser(updatedTarget);
+    const updatedTarget: User = { ...target, status };
+    await firestoreSaveUser(updatedTarget);
 
     addAccessLog({
       user: actor,
@@ -494,15 +494,15 @@ export function updateUserStatus(userId: string, status: UserStatus, actor: User
   return updated;
 }
 
-export function updateUserRole(userId: string, role: User['role'], actor: User): User[] {
+export async function updateUserRole(userId: string, role: User['role'], actor: User): Promise<User[]> {
   const users = getUsers();
   const target = users.find((u) => u.id === userId);
   const updated = users.map((u) => (u.id === userId ? { ...u, role } : u));
   saveUsers(updated);
 
   if (target) {
-    const updatedTarget = { ...target, role };
-    firestoreSaveUser(updatedTarget);
+    const updatedTarget: User = { ...target, role };
+    await firestoreSaveUser(updatedTarget);
 
     addAccessLog({
       user: actor,
@@ -620,7 +620,7 @@ export async function createUserByAdmin(newUser: User, actor: User): Promise<voi
   }
 }
 
-export function updateUserByAdmin(
+export async function updateUserByAdmin(
   userId: string,
   data: {
     nama: string;
@@ -632,7 +632,7 @@ export function updateUserByAdmin(
     password?: string;
   },
   actor: User
-): { success: boolean; message: string; user?: User } {
+): Promise<{ success: boolean; message: string; user?: User }> {
   const users = getUsers();
   const index = users.findIndex((u) => u.id === userId);
   if (index === -1) {
@@ -666,7 +666,7 @@ export function updateUserByAdmin(
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   saveUsers(updatedUsers);
-  firestoreSaveUser(updatedUser);
+  await firestoreSaveUser(updatedUser);
 
   addAccessLog({
     user: actor,

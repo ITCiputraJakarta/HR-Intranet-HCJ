@@ -22,11 +22,15 @@ import {
   ExternalLink,
   Lock,
   Briefcase,
-  Building2
+  Building2,
+  ZoomIn,
+  ZoomOut,
+  FileText,
 } from 'lucide-react';
 import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/branding';
+import { getBackdropProps } from '../../lib/modalHelper';
 
 interface PublicHomeViewProps {
   onNavigateToLogin: () => void;
@@ -45,6 +49,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
   const [branding, setBranding] = useState<AppBranding>(() => getAppBranding());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTestimonialIdx, setActiveTestimonialIdx] = useState(0);
+  const [zoomedNewsItem, setZoomedNewsItem] = useState<{
+    id: string;
+    title: string;
+    date: string;
+    tag: string;
+    dept?: string;
+    desc: string;
+    imgUrl: string;
+    attachmentName?: string;
+  } | null>(null);
+  const [isPhotoMaximized, setIsPhotoMaximized] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeToHomeCms((data) => setContent(data));
@@ -581,11 +596,20 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 <article
                   key={item.id}
                   onClick={() => {
-                    if (onOpenAnnouncementPreview) {
-                      onOpenAnnouncementPreview(item);
-                    } else {
-                      onNavigateToLogin();
-                    }
+                    setZoomedNewsItem({
+                      id: item.id,
+                      title: item.title,
+                      date: item.effectiveDate || item.uploadedAt?.slice(0, 10) || 'Terbaru',
+                      tag: item.sub_kategori || 'Pengumuman Resmi',
+                      dept: item.akses_dept && !item.akses_dept.toLowerCase().includes('all') ? item.akses_dept : undefined,
+                      desc: item.keterangan || 'Pengumuman resmi operasional dan manajemen Hotel Ciputra Jakarta.',
+                      imgUrl:
+                        item.thumbUrl ||
+                        item.fileUrl ||
+                        'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                      attachmentName: item.attachmentName,
+                    });
+                    setIsPhotoMaximized(false);
                   }}
                   className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
                 >
@@ -599,13 +623,16 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-normal px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 border border-orange-200">
-                      <Building2 className="w-3 h-3 text-[#F48C06]" />
-                      <span className="truncate max-w-[130px]">{item.unit || 'Hotel Ciputra Jakarta'}</span>
+                    {/* Clean Category Badge - Completely without All unit or all departement */}
+                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
+                      <span>{item.sub_kategori || 'Pengumuman Resmi'}</span>
                     </div>
-                    <div className="absolute top-3 right-3 bg-[#2F327D]/90 backdrop-blur-md text-white text-[9px] font-normal px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                      {item.akses_dept || 'Umum'}
-                    </div>
+                    {/* Specific Department only if not All Departments */}
+                    {item.akses_dept && !item.akses_dept.toLowerCase().includes('all') && (
+                      <div className="absolute top-3 right-3 bg-[#2F327D]/90 backdrop-blur-md text-white text-[9px] font-medium px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                        {item.akses_dept}
+                      </div>
+                    )}
                   </div>
                   <div className="p-6 flex-1 flex flex-col">
                     <p className="text-[11px] text-[#696984] mb-2 flex items-center gap-1.5 font-normal">
@@ -618,7 +645,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                     <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
                       {item.keterangan || item.attachmentName || 'Klik untuk membaca detail pengumuman resmi.'}
                     </p>
-                    <span className="text-[#F48C06] font-normal text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                    <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
                       Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
@@ -651,7 +678,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               ].map((defItem, idx) => (
                 <article
                   key={idx}
-                  onClick={onNavigateToLogin}
+                  onClick={() => {
+                    setZoomedNewsItem({
+                      id: `def-${idx}`,
+                      title: defItem.title,
+                      date: defItem.date,
+                      tag: defItem.tag,
+                      desc: defItem.desc,
+                      imgUrl: defItem.img,
+                    });
+                    setIsPhotoMaximized(false);
+                  }}
                   className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
                 >
                   <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
@@ -660,7 +697,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                       alt={defItem.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-[#2F327D] text-[10px] font-normal px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
                       {defItem.tag}
                     </div>
                   </div>
@@ -675,7 +712,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                     <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
                       {defItem.desc}
                     </p>
-                    <span className="text-[#F48C06] font-normal text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                    <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
                       Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
@@ -837,6 +874,162 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* POPUP ZOOM BESAR DENGAN KETERANGAN LENGKAP & REDIRECT KE LOGIN KARYAWAN */}
+      {zoomedNewsItem && (
+        <div
+          {...getBackdropProps(() => {
+            setZoomedNewsItem(null);
+            setIsPhotoMaximized(false);
+          })}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[28px] sm:rounded-[32px] shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[92vh] cursor-default animate-in zoom-in-95 duration-200"
+          >
+            {/* Modal Header */}
+            <div className="px-5 sm:px-7 py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5 truncate">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F48C06]" />
+                <span className="text-xs sm:text-sm font-bold text-[#2F327D] uppercase tracking-wider truncate">
+                  Detail Berita & Pengumuman
+                </span>
+                {zoomedNewsItem.dept && (
+                  <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+                    {zoomedNewsItem.dept}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoMaximized(!isPhotoMaximized)}
+                  className="p-2 text-slate-500 hover:text-[#2F327D] hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  title={isPhotoMaximized ? 'Perkecil Tampilan Foto' : 'Perbesar Zoom Foto'}
+                >
+                  {isPhotoMaximized ? <ZoomOut className="w-5 h-5" /> : <ZoomIn className="w-5 h-5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomedNewsItem(null);
+                    setIsPhotoMaximized(false);
+                  }}
+                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  title="Tutup Popup"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
+              {/* Zoomable Hero Banner */}
+              <div
+                className={`relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 group transition-all duration-300 ${
+                  isPhotoMaximized ? 'min-h-[460px] sm:min-h-[580px] max-h-[75vh]' : 'h-64 sm:h-80 md:h-96'
+                } flex items-center justify-center`}
+              >
+                <img
+                  src={zoomedNewsItem.imgUrl}
+                  alt={zoomedNewsItem.title}
+                  className={`w-full h-full ${
+                    isPhotoMaximized ? 'object-contain' : 'object-cover'
+                  } transition-transform duration-500`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoMaximized(!isPhotoMaximized)}
+                  className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                >
+                  {isPhotoMaximized ? (
+                    <>
+                      <ZoomOut className="w-3.5 h-3.5" />
+                      <span>Tampilan Normal</span>
+                    </>
+                  ) : (
+                    <>
+                      <ZoomIn className="w-3.5 h-3.5" />
+                      <span>Zoom Penuh</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Meta & Title */}
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-normal">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-[#F48C06] border border-orange-200">
+                    {zoomedNewsItem.tag}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <Calendar className="w-3.5 h-3.5 text-[#F48C06]" />
+                    <span>{zoomedNewsItem.date}</span>
+                  </span>
+                </div>
+
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#2F327D] leading-snug">
+                  {zoomedNewsItem.title}
+                </h3>
+              </div>
+
+              {/* Full Keterangan / Isi Rincian */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Keterangan & Rincian Pengumuman:
+                </h4>
+                <div className="p-5 sm:p-6 bg-slate-50/80 rounded-2xl border border-slate-200/80 text-slate-700 text-sm sm:text-base leading-relaxed whitespace-pre-line font-normal">
+                  {zoomedNewsItem.desc}
+                </div>
+              </div>
+
+              {/* Info Lampiran Dokumen jika ada */}
+              {zoomedNewsItem.attachmentName && (
+                <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 flex items-center gap-3 text-sky-900 text-xs sm:text-sm">
+                  <FileText className="w-5 h-5 text-sky-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">Tersedia Berkas Lampiran Resmi:</span>
+                    <span className="text-sky-700 font-mono text-xs">{zoomedNewsItem.attachmentName}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer with Redirection to Employee Login */}
+            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <p className="text-xs text-slate-500 text-center sm:text-left">
+                Untuk mengunduh dokumen resmi dan berinteraksi dengan pengumuman ini, silakan masuk ke portal karyawan.
+              </p>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomedNewsItem(null);
+                    setIsPhotoMaximized(false);
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomedNewsItem(null);
+                    setIsPhotoMaximized(false);
+                    onNavigateToLogin();
+                  }}
+                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#F48C06] hover:bg-[#e07f04] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#F48C06]/20 hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                >
+                  <span>Selengkapnya (Login Karyawan)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

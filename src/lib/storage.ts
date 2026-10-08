@@ -30,6 +30,8 @@ import {
 } from '../data/initialData';
 import {
   firestoreSaveUser,
+  firestoreGetUserById,
+  firestoreUpdateUserStatus,
   firestoreDeleteUser,
   firestoreSaveDocument,
   firestoreDeleteDocument,
@@ -472,25 +474,69 @@ export function clearAllSessionCache(): void {
   }
 }
 
-export async function updateUserStatus(userId: string, status: UserStatus, actor: User): Promise<User[]> {
+export async function updateUserStatus(
+  userId: string,
+  status: UserStatus,
+  actor: User,
+  fallbackUser?: User
+): Promise<User[]> {
   const users = getUsers();
-  const target = users.find((u) => u.id === userId);
-  const updated = users.map((u) => (u.id === userId ? { ...u, status } : u));
+  let target = users.find((u) => u.id === userId) || fallbackUser;
+
+  // If incomplete or missing locally, fetch directly from Firestore to ensure required fields
+  if (!target || !target.email || !target.nama) {
+    try {
+      const remoteUser = await firestoreGetUserById(userId);
+      if (remoteUser) {
+        target = { ...(target || {}), ...remoteUser } as User;
+      }
+    } catch {}
+  }
+
+  const normalizedStatus: UserStatus =
+    status.toLowerCase() === 'approved'
+      ? 'Approved'
+      : status.toLowerCase() === 'rejected'
+      ? 'Rejected'
+      : 'Pending';
+
+  const updatedTarget: User = {
+    nama: target?.nama || 'Karyawan',
+    email: (target?.email || '').trim().toLowerCase(),
+    role: target?.role || 'staff',
+    departemen: target?.departemen || 'Front Office',
+    unit: target?.unit || 'Hotel Ciputra Jakarta',
+    ...(target || {}),
+    id: userId,
+    status: normalizedStatus,
+    createdAt: target?.createdAt || new Date().toISOString(),
+  };
+
+  if (target?.password) {
+    updatedTarget.password = target.password;
+  }
+
+  const updated = users.some((u) => u.id === userId)
+    ? users.map((u) => (u.id === userId ? { ...u, status: normalizedStatus } : u))
+    : [...users, updatedTarget];
+
   saveUsers(updated);
 
-  if (target) {
-    const updatedTarget: User = { ...target, status };
-    await firestoreSaveUser(updatedTarget);
+  // 1. Direct field update in Firestore for immediate real-time sync
+  await firestoreUpdateUserStatus(userId, normalizedStatus);
 
-    addAccessLog({
-      user: actor,
-      actionCategory: 'USER_MGMT',
-      action: 'Pembaruan Status Persetujuan Akun',
-      target: `${target.nama} (${target.email}) -> ${status}`,
-      status: 'SUCCESS',
-      details: `Status persetujuan akun karyawan diubah menjadi ${status} di Firestore.`,
-    });
-  }
+  // 2. Full document save ensuring all valid fields are stored
+  await firestoreSaveUser(updatedTarget);
+
+  addAccessLog({
+    user: actor,
+    actionCategory: 'USER_MGMT',
+    action: 'Pembaruan Status Persetujuan Akun',
+    target: `${updatedTarget.nama} (${updatedTarget.email}) -> ${normalizedStatus}`,
+    status: 'SUCCESS',
+    details: `Status persetujuan akun karyawan diubah menjadi ${normalizedStatus} di Firestore.`,
+  });
+
   return updated;
 }
 
@@ -593,12 +639,12 @@ export function getRoleWeights(role?: UserRole | string): RoleWeights {
 
 export async function registerUser(newUser: User): Promise<void> {
   const users = getUsers();
-  const exists = users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase());
-  if (!exists) {
-    const updated = [...users, newUser];
-    saveUsers(updated);
-    await firestoreSaveUser(newUser);
-  }
+  const filtered = users.filter(
+    (u) => u.email.toLowerCase() !== newUser.email.toLowerCase() && u.id !== newUser.id
+  );
+  const updated = [...filtered, newUser];
+  saveUsers(updated);
+  await firestoreSaveUser(newUser);
 }
 
 export async function createUserByAdmin(newUser: User, actor: User): Promise<void> {

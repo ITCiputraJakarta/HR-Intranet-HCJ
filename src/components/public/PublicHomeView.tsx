@@ -39,6 +39,25 @@ interface PublicHomeViewProps {
   onOpenAnnouncementPreview?: (doc: IntranetDocument) => void;
 }
 
+function cleanPublicBadge(tag?: string): string {
+  if (!tag) return '';
+  const lower = tag.toLowerCase().trim();
+  if (
+    lower.includes('all unit') ||
+    lower.includes('all units') ||
+    lower.includes('all depart') ||
+    lower.includes('all dept') ||
+    lower.includes('semua unit') ||
+    lower.includes('semua depart') ||
+    lower.includes('semua dept') ||
+    lower.includes('seluruh unit') ||
+    lower.includes('seluruh depart')
+  ) {
+    return '';
+  }
+  return tag;
+}
+
 export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
   onNavigateToLogin,
   onNavigateToCareer,
@@ -54,7 +73,6 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
     title: string;
     date: string;
     tag: string;
-    dept?: string;
     desc: string;
     imgUrl: string;
     attachmentName?: string;
@@ -247,28 +265,28 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       {/* 2. HERO SECTION WITH CURVED BOTTOM & FLOATING UI CARDS */}
       <section className="relative bg-[#FFF3E4] pt-32 sm:pt-40 pb-36 sm:pb-44 px-4 sm:px-8 md:px-16 lg:px-24 flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-16 min-h-[92vh] overflow-hidden">
         {/* Left Content (Main Typography & CTA) */}
-        <div className="w-full lg:w-1/2 z-20">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal mb-5 shadow-2xs">
+        <div className="w-full lg:w-1/2 z-20 text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal mb-5 shadow-2xs mx-auto lg:mx-0">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Sistem Informasi Terpadu Hotel Ciputra Jakarta</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-normal text-[#2F327D] leading-[1.18] mb-6 tracking-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-[52px] font-normal text-[#2F327D] leading-[1.2] mb-5 sm:mb-6 tracking-tight break-words">
             <span className="text-[#F48C06] font-normal">
               {content.heroTitleHighlight || 'Portal Internal'}
             </span>{' '}
             {content.heroTitleSuffix || '& Informasi Karir Hotel Ciputra Jakarta'}
           </h1>
 
-          <p className="text-base sm:text-lg text-[#696984] mb-8 sm:mb-10 max-w-xl leading-relaxed font-normal">
+          <p className="text-sm sm:text-lg text-[#696984] mb-8 sm:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal">
             {content.heroSubtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
+          <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6">
             <button
               type="button"
               onClick={onNavigateToLogin}
-              className="w-full sm:w-auto text-center bg-[#F48C06] text-white font-normal px-8 py-3.5 sm:py-4 rounded-full shadow-xl shadow-[#F48C06]/30 hover:bg-[#e07f04] hover:-translate-y-1 transition duration-300 text-base flex items-center justify-center gap-2.5 cursor-pointer"
+              className="w-full sm:w-auto text-center bg-[#F48C06] text-white font-normal px-8 py-3.5 sm:py-4 rounded-full shadow-xl shadow-[#F48C06]/30 hover:bg-[#e07f04] hover:-translate-y-1 transition duration-300 text-sm sm:text-base flex items-center justify-center gap-2.5 cursor-pointer"
             >
               <span>{content.ctaExploreText || 'Jelajahi Portal'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -279,14 +297,14 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               onClick={onNavigateToCareer}
               className="w-full sm:w-auto flex items-center justify-center gap-3.5 text-[#2F327D] font-normal hover:text-[#F48C06] transition group py-2 sm:py-0 cursor-pointer"
             >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full shadow-md flex items-center justify-center text-[#F48C06] text-xl group-hover:scale-110 transition duration-300 border border-slate-100 shrink-0">
+              <div className="w-11 h-11 sm:w-14 sm:h-14 bg-white rounded-full shadow-md flex items-center justify-center text-[#F48C06] text-xl group-hover:scale-110 transition duration-300 border border-slate-100 shrink-0">
                 <Briefcase className="w-5 h-5 text-[#F48C06]" />
               </div>
               <span className="text-left leading-tight">
-                <span className="block text-sm sm:text-base font-normal text-[#2F327D]">
+                <span className="block text-xs sm:text-base font-normal text-[#2F327D]">
                   Lowongan Karir
                 </span>
-                <span className="block text-xs text-[#696984]">
+                <span className="block text-[11px] sm:text-xs text-[#696984]">
                   Lihat Posisi Terbuka →
                 </span>
               </span>
@@ -304,11 +322,11 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <img
               src={content.heroImageUrl}
               alt="Profesional Hotel Ciputra Jakarta"
-              className="relative z-10 rounded-[36px] sm:rounded-[44px] rounded-br-[80px] sm:rounded-br-[110px] shadow-2xl object-cover w-full h-[380px] sm:h-[480px] lg:h-[520px] border-4 border-white"
+              className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
             />
 
-            {/* Floating Card 1: Shift & Jadwal */}
-            <div className="absolute top-12 -left-3 sm:-left-8 md:-left-12 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white flex items-center gap-3 z-30 animate-pulse">
+            {/* Floating Card 1: Shift & Jadwal (hidden on extra small screens to prevent overlap) */}
+            <div className="hidden sm:flex absolute top-12 -left-3 sm:-left-8 md:-left-12 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 animate-pulse">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center text-[#F48C06] shrink-0">
                 <Calendar className="w-5 h-5" />
               </div>
@@ -325,8 +343,8 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               </div>
             </div>
 
-            {/* Floating Card 2: HR Notification */}
-            <div className="absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white flex items-center gap-3 z-30 w-56 sm:w-64">
+            {/* Floating Card 2: HR Notification (hidden on extra small screens to prevent overlap) */}
+            <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-56 sm:w-64">
               <img
                 src={content.floatingCard2.avatarUrl}
                 alt="HR Avatar"
@@ -407,50 +425,50 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       </section>
 
       {/* 4. ABOUT SECTION: MENGAPA PORTAL INI PENTING */}
-      <section id="panduan" className="py-20 sm:py-24 bg-slate-50/70 overflow-hidden relative border-t border-slate-100">
-        <div className="container mx-auto px-4 sm:px-8 md:px-16 flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+      <section id="panduan" className="py-16 sm:py-24 bg-slate-50/70 overflow-hidden relative border-t border-slate-100">
+        <div className="container mx-auto px-4 sm:px-8 md:px-16 flex flex-col lg:flex-row items-center gap-10 lg:gap-20">
           {/* Left Asymmetric Photo Grid */}
-          <div className="w-full lg:w-1/2 relative">
+          <div className="w-full lg:w-1/2 relative max-w-lg mx-auto">
             <div className="absolute top-0 left-0 w-full h-full bg-[#F48C06]/10 rounded-[40px] transform rotate-3 scale-105 -z-10" />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <img
                 src={content.aboutImage1}
                 alt="Training Internal"
-                className="w-full h-56 sm:h-64 object-cover rounded-[28px] rounded-br-sm shadow-md mt-6"
+                className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-br-sm shadow-md mt-4 sm:mt-6"
               />
               <img
                 src={content.aboutImage2}
                 alt="Diskusi Tim"
-                className="w-full h-56 sm:h-64 object-cover rounded-[28px] rounded-tl-sm shadow-md"
+                className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-tl-sm shadow-md"
               />
             </div>
 
             {/* Floating 100% Data Badge */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md px-6 sm:px-8 py-4 sm:py-5 rounded-2xl shadow-xl z-20 flex flex-col items-center border border-slate-100">
-              <span className="text-2xl sm:text-3xl font-normal text-[#2F327D] mb-0.5">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md px-5 sm:px-8 py-3.5 sm:py-5 rounded-2xl shadow-xl z-20 flex flex-col items-center border border-slate-100">
+              <span className="text-xl sm:text-3xl font-normal text-[#2F327D] mb-0.5">
                 {content.aboutStatNumber || '100%'}
               </span>
-              <span className="text-xs sm:text-sm font-normal text-[#696984]">
+              <span className="text-[11px] sm:text-sm font-normal text-[#696984] whitespace-nowrap">
                 {content.aboutStatLabel || 'Transparansi Data'}
               </span>
             </div>
           </div>
 
           {/* Right Text Content */}
-          <div className="w-full lg:w-1/2">
-            <div className="inline-block bg-orange-100 text-[#F48C06] font-normal px-4 py-1.5 rounded-full text-xs sm:text-sm mb-5">
+          <div className="w-full lg:w-1/2 text-center lg:text-left">
+            <div className="inline-block bg-orange-100 text-[#F48C06] font-normal px-4 py-1.5 rounded-full text-xs sm:text-sm mb-4 mx-auto lg:mx-0">
               {content.aboutTag}
             </div>
 
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-5 leading-tight tracking-tight">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-4 sm:mb-5 leading-tight tracking-tight break-words">
               {content.aboutTitle}
             </h2>
 
-            <p className="text-[#696984] mb-8 leading-relaxed text-sm sm:text-base font-normal">
+            <p className="text-[#696984] mb-6 sm:mb-8 leading-relaxed text-xs sm:text-base font-normal max-w-xl mx-auto lg:mx-0">
               {content.aboutDescription}
             </p>
 
-            <ul className="space-y-4 mb-8">
+            <ul className="space-y-4 mb-8 text-left max-w-xl mx-auto lg:mx-0">
               <li className="flex items-start gap-3.5">
                 <div className="w-7 h-7 rounded-full bg-blue-50 text-[#2F327D] flex items-center justify-center shrink-0 mt-0.5">
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -482,7 +500,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <button
               type="button"
               onClick={onNavigateToLogin}
-              className="inline-flex items-center gap-2 text-[#F48C06] font-normal hover:text-[#d37704] transition group text-sm sm:text-base cursor-pointer"
+              className="inline-flex items-center justify-center lg:justify-start gap-2 text-[#F48C06] font-normal hover:text-[#d37704] transition group text-sm sm:text-base cursor-pointer mx-auto lg:mx-0"
             >
               <span>{content.aboutCtaText || 'Baca Pedoman Perusahaan'}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
@@ -493,21 +511,21 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
       {/* 5. TESTIMONIALS: APA KATA MEREKA? */}
       {activeTestimonial && (
-        <section className="py-20 sm:py-24 bg-white relative">
+        <section className="py-16 sm:py-24 bg-white relative">
           <div className="container mx-auto px-4 sm:px-8 md:px-16">
-            <div className="flex flex-col md:flex-row items-center gap-12 lg:gap-16">
+            <div className="flex flex-col md:flex-row items-center gap-10 lg:gap-16">
               {/* Left Title & Indicator */}
-              <div className="w-full md:w-5/12 relative z-10">
-                <div className="w-14 h-1 bg-[#F48C06] mb-5 rounded-full" />
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-4 leading-tight tracking-tight">
+              <div className="w-full md:w-5/12 relative z-10 text-center md:text-left">
+                <div className="w-14 h-1 bg-[#F48C06] mb-4 sm:mb-5 rounded-full mx-auto md:mx-0" />
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-3 sm:mb-4 leading-tight tracking-tight">
                   Apa Kata <span className="text-[#F48C06] font-normal">Mereka?</span>
                 </h2>
-                <p className="text-[#696984] mb-8 leading-relaxed text-sm sm:text-base font-normal">
+                <p className="text-[#696984] mb-6 sm:mb-8 leading-relaxed text-xs sm:text-base font-normal max-w-md mx-auto md:mx-0">
                   {content.testimonialsSubtitle}
                 </p>
 
                 {/* Slider Indicators */}
-                <div className="flex gap-2.5">
+                <div className="flex gap-2.5 justify-center md:justify-start">
                   {content.testimonials.map((_, idx) => (
                     <button
                       key={idx}
@@ -526,38 +544,38 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
               {/* Right Testimonial Card */}
               <div className="w-full md:w-7/12 relative">
-                <div className="absolute -inset-3 bg-[#FFF3E4] rounded-[36px] -z-10 transform -rotate-1" />
+                <div className="absolute -inset-2 sm:-inset-3 bg-[#FFF3E4] rounded-[32px] sm:rounded-[36px] -z-10 transform -rotate-1" />
 
-                <div className="bg-white rounded-[28px] sm:rounded-[32px] p-6 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row gap-6 sm:gap-8 items-center border border-gray-100 relative overflow-hidden">
-                  <Quote className="absolute top-2 right-4 w-20 h-20 text-[#F48C06]/10 pointer-events-none" />
+                <div className="bg-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row gap-5 sm:gap-8 items-center border border-gray-100 relative overflow-hidden text-center sm:text-left">
+                  <Quote className="absolute top-2 right-4 w-16 sm:w-20 h-16 sm:h-20 text-[#F48C06]/10 pointer-events-none" />
 
                   {/* Photo */}
                   <div className="shrink-0 relative">
                     <img
                       src={activeTestimonial.photoUrl}
                       alt={activeTestimonial.name}
-                      className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md"
+                      className="w-20 h-20 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md mx-auto"
                     />
-                    <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#F48C06] rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-2xs">
-                      <Quote className="w-3.5 h-3.5 fill-white" />
+                    <div className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 bg-[#F48C06] rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-2xs">
+                      <Quote className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-white" />
                     </div>
                   </div>
 
                   {/* Quote & Author */}
                   <div>
-                    <div className="flex text-amber-400 gap-1 text-sm mb-3">
+                    <div className="flex text-amber-400 gap-1 text-sm mb-2.5 justify-center sm:justify-start">
                       {[...Array(activeTestimonial.rating || 5)].map((_, i) => (
                         <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                       ))}
                     </div>
-                    <p className="text-[#2F327D] font-normal italic leading-relaxed mb-4 text-xs sm:text-sm">
+                    <p className="text-[#2F327D] font-normal italic leading-relaxed mb-3 sm:mb-4 text-xs sm:text-sm break-words">
                       "{activeTestimonial.quote}"
                     </p>
                     <div>
-                      <h4 className="font-normal text-[#2F327D] text-base">
+                      <h4 className="font-normal text-[#2F327D] text-sm sm:text-base">
                         {activeTestimonial.name}
                       </h4>
-                      <p className="text-[#696984] text-xs font-normal">
+                      <p className="text-[#696984] text-[11px] sm:text-xs font-normal">
                         {activeTestimonial.role}
                       </p>
                     </div>
@@ -570,21 +588,21 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       )}
 
       {/* 6. BERITA & PENGUMUMAN */}
-      <section className="py-20 sm:py-24 bg-slate-50 border-t border-gray-100">
+      <section className="py-16 sm:py-24 bg-slate-50 border-t border-gray-100">
         <div className="container mx-auto px-4 sm:px-8 md:px-16">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10 sm:mb-12">
+          <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mb-8 sm:mb-12 text-center sm:text-left">
             <div className="max-w-xl">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-3 tracking-tight">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-2 sm:mb-3 tracking-tight">
                 Berita & <span className="text-[#F48C06] font-normal">Pengumuman</span>
               </h2>
-              <p className="text-[#696984] text-sm sm:text-base font-normal">
+              <p className="text-[#696984] text-xs sm:text-base font-normal">
                 Informasi terbaru seputar manajemen, kebijakan hotel, event karyawan, dan aktivitas internal kita.
               </p>
             </div>
             <button
               type="button"
               onClick={onNavigateToLogin}
-              className="bg-white border border-gray-200 text-[#2F327D] font-normal px-5 py-2 rounded-full hover:bg-gray-50 transition text-xs sm:text-sm shadow-2xs whitespace-nowrap cursor-pointer"
+              className="bg-white border border-gray-200 text-[#2F327D] font-normal px-5 py-2.5 rounded-full hover:bg-gray-50 transition text-xs sm:text-sm shadow-2xs whitespace-nowrap cursor-pointer"
             >
               Lihat Semua di Portal
             </button>
@@ -592,65 +610,65 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {publishedNews.length > 0 ? (
-              publishedNews.map((item) => (
-                <article
-                  key={item.id}
-                  onClick={() => {
-                    setZoomedNewsItem({
-                      id: item.id,
-                      title: item.title,
-                      date: item.effectiveDate || item.uploadedAt?.slice(0, 10) || 'Terbaru',
-                      tag: item.sub_kategori || 'Pengumuman Resmi',
-                      dept: item.akses_dept && !item.akses_dept.toLowerCase().includes('all') ? item.akses_dept : undefined,
-                      desc: item.keterangan || 'Pengumuman resmi operasional dan manajemen Hotel Ciputra Jakarta.',
-                      imgUrl:
-                        item.thumbUrl ||
-                        item.fileUrl ||
-                        'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-                      attachmentName: item.attachmentName,
-                    });
-                    setIsPhotoMaximized(false);
-                  }}
-                  className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
-                >
-                  <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
-                    <img
-                      src={
-                        item.thumbUrl ||
-                        item.fileUrl ||
-                        'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-                      }
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                    />
-                    {/* Clean Category Badge - Completely without All unit or all departement */}
-                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
-                      <span>{item.sub_kategori || 'Pengumuman Resmi'}</span>
+              publishedNews.map((item) => {
+                const badge = cleanPublicBadge(item.sub_kategori);
+                return (
+                  <article
+                    key={item.id}
+                    onClick={() => {
+                      setZoomedNewsItem({
+                        id: item.id,
+                        title: item.title,
+                        date: item.effectiveDate || item.uploadedAt?.slice(0, 10) || 'Terbaru',
+                        tag: badge,
+                        desc: item.keterangan || 'Pengumuman resmi operasional dan manajemen Hotel Ciputra Jakarta.',
+                        imgUrl:
+                          item.thumbUrl ||
+                          item.fileUrl ||
+                          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                        attachmentName: item.attachmentName,
+                      });
+                      setIsPhotoMaximized(false);
+                    }}
+                    className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
+                  >
+                    <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
+                      <img
+                        src={
+                          item.thumbUrl ||
+                          item.fileUrl ||
+                          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+                        }
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
+                      {/* Clean Category Badge - Completely hides any All unit / all departement */}
+                      {badge ? (
+                        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
+                          <span>{badge}</span>
+                        </div>
+                      ) : null}
                     </div>
-                    {/* Specific Department only if not All Departments */}
-                    {item.akses_dept && !item.akses_dept.toLowerCase().includes('all') && (
-                      <div className="absolute top-3 right-3 bg-[#2F327D]/90 backdrop-blur-md text-white text-[9px] font-medium px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                        {item.akses_dept}
+                    <div className="p-5 sm:p-6 flex-1 flex flex-col text-center sm:text-left">
+                      <p className="text-[11px] text-[#696984] mb-2 flex items-center justify-center sm:justify-start gap-1.5 font-normal">
+                        <Calendar className="w-3 h-3 text-[#F48C06]" />
+                        <span>{item.effectiveDate || item.uploadedAt?.slice(0, 10)}</span>
+                      </p>
+                      <h3 className="text-base sm:text-lg font-bold text-[#2F327D] mb-2 group-hover:text-[#F48C06] transition line-clamp-2 leading-snug">
+                        {item.title}
+                      </h3>
+                      <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
+                        {item.keterangan || item.attachmentName || 'Klik untuk membaca detail pengumuman resmi.'}
+                      </p>
+                      <div className="flex justify-center sm:justify-start">
+                        <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                          Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  <div className="p-6 flex-1 flex flex-col">
-                    <p className="text-[11px] text-[#696984] mb-2 flex items-center gap-1.5 font-normal">
-                      <Calendar className="w-3 h-3 text-[#F48C06]" />
-                      <span>{item.effectiveDate || item.uploadedAt?.slice(0, 10)}</span>
-                    </p>
-                    <h3 className="text-base sm:text-lg font-normal text-[#2F327D] mb-2 group-hover:text-[#F48C06] transition line-clamp-2">
-                      {item.title}
-                    </h3>
-                    <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
-                      {item.keterangan || item.attachmentName || 'Klik untuk membaca detail pengumuman resmi.'}
-                    </p>
-                    <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-                      Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </article>
-              ))
+                    </div>
+                  </article>
+                );
+              })
             ) : (
               // Default preview articles if none are uploaded yet
               [
@@ -675,49 +693,56 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                   desc: 'Modul digitalisasi formulir dan arsip dokumen kini lebih cepat serta terintegrasi cloud database.',
                   img: 'https://images.unsplash.com/photo-1542744094-3a31f272c490?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
                 },
-              ].map((defItem, idx) => (
-                <article
-                  key={idx}
-                  onClick={() => {
-                    setZoomedNewsItem({
-                      id: `def-${idx}`,
-                      title: defItem.title,
-                      date: defItem.date,
-                      tag: defItem.tag,
-                      desc: defItem.desc,
-                      imgUrl: defItem.img,
-                    });
-                    setIsPhotoMaximized(false);
-                  }}
-                  className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
-                >
-                  <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
-                    <img
-                      src={defItem.img}
-                      alt={defItem.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                    />
-                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
-                      {defItem.tag}
+              ].map((defItem, idx) => {
+                const defBadge = cleanPublicBadge(defItem.tag);
+                return (
+                  <article
+                    key={idx}
+                    onClick={() => {
+                      setZoomedNewsItem({
+                        id: `def-${idx}`,
+                        title: defItem.title,
+                        date: defItem.date,
+                        tag: defBadge,
+                        desc: defItem.desc,
+                        imgUrl: defItem.img,
+                      });
+                      setIsPhotoMaximized(false);
+                    }}
+                    className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
+                  >
+                    <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
+                      <img
+                        src={defItem.img}
+                        alt={defItem.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
+                      {defBadge ? (
+                        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
+                          {defBadge}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="p-6 flex-1 flex flex-col">
-                    <p className="text-[11px] text-[#696984] mb-2 flex items-center gap-1.5 font-normal">
-                      <Calendar className="w-3 h-3 text-[#F48C06]" />
-                      <span>{defItem.date}</span>
-                    </p>
-                    <h3 className="text-base sm:text-lg font-normal text-[#2F327D] mb-2 group-hover:text-[#F48C06] transition line-clamp-2">
-                      {defItem.title}
-                    </h3>
-                    <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
-                      {defItem.desc}
-                    </p>
-                    <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-                      Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </article>
-              ))
+                    <div className="p-5 sm:p-6 flex-1 flex flex-col text-center sm:text-left">
+                      <p className="text-[11px] text-[#696984] mb-2 flex items-center justify-center sm:justify-start gap-1.5 font-normal">
+                        <Calendar className="w-3 h-3 text-[#F48C06]" />
+                        <span>{defItem.date}</span>
+                      </p>
+                      <h3 className="text-base sm:text-lg font-bold text-[#2F327D] mb-2 group-hover:text-[#F48C06] transition line-clamp-2 leading-snug">
+                        {defItem.title}
+                      </h3>
+                      <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
+                        {defItem.desc}
+                      </p>
+                      <div className="flex justify-center sm:justify-start">
+                        <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                          Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
         </div>
@@ -882,33 +907,28 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             setZoomedNewsItem(null);
             setIsPhotoMaximized(false);
           })}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-[28px] sm:rounded-[32px] shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[92vh] cursor-default animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-[24px] sm:rounded-[32px] shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[94vh] cursor-default animate-in zoom-in-95 duration-200"
           >
             {/* Modal Header */}
-            <div className="px-5 sm:px-7 py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5 truncate">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#F48C06]" />
+            <div className="px-4 sm:px-7 py-3 sm:py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 truncate max-w-[65%] sm:max-w-none min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F48C06] shrink-0" />
                 <span className="text-xs sm:text-sm font-bold text-[#2F327D] uppercase tracking-wider truncate">
                   Detail Berita & Pengumuman
                 </span>
-                {zoomedNewsItem.dept && (
-                  <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-800 border border-sky-200">
-                    {zoomedNewsItem.dept}
-                  </span>
-                )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsPhotoMaximized(!isPhotoMaximized)}
-                  className="p-2 text-slate-500 hover:text-[#2F327D] hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                  className="p-1.5 sm:p-2 text-slate-500 hover:text-[#2F327D] hover:bg-slate-100 rounded-xl transition cursor-pointer"
                   title={isPhotoMaximized ? 'Perkecil Tampilan Foto' : 'Perbesar Zoom Foto'}
                 >
-                  {isPhotoMaximized ? <ZoomOut className="w-5 h-5" /> : <ZoomIn className="w-5 h-5" />}
+                  {isPhotoMaximized ? <ZoomOut className="w-4 h-4 sm:w-5 sm:h-5" /> : <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
                 <button
                   type="button"
@@ -916,20 +936,20 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                     setZoomedNewsItem(null);
                     setIsPhotoMaximized(false);
                   }}
-                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                   title="Tutup Popup"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>
 
             {/* Modal Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-6">
               {/* Zoomable Hero Banner */}
               <div
                 className={`relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 group transition-all duration-300 ${
-                  isPhotoMaximized ? 'min-h-[460px] sm:min-h-[580px] max-h-[75vh]' : 'h-64 sm:h-80 md:h-96'
+                  isPhotoMaximized ? 'min-h-[260px] sm:min-h-[520px] max-h-[70vh]' : 'h-48 sm:h-80 md:h-96'
                 } flex items-center justify-center`}
               >
                 <img
@@ -942,7 +962,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsPhotoMaximized(!isPhotoMaximized)}
-                  className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                  className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg transition cursor-pointer"
                 >
                   {isPhotoMaximized ? (
                     <>
@@ -959,57 +979,59 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               </div>
 
               {/* Meta & Title */}
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-normal">
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-[#F48C06] border border-orange-200">
-                    {zoomedNewsItem.tag}
-                  </span>
+              <div className="space-y-2 text-center sm:text-left">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-500 font-normal">
+                  {cleanPublicBadge(zoomedNewsItem.tag) ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-[#F48C06] border border-orange-200">
+                      {cleanPublicBadge(zoomedNewsItem.tag)}
+                    </span>
+                  ) : null}
                   <span className="flex items-center gap-1.5 text-slate-500">
                     <Calendar className="w-3.5 h-3.5 text-[#F48C06]" />
                     <span>{zoomedNewsItem.date}</span>
                   </span>
                 </div>
 
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#2F327D] leading-snug">
+                <h3 className="text-base sm:text-2xl md:text-3xl font-bold text-[#2F327D] leading-snug break-words">
                   {zoomedNewsItem.title}
                 </h3>
               </div>
 
               {/* Full Keterangan / Isi Rincian */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">
                   Keterangan & Rincian Pengumuman:
                 </h4>
-                <div className="p-5 sm:p-6 bg-slate-50/80 rounded-2xl border border-slate-200/80 text-slate-700 text-sm sm:text-base leading-relaxed whitespace-pre-line font-normal">
+                <div className="p-4 sm:p-6 bg-slate-50/90 rounded-2xl border border-slate-200/80 text-slate-700 text-xs sm:text-sm sm:text-base leading-relaxed whitespace-pre-line font-normal break-words text-center sm:text-left">
                   {zoomedNewsItem.desc}
                 </div>
               </div>
 
               {/* Info Lampiran Dokumen jika ada */}
               {zoomedNewsItem.attachmentName && (
-                <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 flex items-center gap-3 text-sky-900 text-xs sm:text-sm">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-50/80 border border-sky-200 flex flex-col sm:flex-row items-center text-center sm:text-left gap-3 text-sky-900 text-xs sm:text-sm">
                   <FileText className="w-5 h-5 text-sky-600 shrink-0" />
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-bold block">Tersedia Berkas Lampiran Resmi:</span>
-                    <span className="text-sky-700 font-mono text-xs">{zoomedNewsItem.attachmentName}</span>
+                    <span className="text-sky-700 font-mono text-xs break-all">{zoomedNewsItem.attachmentName}</span>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Modal Footer with Redirection to Employee Login */}
-            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+            <div className="p-3.5 sm:p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
               <p className="text-xs text-slate-500 text-center sm:text-left">
                 Untuk mengunduh dokumen resmi dan berinteraksi dengan pengumuman ini, silakan masuk ke portal karyawan.
               </p>
-              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
                     setZoomedNewsItem(null);
                     setIsPhotoMaximized(false);
                   }}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition cursor-pointer text-center"
                 >
                   Tutup
                 </button>
@@ -1020,10 +1042,10 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                     setIsPhotoMaximized(false);
                     onNavigateToLogin();
                   }}
-                  className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#F48C06] hover:bg-[#e07f04] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#F48C06]/20 hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                  className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-[#F48C06] hover:bg-[#e07f04] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#F48C06]/20 hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] whitespace-nowrap text-center"
                 >
                   <span>Selengkapnya (Login Karyawan)</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
               </div>
             </div>

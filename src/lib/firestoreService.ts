@@ -2,7 +2,9 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
+  getDocsFromServer,
   setDoc,
   deleteDoc,
   updateDoc,
@@ -16,6 +18,7 @@ import {
 import { db, isFirebaseConfigured } from './firebase';
 import {
   User,
+  UserStatus,
   IntranetDocument,
   AccessLog,
   CategoryMaster,
@@ -799,19 +802,81 @@ export function subscribeToHotelUnits(onUpdate: (units: HotelUnitMaster[]) => vo
 
 // Users
 export async function firestoreSaveUser(user: User): Promise<void> {
-  if (!isFirebaseConfigured()) return;
+  if (!isFirebaseConfigured() || !user || !user.id) return;
   unmarkFirestoreIdDeleted(user.id);
   try {
     const cleanUser = sanitizeForFirestore(user);
+    if (cleanUser.email) {
+      cleanUser.email = String(cleanUser.email).trim().toLowerCase();
+    }
+    if (cleanUser.status) {
+      const s = String(cleanUser.status).trim().toLowerCase();
+      cleanUser.status = s === 'approved' ? 'Approved' : s === 'rejected' ? 'Rejected' : 'Pending';
+    }
+    if (cleanUser.role) {
+      cleanUser.role = String(cleanUser.role).trim().toLowerCase();
+    }
+    // Prevent wiping existing password with empty or whitespace string
+    if (typeof cleanUser.password === 'string' && !cleanUser.password.trim()) {
+      delete cleanUser.password;
+    }
+
     const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true }).then(() => {
-      console.log('[Firestore] User saved successfully:', user.id, user.email, user.status);
+      console.log('[Firestore] User saved successfully:', user.id, cleanUser.email, cleanUser.status);
     });
     const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 2500);
+      setTimeout(() => resolve(), 3000);
     });
     await Promise.race([writePromise, timeoutPromise]);
   } catch (err) {
     console.warn('firestoreSaveUser error:', err);
+  }
+}
+
+export async function firestoreGetUserById(userId: string): Promise<User | null> {
+  if (!isFirebaseConfigured() || !userId) return null;
+  try {
+    const docRef = doc(db, USERS_COL, userId);
+    let snap;
+    try {
+      snap = await getDocFromServer(docRef);
+    } catch {
+      snap = await getDoc(docRef);
+    }
+    if (snap.exists()) {
+      const u = snap.data() as User;
+      const id = u.id || snap.id;
+      unmarkFirestoreIdDeleted(id);
+      return { ...u, id };
+    }
+  } catch (e) {
+    console.warn('firestoreGetUserById error:', e);
+  }
+  return null;
+}
+
+export async function firestoreUpdateUserStatus(userId: string, status: UserStatus): Promise<boolean> {
+  if (!isFirebaseConfigured() || !userId) return false;
+  unmarkFirestoreIdDeleted(userId);
+  const normalizedStatus: UserStatus =
+    status.toLowerCase() === 'approved'
+      ? 'Approved'
+      : status.toLowerCase() === 'rejected'
+      ? 'Rejected'
+      : 'Pending';
+
+  try {
+    const docRef = doc(db, USERS_COL, userId);
+    await setDoc(
+      docRef,
+      { status: normalizedStatus, updatedAt: new Date().toISOString() },
+      { merge: true }
+    );
+    console.log('[Firestore] Status updated to', normalizedStatus, 'for user', userId);
+    return true;
+  } catch (e) {
+    console.warn('firestoreUpdateUserStatus error:', e);
+    return false;
   }
 }
 
@@ -851,36 +916,83 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
 
   const lookupTask = (async (): Promise<User | null> => {
     try {
-      // 1. Try targeted index query first for fast response
+      // 1. Try targeted index query first from server to ensure fresh approval status
       try {
         const q = query(collection(db, USERS_COL), where('email', '==', cleanEmail));
-        const qSnap = await getDocs(q);
-        if (!qSnap.empty) {
-          const firstDoc = qSnap.docs[0];
-          const u = firstDoc.data() as User;
-          const id = u.id || firstDoc.id;
-          if (u && !isFirestoreIdDeleted(id) && !isFirestoreIdDeleted(firstDoc.id)) {
+        let qSnap;
+        try {
+          // Attempt server fetch with a 3.5s timeout so slow networks do not hang indefinitely
+          const serverPromise = getDocsFromServer(q);
+          const timeout = new Promise<null>((r) => setTimeout(() => r(null), 3500));
+          const res = await Promise.race([serverPromise, timeout]);
+          if (res && 'docs' in (res as any)) {
+            qSnap = res as any;
+          } else {
+            qSnap = await getDocs(q);
+          }
+        } catch {
+          qSnap = await getDocs(q);
+        }
+
+        if (qSnap && !qSnap.empty) {
+          // If multiple docs match, sort so Approved status or newest is picked
+          const candidateDocs: User[] = qSnap.docs.map((d: any) => {
+            const u = d.data() as User;
+            const id = u.id || d.id;
             return { ...u, id };
+          });
+          candidateDocs.sort((a, b) => {
+            if (a.status === 'Approved' && b.status !== 'Approved') return -1;
+            if (b.status === 'Approved' && a.status !== 'Approved') return 1;
+            return (b.createdAt || '').localeCompare(a.createdAt || '');
+          });
+          const best = candidateDocs[0];
+          if (best) {
+            unmarkFirestoreIdDeleted(best.id);
+            return best;
           }
         }
       } catch (targetedErr) {
         // Fallback to scan if targeted query encounters index or permission delay
       }
 
-      // 2. Scan users collection as fallback
-      const snap = await getDocs(collection(db, USERS_COL));
+      // 2. Scan users collection as fallback (handles case variations or missing index)
+      let snap;
+      try {
+        const serverPromise = getDocsFromServer(collection(db, USERS_COL));
+        const timeout = new Promise<null>((r) => setTimeout(() => r(null), 3500));
+        const res = await Promise.race([serverPromise, timeout]);
+        if (res && 'docs' in (res as any)) {
+          snap = res as any;
+        } else {
+          snap = await getDocs(collection(db, USERS_COL));
+        }
+      } catch {
+        snap = await getDocs(collection(db, USERS_COL));
+      }
+
+      const matchingDocs: User[] = [];
       for (const d of snap.docs) {
         const u = d.data() as User;
         const id = u.id || d.id;
         if (
           u &&
           u.email &&
-          u.email.trim().toLowerCase() === cleanEmail &&
-          !isFirestoreIdDeleted(id) &&
-          !isFirestoreIdDeleted(d.id)
+          u.email.trim().toLowerCase() === cleanEmail
         ) {
-          return { ...u, id };
+          matchingDocs.push({ ...u, id });
         }
+      }
+
+      if (matchingDocs.length > 0) {
+        matchingDocs.sort((a, b) => {
+          if (a.status === 'Approved' && b.status !== 'Approved') return -1;
+          if (b.status === 'Approved' && a.status !== 'Approved') return 1;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
+        const selected = matchingDocs[0];
+        unmarkFirestoreIdDeleted(selected.id);
+        return selected;
       }
     } catch (err) {
       console.warn('firestoreFindUserByEmail error:', err);
@@ -888,7 +1000,7 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
     return null;
   })();
 
-  const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000));
+  const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
   return Promise.race([lookupTask, timeoutPromise]);
 }
 

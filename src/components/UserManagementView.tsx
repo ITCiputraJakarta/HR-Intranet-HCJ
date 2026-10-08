@@ -108,7 +108,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handleStatusChange = async (user: User, newStatus: UserStatus) => {
     setApprovingUserId(user.id);
     try {
-      await updateUserStatus(user.id, newStatus, currentUser);
+      await updateUserStatus(user.id, newStatus, currentUser, user);
       setEditSuccessMsg(`Status akun "${user.nama}" (${user.email}) berhasil diperbarui menjadi ${newStatus}!`);
       onRefresh();
       setTimeout(() => setEditSuccessMsg(null), 5000);
@@ -122,7 +122,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handleQuickApprove = async (user: User) => {
     setApprovingUserId(user.id);
     try {
-      await updateUserStatus(user.id, 'Approved', currentUser);
+      await updateUserStatus(user.id, 'Approved', currentUser, user);
       setEditSuccessMsg(`Akun karyawan "${user.nama}" (${user.email}) berhasil disetujui (Approved)! Karyawan kini dapat langsung login ke portal.`);
       onRefresh();
       setTimeout(() => setEditSuccessMsg(null), 6000);
@@ -425,7 +425,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               onClick={async () => {
                 const pendingUsers = safeUsers.filter((u) => u.status === 'Pending');
                 for (const pu of pendingUsers) {
-                  await updateUserStatus(pu.id, 'Approved', currentUser);
+                  await updateUserStatus(pu.id, 'Approved', currentUser, pu);
                 }
                 setEditSuccessMsg(`Semua ${pendingUsers.length} akun pending berhasil disetujui sekaligus!`);
                 onRefresh();

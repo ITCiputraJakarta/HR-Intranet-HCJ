@@ -60,6 +60,7 @@ import { PublicHomeView } from './components/public/PublicHomeView';
 import { PublicCareerView } from './components/public/PublicCareerView';
 import { HomeCmsAdminView } from './components/HomeCmsAdminView';
 import { CareerCmsAdminView } from './components/CareerCmsAdminView';
+import { ScrollToTopButton } from './components/ScrollToTopButton';
 import {
   getCareerApplications,
   subscribeToCareerApplications,
@@ -544,6 +545,7 @@ export default function App() {
             onNavigateToHome={() => setPublicPage('home')}
             onNavigateToLogin={() => setPublicPage('login')}
           />
+          <ScrollToTopButton />
         </>
       );
     }
@@ -560,6 +562,7 @@ export default function App() {
             onNavigateToHome={() => setPublicPage('home')}
             onNavigateToCareer={() => setPublicPage('career')}
           />
+          <ScrollToTopButton />
         </>
       );
     }
@@ -584,6 +587,7 @@ export default function App() {
             }}
           />
         )}
+        <ScrollToTopButton />
       </>
     );
   }
@@ -958,6 +962,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Modern Floating Bottom-Right Scroll-To-Top Button across all views */}
+      <ScrollToTopButton />
     </div>
   );
 }

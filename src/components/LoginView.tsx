@@ -45,6 +45,7 @@ import {
   subscribeToHotelUnits,
   firestoreFindUserByEmail,
   firestoreSaveUser,
+  firestoreFetchUsers,
 } from '../lib/firestoreService';
 import { verifyPassword, hashPassword, sanitizeInput } from '../lib/security';
 
@@ -178,6 +179,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
       saveHotelUnits(newUnits);
       setHotelUnits(getHotelUnits());
     });
+
+    // Proactively pull latest user states from Firestore on mount so any newly approved accounts from admin are immediately synced
+    firestoreFetchUsers().then((remoteUsers) => {
+      if (remoteUsers && remoteUsers.length > 0) {
+        const local = getUsers();
+        const mergedMap = new Map<string, User>();
+        local.forEach((u) => mergedMap.set(u.email.toLowerCase(), u));
+        remoteUsers.forEach((ru) => mergedMap.set(ru.email.toLowerCase(), ru));
+        saveUsers(Array.from(mergedMap.values()));
+      }
+    }).catch((err) => {
+      console.warn('Initial users sync notice:', err);
+    });
+
     return () => {
       unsubBranding();
       unsubDepts();
@@ -278,9 +293,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
       try {
         const remoteUser = await firestoreFindUserByEmail(cleanEmail);
         if (remoteUser) {
+          // If remote user has no password, but local cache has the registered password, keep it intact
+          const localMatch = getUsers().find(
+            (u) => u.email.toLowerCase() === cleanEmail || u.id === remoteUser.id
+          );
+          if (!remoteUser.password && localMatch?.password) {
+            remoteUser.password = localMatch.password;
+            firestoreSaveUser(remoteUser).catch(() => {});
+          }
+
           matchedUser = remoteUser;
           // Synchronize remote record to local cache so approval status & credentials match
-          const currentLocal = getUsers().filter((u) => u.id !== remoteUser.id && u.email.toLowerCase() !== cleanEmail);
+          const currentLocal = getUsers().filter(
+            (u) => u.id !== remoteUser.id && u.email.toLowerCase() !== cleanEmail
+          );
           saveUsers([...currentLocal, remoteUser]);
         }
       } catch (remoteErr) {
@@ -306,7 +332,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // Check account approval status safely (case-insensitive)
-      const statusNormalized = (matchedUser.status || '').trim().toLowerCase();
+      let statusNormalized = (matchedUser.status || '').trim().toLowerCase();
+
+      // If status says pending, make an immediate fresh server check to confirm whether admin has just approved
+      if (statusNormalized === 'pending') {
+        try {
+          const freshRemote = await firestoreFindUserByEmail(cleanEmail);
+          if (freshRemote) {
+            matchedUser = freshRemote;
+            statusNormalized = (freshRemote.status || '').trim().toLowerCase();
+            const currentLocal = getUsers().filter(
+              (u) => u.id !== freshRemote.id && u.email.toLowerCase() !== cleanEmail
+            );
+            saveUsers([...currentLocal, freshRemote]);
+          }
+        } catch (checkErr) {
+          console.warn('Live status check notice:', checkErr);
+        }
+      }
+
       if (statusNormalized === 'pending') {
         setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
@@ -330,7 +374,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // Password verification
-      if (!matchedUser.password) {
+      let passwordToVerify = matchedUser.password;
+      if (!passwordToVerify) {
+        // Fallback: check local storage if password was saved locally
+        const localMatch = getUsers().find((u) => u.email.toLowerCase() === cleanEmail);
+        if (localMatch?.password) {
+          passwordToVerify = localMatch.password;
+          matchedUser.password = localMatch.password;
+          firestoreSaveUser(matchedUser).catch(() => {});
+        }
+      }
+
+      if (!passwordToVerify) {
         setIsLoggingIn(false);
         loginCaptchaRef.current?.reset();
         setErrorMessage(
@@ -339,7 +394,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      const isPasswordValid = await verifyPassword(cleanPassword, matchedUser.password);
+      let isPasswordValid = await verifyPassword(cleanPassword, passwordToVerify);
+
+      // Secondary fallback check against local cached credentials
+      if (!isPasswordValid) {
+        const localUsers = getUsers();
+        const localUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+        if (localUser?.password && localUser.password !== passwordToVerify) {
+          const isLocalValid = await verifyPassword(cleanPassword, localUser.password);
+          if (isLocalValid) {
+            isPasswordValid = true;
+            matchedUser.password = localUser.password;
+            firestoreSaveUser(matchedUser).catch(() => {});
+          }
+        }
+      }
+
       if (!isPasswordValid) {
         recordFailedAttempt(cleanEmail, 'Password salah', matchedUser);
         loginCaptchaRef.current?.reset();
@@ -379,15 +449,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
       setFailedAttempts(0);
       setLockoutRemainingSec(0);
 
-      // Record successful access log
-      addAccessLog({
-        user: matchedUser,
-        actionCategory: 'AUTH',
-        action: 'Login Berhasil',
-        target: 'Portal Intranet HCJ',
-        status: 'SUCCESS',
-        details: `Login sukses via Web Portal (${matchedUser.role.toUpperCase()} - ${matchedUser.departemen} - ${matchedUser.unit || 'Hotel Ciputra Jakarta'}).`,
-      });
+      // Record successful access log safely
+      try {
+        const userRole = (matchedUser.role || 'staff').toUpperCase();
+        const userDept = matchedUser.departemen || 'Umum';
+        const userUnit = matchedUser.unit || 'Hotel Ciputra Jakarta';
+        addAccessLog({
+          user: matchedUser,
+          actionCategory: 'AUTH',
+          action: 'Login Berhasil',
+          target: 'Portal Intranet HCJ',
+          status: 'SUCCESS',
+          details: `Login sukses via Web Portal (${userRole} - ${userDept} - ${userUnit}).`,
+        });
+      } catch (logErr) {
+        console.warn('Audit log write notice:', logErr);
+      }
 
       setIsLoggingIn(false);
       onLoginSuccess(matchedUser);
@@ -564,38 +641,38 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <section className="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
           {/* LEFT: Clean Executive Portal Presentation in Beranda Theme */}
-          <div className="lg:col-span-7 xl:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal shadow-2xs">
+          <div className="lg:col-span-7 xl:col-span-7 space-y-4 sm:space-y-6 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal shadow-2xs mx-auto lg:mx-0">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Portal Resmi Karyawan & Manajemen Hotel Ciputra Jakarta</span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal text-[#2F327D] leading-[1.2] tracking-tight">
-              Akses Digital Terpadu <br />
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-normal text-[#2F327D] leading-tight tracking-tight">
+              Akses Digital Terpadu <br className="hidden sm:inline" />
               <span className="text-[#F48C06]">Sistem Informasi & Arsip HCJ</span>
             </h1>
 
-            <p className="text-sm sm:text-base text-[#696984] leading-relaxed max-w-xl font-normal">
+            <p className="text-xs sm:text-base text-[#696984] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal">
               Satu pintu masuk untuk seluruh kebutuhan operasional Anda: Standar Operasional Prosedur (SOP), Formulir Kerja, Penilaian Kinerja Karyawan (KPI), Pengumuman Manajemen, dan Administrasi Kepegawaian.
             </p>
 
             {/* Pillars in Beranda Theme */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 pt-2 max-w-xl">
-              <div className="p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
-                <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#F48C06] flex items-center justify-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1 max-w-xl mx-auto lg:mx-0 text-left">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-orange-50 text-[#F48C06] flex items-center justify-center">
                   <FileText className="w-4 h-4" />
                 </div>
-                <h4 className="font-normal text-[#2F327D] text-sm">Arsip & Dokumen SOP</h4>
+                <h4 className="font-normal text-[#2F327D] text-xs sm:text-sm">Arsip & Dokumen SOP</h4>
                 <p className="text-[11px] text-[#696984] leading-snug">
                   Panduan operasional baku per departemen terstruktur rapi.
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-white/90 border border-indigo-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-[#2F327D] flex items-center justify-center">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-indigo-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-[#2F327D] flex items-center justify-center">
                   <Award className="w-4 h-4" />
                 </div>
-                <h4 className="font-normal text-[#2F327D] text-sm">Evaluasi Kinerja (KPI)</h4>
+                <h4 className="font-normal text-[#2F327D] text-xs sm:text-sm">Evaluasi Kinerja (KPI)</h4>
                 <p className="text-[11px] text-[#696984] leading-snug">
                   Penilaian transparan, target tahunan, dan evaluasi berkala.
                 </p>
@@ -604,16 +681,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* Career Callout */}
             {onNavigateToCareer && (
-              <div className="pt-2">
-                <div className="inline-flex items-center gap-3 p-3 rounded-2xl bg-[#FFF3E4]/80 border border-[#F48C06]/20 text-xs text-[#2F327D]">
+              <div className="pt-1 flex justify-center lg:justify-start">
+                <div className="inline-flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-[#FFF3E4]/80 border border-[#F48C06]/20 text-xs text-[#2F327D] text-left">
                   <Briefcase className="w-4 h-4 text-[#F48C06] shrink-0" />
-                  <span>Bukan staf internal? Ingin bergabung dengan tim kami?</span>
+                  <span className="text-[11px] sm:text-xs">Bukan staf internal? Ingin bergabung dengan tim kami?</span>
                   <button
                     type="button"
                     onClick={onNavigateToCareer}
-                    className="text-[#F48C06] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    className="text-[#F48C06] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer whitespace-nowrap text-[11px] sm:text-xs"
                   >
-                    <span>Buka Lowongan Karir</span>
+                    <span>Lowongan Karir</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -622,7 +699,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
 
           {/* RIGHT: Login / Register Form Card */}
-          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-[480px] mx-auto bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl border border-orange-100 p-6 sm:p-7 text-slate-800">
+          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-[480px] mx-auto bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-xl border border-orange-100 p-4 sm:p-7 text-slate-800">
             {/* Tab Toggle: Masuk vs Daftar */}
             <div className="flex rounded-2xl bg-[#FFF3E4]/70 p-1 mb-4 text-xs font-normal border border-orange-200/60 shadow-inner">
               <button

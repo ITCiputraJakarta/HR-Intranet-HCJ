@@ -11,8 +11,8 @@ service cloud.firestore {
       return data.keys().hasAll(['nama', 'email', 'role', 'status'])
         && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 200
         && data.email is string && data.email.size() > 0 && data.email.size() <= 200
-        && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']
-        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected'];
+        && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff', 'Admin', 'Manager', 'Spv', 'HOD', 'Staff']
+        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected', 'approved', 'pending', 'rejected', 'Active', 'active'];
     }
 
     function hasValidDocumentFields(data) {

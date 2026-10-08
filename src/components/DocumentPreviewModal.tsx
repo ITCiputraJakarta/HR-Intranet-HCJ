@@ -287,12 +287,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           )}
 
           {/* Preview Canvas (Image / PDF / Document Box) */}
-          <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center min-h-[220px] max-h-[420px]">
+          <div className="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center min-h-[240px] max-h-[72vh] p-2 sm:p-4 shadow-inner">
             {isImage ? (
               <img
                 src={doc.fileUrl}
                 alt={doc.title}
-                className="w-full h-full max-h-[420px] object-contain"
+                className="w-auto h-auto max-w-full max-h-[66vh] object-contain rounded-xl shadow-md"
               />
             ) : isPdf && pdfPreviewUrl ? (
               <iframe

@@ -414,6 +414,34 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
+      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA POSTING FOTO/GAMBAR, TIDAK BISA BERKAS LAIN DARI SUPER ADMIN
+      if (editIsPublic) {
+        const hasPhoto = (editDoc.fileUrl && !removePhoto) || editPhotoInput;
+        if (!hasPhoto) {
+          setEditError('Pengumuman publik wajib memiliki berkas foto/gambar (JPG, PNG, WebP).');
+          setIsSavingEdit(false);
+          return;
+        }
+        if (editPhotoInput) {
+          const isPhotoMime = editPhotoInput.type.startsWith('image/') || editPhotoInput.name.match(/\.(jpg|jpeg|png|webp|gif)$/i);
+          if (!isPhotoMime) {
+            setEditError('Pengumuman publik hanya bisa memposting foto/gambar. Berkas selain foto tidak diizinkan.');
+            setIsSavingEdit(false);
+            return;
+          }
+        }
+        if (editDocAttachmentInput) {
+          setEditError('Pengumuman publik hanya bisa memposting foto. Berkas lampiran selain foto tidak diizinkan.');
+          setIsSavingEdit(false);
+          return;
+        }
+        // Pastikan tidak ada berkas non-foto yang tersimpan untuk pengumuman publik
+        delete updatedDoc.attachmentUrl;
+        delete updatedDoc.attachmentName;
+        delete updatedDoc.attachmentType;
+        delete updatedDoc.attachmentSize;
+      }
+
       if (removePhoto) {
         updatedDoc.fileUrl = '';
         updatedDoc.thumbUrl = '';
@@ -485,6 +513,26 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setUploadError('');
 
     try {
+      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA POSTING FOTO/GAMBAR, TIDAK BISA BERKAS LAIN DARI SUPER ADMIN
+      if (upIsPublic) {
+        if (!photoInput) {
+          setUploadError('Pengumuman publik wajib menyertakan berkas foto/gambar (JPG, PNG, WebP).');
+          setIsUploading(false);
+          return;
+        }
+        const isPhotoMime = photoInput.type.startsWith('image/') || photoInput.name.match(/\.(jpg|jpeg|png|webp|gif)$/i);
+        if (!isPhotoMime) {
+          setUploadError('Pengumuman publik hanya bisa memposting foto/gambar. Berkas selain foto tidak diizinkan.');
+          setIsUploading(false);
+          return;
+        }
+        if (docAttachmentInput) {
+          setUploadError('Pengumuman publik hanya bisa memposting foto. Berkas lampiran dokumen selain foto tidak diizinkan.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
       // Security scanning for uploads
       if (photoInput) {
         const scan = await validateAndScanFileUpload(photoInput);
@@ -935,7 +983,10 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setUpIsPublic(true)}
+                    onClick={() => {
+                      setUpIsPublic(true);
+                      setDocAttachmentInput(null);
+                    }}
                     className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
                       upIsPublic
                         ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
@@ -963,42 +1014,57 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Image className="w-4 h-4 text-indigo-600" />
-                    <span>Foto / Banner Sampul (Opsional)</span>
+                    <span>{upIsPublic ? 'Foto / Banner Pengumuman *' : 'Foto / Banner Sampul (Opsional)'}</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">JPG, PNG, WebP</span>
+                  <span className="text-[10px] text-slate-500 font-mono">JPG, PNG, WebP</span>
                 </div>
                 <input
                   id="up-announcement-photo"
                   type="file"
                   accept="image/*"
+                  required={upIsPublic}
                   onChange={(e) => setPhotoInput(e.target.files?.[0] || null)}
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                 />
                 <p className="text-[10px] text-slate-500">
-                  Jika tidak diunggah foto, pratinjau kartu otomatis abu-abu netral tanpa foto acak.
+                  {upIsPublic
+                    ? 'Wajib mengunggah berkas foto/gambar untuk pengumuman publik di beranda.'
+                    : 'Jika tidak diunggah foto, pratinjau kartu otomatis abu-abu netral tanpa foto acak.'}
                 </p>
               </div>
 
               {/* Dokumen Lampiran Tambahan */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-indigo-600" />
-                    <span>Dokumen Lampiran (Opsional)</span>
-                  </label>
-                  <span className="text-[10px] text-indigo-600 font-mono">PDF, Word, Excel</span>
+              {upIsPublic ? (
+                <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/90 flex flex-col justify-center space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-900 text-xs font-bold">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Khusus Foto / Gambar untuk Publik</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pengumuman publik hanya dapat memposting foto/gambar. Berkas dokumen non-foto (PDF, Word, Excel) dinonaktifkan untuk publik.
+                  </p>
                 </div>
-                <input
-                  id="up-announcement-doc"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                  onChange={(e) => setDocAttachmentInput(e.target.files?.[0] || null)}
-                  className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
-                />
-                <p className="text-[10px] text-indigo-700">
-                  Unggah berkas SOP, memo dinas, atau formulir yang dapat langsung diunduh karyawan.
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                      <span>Dokumen Lampiran (Opsional)</span>
+                    </label>
+                    <span className="text-[10px] text-indigo-600 font-mono">PDF, Word, Excel</span>
+                  </div>
+                  <input
+                    id="up-announcement-doc"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={(e) => setDocAttachmentInput(e.target.files?.[0] || null)}
+                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
+                  />
+                  <p className="text-[10px] text-indigo-700">
+                    Unggah berkas SOP, memo dinas, atau formulir yang dapat langsung diunduh karyawan.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Input Tanggal Berlaku & Tanggal Kedaluwarsa Otomatis */}
@@ -1537,7 +1603,11 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => setEditIsPublic(true)}
+                    onClick={() => {
+                      setEditIsPublic(true);
+                      setEditDocAttachmentInput(null);
+                      setRemoveAttachment(true);
+                    }}
                     className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
                       editIsPublic
                         ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
@@ -1562,7 +1632,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Image className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Foto / Banner Sampul</span>
+                    <span>{editIsPublic ? 'Foto / Banner Pengumuman *' : 'Foto / Banner Sampul'}</span>
                   </span>
                   {editDoc.fileUrl && !removePhoto && (
                     <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -1598,7 +1668,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                   )}
                 </div>
 
-                {editDoc.fileUrl && !removePhoto && !editPhotoInput && (
+                {editDoc.fileUrl && !removePhoto && !editPhotoInput && !editIsPublic && (
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[10px] text-slate-500 truncate max-w-xs font-mono">
                       {editDoc.fileName || 'Foto Sampul'}
@@ -1612,7 +1682,12 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </button>
                   </div>
                 )}
-                {removePhoto && (
+                {editIsPublic && (
+                  <p className="text-[10px] text-emerald-700 font-semibold">
+                    Pengumuman publik wajib memiliki foto/banner untuk tampil di beranda.
+                  </p>
+                )}
+                {removePhoto && !editIsPublic && (
                   <p className="text-[10px] text-amber-700 font-semibold">
                     Foto akan dihapus. Kartu pengumuman akan tampil abu-abu tanpa foto.
                   </p>
@@ -1620,66 +1695,78 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
               </div>
 
               {/* Upload Ganti / Tambah Dokumen Lampiran */}
-              <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-200 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-indigo-950 flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Dokumen Lampiran Tambahan</span>
-                  </span>
-                  {editDoc.attachmentName && !removeAttachment && (
-                    <span className="text-[10px] text-indigo-700 font-bold bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-300">
-                      Ada Lampiran
-                    </span>
-                  )}
-                  {(!editDoc.attachmentName || removeAttachment) && (
-                    <span className="text-[10px] text-slate-400">
-                      Belum Ada Lampiran
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                    onChange={(e) => {
-                      setEditDocAttachmentInput(e.target.files?.[0] || null);
-                      setRemoveAttachment(false);
-                    }}
-                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
-                  />
-                  {editDocAttachmentInput && (
-                    <button
-                      type="button"
-                      onClick={() => setEditDocAttachmentInput(null)}
-                      className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
-                      title="Batalkan dokumen baru"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {editDoc.attachmentName && !removeAttachment && !editDocAttachmentInput && (
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] text-slate-600 truncate max-w-xs font-mono">
-                      Lampiran saat ini: {editDoc.attachmentName}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setRemoveAttachment(true)}
-                      className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline"
-                    >
-                      Hapus Lampiran
-                    </button>
+              {editIsPublic ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-900 text-xs font-bold">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Khusus Foto / Gambar untuk Publik</span>
                   </div>
-                )}
-                {removeAttachment && (
-                  <p className="text-[10px] text-amber-700 font-semibold">
-                    Lampiran dokumen akan dihapus saat disimpan.
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pengumuman publik hanya dapat memposting foto/gambar. Berkas dokumen non-foto (PDF, Word, Excel) dinonaktifkan untuk publik.
                   </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Dokumen Lampiran Tambahan</span>
+                    </span>
+                    {editDoc.attachmentName && !removeAttachment && (
+                      <span className="text-[10px] text-indigo-700 font-bold bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-300">
+                        Ada Lampiran
+                      </span>
+                    )}
+                    {(!editDoc.attachmentName || removeAttachment) && (
+                      <span className="text-[10px] text-slate-400">
+                        Belum Ada Lampiran
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={(e) => {
+                        setEditDocAttachmentInput(e.target.files?.[0] || null);
+                        setRemoveAttachment(false);
+                      }}
+                      className="w-full px-2 py-1.5 text-xs rounded-xl border border-indigo-200 bg-white"
+                    />
+                    {editDocAttachmentInput && (
+                      <button
+                        type="button"
+                        onClick={() => setEditDocAttachmentInput(null)}
+                        className="p-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs shrink-0"
+                        title="Batalkan dokumen baru"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {editDoc.attachmentName && !removeAttachment && !editDocAttachmentInput && (
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-slate-600 truncate max-w-xs font-mono">
+                        Lampiran saat ini: {editDoc.attachmentName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveAttachment(true)}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline"
+                      >
+                        Hapus Lampiran
+                      </button>
+                    </div>
+                  )}
+                  {removeAttachment && (
+                    <p className="text-[10px] text-amber-700 font-semibold">
+                      Lampiran dokumen akan dihapus saat disimpan.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Edit Tanggal Berlaku & Kedaluwarsa */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">

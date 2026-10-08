@@ -8,25 +8,27 @@ export const ScrollToTopButton: React.FC = () => {
     const checkScrollPosition = () => {
       const windowScroll =
         window.pageYOffset ||
+        window.scrollY ||
         document.documentElement.scrollTop ||
         document.body.scrollTop ||
         0;
 
       // Also check any scrollable modal or containers in view
-      let modalScroll = 0;
-      const scrollables = document.querySelectorAll('.overflow-y-auto');
+      let containerScroll = 0;
+      const scrollables = document.querySelectorAll('.overflow-y-auto, .overflow-auto, main');
       scrollables.forEach((el) => {
-        if (el.scrollTop > modalScroll) {
-          modalScroll = el.scrollTop;
+        if (el.scrollTop > containerScroll) {
+          containerScroll = el.scrollTop;
         }
       });
 
-      const maxScroll = Math.max(windowScroll, modalScroll);
-      setIsVisible(maxScroll > 260);
+      const maxScroll = Math.max(windowScroll, containerScroll);
+      setIsVisible(maxScroll > 150);
     };
 
     window.addEventListener('scroll', checkScrollPosition, { passive: true });
     window.addEventListener('resize', checkScrollPosition, { passive: true });
+    window.addEventListener('touchmove', checkScrollPosition, { passive: true });
     document.addEventListener('scroll', checkScrollPosition, { passive: true, capture: true });
 
     checkScrollPosition();
@@ -34,12 +36,13 @@ export const ScrollToTopButton: React.FC = () => {
     return () => {
       window.removeEventListener('scroll', checkScrollPosition);
       window.removeEventListener('resize', checkScrollPosition);
+      window.removeEventListener('touchmove', checkScrollPosition);
       document.removeEventListener('scroll', checkScrollPosition, true);
     };
   }, []);
 
   const scrollToTop = () => {
-    // 1. Smooth scroll the main window & documents
+    // 1. Smooth scroll the main window & document elements
     window.scrollTo({
       top: 0,
       left: 0,
@@ -59,7 +62,7 @@ export const ScrollToTopButton: React.FC = () => {
     });
 
     // 2. Smooth scroll any open modal dialogs or subcontainers
-    const scrollables = document.querySelectorAll('.overflow-y-auto');
+    const scrollables = document.querySelectorAll('.overflow-y-auto, .overflow-auto, main');
     scrollables.forEach((el) => {
       el.scrollTo({
         top: 0,
@@ -71,7 +74,7 @@ export const ScrollToTopButton: React.FC = () => {
 
   return (
     <div
-      className={`fixed bottom-5 sm:bottom-7 right-5 sm:right-7 z-40 transition-all duration-300 ease-out ${
+      className={`fixed bottom-5 sm:bottom-7 right-5 sm:right-7 z-[45] transition-all duration-300 ease-out ${
         isVisible
           ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
           : 'opacity-0 translate-y-6 scale-75 pointer-events-none'

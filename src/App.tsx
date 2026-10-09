@@ -61,6 +61,8 @@ import { PublicCareerView } from './components/public/PublicCareerView';
 import { HomeCmsAdminView } from './components/HomeCmsAdminView';
 import { CareerCmsAdminView } from './components/CareerCmsAdminView';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
+import { UnifiedLogo } from './components/common/UnifiedLogo';
+import { SocialMediaBar } from './components/common/SocialMediaBar';
 import {
   getCareerApplications,
   subscribeToCareerApplications,
@@ -502,17 +504,7 @@ export default function App() {
       style={{ pointerEvents: 'all' }}
     >
       <div className="flex flex-col items-center max-w-sm px-6 text-center animate-in fade-in zoom-in-95 duration-200">
-        {branding.customLogoUrl ? (
-          <img
-            src={branding.customLogoUrl}
-            alt={branding.appName || 'Hotel Ciputra Jakarta'}
-            className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-orange-500/20 mb-4 animate-pulse"
-          />
-        ) : (
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#F48C06] to-[#2F327D] flex items-center justify-center text-white shadow-xl shadow-orange-500/20 mb-4 animate-pulse">
-            <Hotel className="w-8 h-8" />
-          </div>
-        )}
+        <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="2xl" className="mb-4 animate-pulse shadow-xl shadow-orange-500/20" />
 
         <h3 className="font-bold text-slate-800 text-base tracking-tight mb-1">
           {branding.appName || 'Hotel Ciputra Jakarta'}
@@ -897,12 +889,28 @@ export default function App() {
 
       {/* Single-Line Soft Modern Footer (After Login) */}
       <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-3 sm:px-5 lg:px-6 mt-auto relative z-10 shadow-2xs">
-        <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs text-slate-600">
-          {/* Left: Unified Copyright */}
-          <div className="flex items-center justify-center sm:justify-start text-center sm:text-left">
+        <div className="w-full max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          {/* Left: Unified Logo & Copyright */}
+          <div className="flex items-center gap-2.5 justify-center sm:justify-start text-center sm:text-left">
+            <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="xs" />
             <span className="font-normal text-[#004872]">
-              © 2026 Intranet HCJ JBagas • All Rights Reserved
+              {branding.footerCopyright || '© 2026 Intranet HCJ JBagas • All Rights Reserved'}
             </span>
+          </div>
+
+          {/* Center: Social Media Links (Configured by Super Admin) */}
+          <div className="flex items-center gap-2 justify-center">
+            <SocialMediaBar variant="dashboard" socialLinks={branding.socialLinks} />
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('home-cms')}
+                className="hidden lg:inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-[#F48C06] transition font-normal ml-1 cursor-pointer"
+                title="Atur link media sosial di Home CMS"
+              >
+                <span>• Atur Sosmed</span>
+              </button>
+            )}
           </div>
 
           {/* Right: Session Info & Super Admin / Cloud Status */}

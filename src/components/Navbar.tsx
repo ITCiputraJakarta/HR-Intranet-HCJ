@@ -26,6 +26,7 @@ import { markNotificationAsRead, markAllNotificationsAsRead, addAccessLog } from
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
+import { UnifiedLogo } from './common/UnifiedLogo';
 
 interface NavbarProps {
   currentUser: User;
@@ -232,17 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate?.('announcements')}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              {branding.customLogoUrl ? (
-                <img
-                  src={branding.customLogoUrl}
-                  alt="Logo Hotel Ciputra"
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl object-cover shadow-md shadow-[#F48C06]/20 group-hover:scale-105 transition-transform duration-300 shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-md shadow-[#F48C06]/20 group-hover:scale-105 transition-transform duration-300 shrink-0">
-                  <Hotel className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
-                </div>
-              )}
+              <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="md" />
 
               <div>
                 <div className="flex flex-wrap items-center gap-2">

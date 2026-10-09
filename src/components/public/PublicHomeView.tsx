@@ -31,6 +31,8 @@ import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/branding';
 import { getBackdropProps } from '../../lib/modalHelper';
+import { UnifiedLogo } from '../common/UnifiedLogo';
+import { SocialMediaBar } from '../common/SocialMediaBar';
 
 interface PublicHomeViewProps {
   onNavigateToLogin: () => void;
@@ -107,17 +109,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="flex items-center gap-3 cursor-pointer select-none group"
         >
-          {branding.customLogoUrl ? (
-            <img
-              src={branding.customLogoUrl}
-              alt="Logo Hotel Ciputra"
-              className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl object-cover shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0"
-            />
-          ) : (
-            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-[#F48C06]/30 group-hover:scale-105 transition-transform duration-300 shrink-0">
-              <Hotel className="w-6 h-6 stroke-[2.2]" />
-            </div>
-          )}
+          <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="lg" />
           <div>
             <span className="text-[#2F327D] font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none block">
               Hotel Ciputra
@@ -754,17 +746,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           {/* Col 1: Brand */}
           <div className="lg:col-span-5">
             <div className="flex items-center gap-3 mb-5">
-              {branding.customLogoUrl ? (
-                <img
-                  src={branding.customLogoUrl}
-                  alt="Logo Hotel Ciputra"
-                  className="w-11 h-11 rounded-xl object-cover shadow-md"
-                />
-              ) : (
-                <div className="w-11 h-11 bg-[#F48C06] rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-md">
-                  <Hotel className="w-6 h-6 stroke-[2.2]" />
-                </div>
-              )}
+              <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="md" />
               <span className="text-white font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none">
                 Hotel Ciputra<br />
                 <span className="text-xs font-normal text-white/70">Jakarta</span>
@@ -773,31 +755,9 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <p className="text-xs sm:text-sm leading-relaxed mb-6 font-normal max-w-md">
               Portal Internal dan Sistem Informasi Karir terpadu yang didedikasikan untuk operasional dan pengembangan SDM di lingkungan Hotel Ciputra Jakarta.
             </p>
-            <div className="flex gap-3">
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 bg-white/5 rounded-full flex items-center justify-center hover:bg-[#F48C06] hover:text-white transition duration-300"
-              >
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 bg-white/5 rounded-full flex items-center justify-center hover:bg-[#F48C06] hover:text-white transition duration-300"
-              >
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a
-                href="https://linkedin.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-9 h-9 bg-white/5 rounded-full flex items-center justify-center hover:bg-[#F48C06] hover:text-white transition duration-300"
-              >
-                <Linkedin className="w-4 h-4" />
-              </a>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-[#F48C06] font-semibold mb-2.5">Media Sosial Resmi:</p>
+              <SocialMediaBar variant="footer" socialLinks={branding.socialLinks} />
             </div>
           </div>
 

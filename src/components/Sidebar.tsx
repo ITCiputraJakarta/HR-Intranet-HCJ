@@ -23,6 +23,7 @@ import { User } from '../types';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { Language, t } from '../lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from '../lib/branding';
+import { UnifiedLogo } from './common/UnifiedLogo';
 
 interface SidebarProps {
   activeTab?: string;
@@ -118,9 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isMobile && (
         <div className="flex items-center justify-between p-4 border-b border-orange-100 bg-white shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#F48C06] flex items-center justify-center text-white font-bold text-xs shadow-2xs">
-              <Hotel className="w-4 h-4 stroke-[2.2]" />
-            </div>
+            <UnifiedLogo size="sm" />
             <div>
               <span className="font-bold brand-top-left-bold text-[#2F327D] text-sm block leading-tight">
                 Hotel Ciputra

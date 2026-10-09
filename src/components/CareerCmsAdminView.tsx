@@ -43,6 +43,7 @@ import {
   DEFAULT_CAREER_CMS,
 } from '../lib/cmsService';
 import { getBackdropProps } from '../lib/modalHelper';
+import { UnifiedLogo } from './common/UnifiedLogo';
 
 interface CareerCmsAdminViewProps {
   currentUser: User;
@@ -628,6 +629,24 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
                 <span>Simpan Tampilan</span>
               </button>
             </div>
+          </div>
+
+          {/* Unified Logo Synchronization Banner */}
+          <div className="p-4 rounded-2xl bg-orange-50/70 border border-orange-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <UnifiedLogo size="md" />
+              <div>
+                <span className="text-xs font-bold text-[#2F327D] block">
+                  Logo Resmi Portal & Halaman Karir
+                </span>
+                <span className="text-[11px] text-slate-500 font-normal">
+                  Satu pengaturan terpusat di CMS Utama. Otomatis tampil seragam di header dan footer karir publik.
+                </span>
+              </div>
+            </div>
+            <span className="text-[10px] text-[#F48C06] font-semibold bg-white px-2.5 py-1 rounded-full border border-orange-200 shrink-0 w-fit">
+              Tersinkronisasi Otomatis
+            </span>
           </div>
 
           <div className="space-y-4">

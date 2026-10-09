@@ -193,6 +193,14 @@ export interface HomeCmsServiceItem {
   color: 'indigo' | 'orange' | 'teal' | 'blue' | 'purple';
 }
 
+export interface SocialMediaItem {
+  id: 'instagram' | 'facebook' | 'linkedin' | 'youtube' | 'tiktok' | 'twitter' | 'whatsapp' | string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  handle?: string;
+}
+
 export interface HomeCmsTestimonial {
   id: string;
   name: string;

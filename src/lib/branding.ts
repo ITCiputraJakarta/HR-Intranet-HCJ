@@ -6,6 +6,7 @@
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import { compressImageFile } from './fileCompressor';
+import { SocialMediaItem } from '../types';
 
 export interface GalleryItemCaption {
   tag: string;
@@ -27,12 +28,84 @@ export interface AppBranding {
   galleryTitle: string;
   galleryImages: Array<string | null>;
   galleryCaptions: GalleryItemCaption[];
+  socialLinks: SocialMediaItem[];
   footerAddress: string;
   footerContact: string;
   footerCopyright: string;
   creatorSignature: string;
   updatedAt: string;
   updatedBy?: string;
+}
+
+export const DEFAULT_SOCIAL_LINKS: SocialMediaItem[] = [
+  {
+    id: 'instagram',
+    name: 'Instagram',
+    url: 'https://instagram.com/hotelciputrajkt',
+    enabled: true,
+    handle: '@hotelciputrajkt',
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    url: 'https://facebook.com/hotelciputrajakarta',
+    enabled: true,
+    handle: 'Hotel Ciputra Jakarta',
+  },
+  {
+    id: 'linkedin',
+    name: 'LinkedIn',
+    url: 'https://linkedin.com/company/hotel-ciputra-jakarta',
+    enabled: true,
+    handle: 'Hotel Ciputra Jakarta',
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    url: 'https://youtube.com/@hotelciputrajakarta',
+    enabled: true,
+    handle: '@hotelciputrajakarta',
+  },
+  {
+    id: 'tiktok',
+    name: 'TikTok',
+    url: 'https://tiktok.com/@hotelciputrajakarta',
+    enabled: false,
+    handle: '@hotelciputrajakarta',
+  },
+  {
+    id: 'twitter',
+    name: 'X (Twitter)',
+    url: 'https://x.com/hotelciputrajkt',
+    enabled: false,
+    handle: '@hotelciputrajkt',
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Hotline',
+    url: 'https://wa.me/62215660640',
+    enabled: true,
+    handle: '+62 21 566 0640',
+  },
+];
+
+export function normalizeSocialLinks(arr: unknown): SocialMediaItem[] {
+  if (!Array.isArray(arr) || arr.length === 0) {
+    return DEFAULT_SOCIAL_LINKS.map((s) => ({ ...s }));
+  }
+  return DEFAULT_SOCIAL_LINKS.map((def) => {
+    const found = arr.find((item: any) => item && (item.id === def.id || item.name?.toLowerCase() === def.name.toLowerCase()));
+    if (found) {
+      return {
+        id: def.id,
+        name: def.name,
+        url: typeof found.url === 'string' && found.url.trim() ? found.url.trim() : def.url,
+        enabled: typeof found.enabled === 'boolean' ? found.enabled : def.enabled,
+        handle: typeof found.handle === 'string' ? found.handle.trim() : def.handle,
+      };
+    }
+    return { ...def };
+  });
 }
 
 export const DEFAULT_GALLERY_CAPTIONS: GalleryItemCaption[] = [
@@ -74,6 +147,7 @@ export const DEFAULT_BRANDING: AppBranding = {
   galleryTitle: 'Destinasi & Fasilitas Unggulan Hotel',
   galleryImages: [null, null, null, null],
   galleryCaptions: DEFAULT_GALLERY_CAPTIONS,
+  socialLinks: DEFAULT_SOCIAL_LINKS,
   footerAddress: 'Hospitality Operations & Human Capital Management Division',
   footerContact: 'Layanan Bantuan IT & HRD: it@hotelciputra.com',
   footerCopyright: '© 2026 Intranet HCJ JBagas • All Rights Reserved',
@@ -146,6 +220,7 @@ let currentBranding: AppBranding = (() => {
             parsed.galleryTitle !== undefined ? parsed.galleryTitle : DEFAULT_BRANDING.galleryTitle,
           galleryImages: normalizeGalleryImages(parsed.galleryImages),
           galleryCaptions: normalizeGalleryCaptions(parsed.galleryCaptions),
+          socialLinks: normalizeSocialLinks(parsed.socialLinks),
           footerAddress:
             parsed.footerAddress !== undefined ? parsed.footerAddress : DEFAULT_BRANDING.footerAddress,
           footerContact:
@@ -237,6 +312,10 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
       data.galleryCaptions !== undefined
         ? normalizeGalleryCaptions(data.galleryCaptions)
         : currentBranding.galleryCaptions,
+    socialLinks:
+      data.socialLinks !== undefined
+        ? normalizeSocialLinks(data.socialLinks)
+        : currentBranding.socialLinks || DEFAULT_SOCIAL_LINKS,
     footerAddress: data.footerAddress !== undefined ? data.footerAddress : currentBranding.footerAddress,
     footerContact: data.footerContact !== undefined ? data.footerContact : currentBranding.footerContact,
     footerCopyright:
@@ -405,6 +484,10 @@ export async function saveAppBranding(
       newBranding.galleryCaptions !== undefined
         ? normalizeGalleryCaptions(newBranding.galleryCaptions)
         : currentBranding.galleryCaptions ?? DEFAULT_GALLERY_CAPTIONS,
+    socialLinks:
+      newBranding.socialLinks !== undefined
+        ? normalizeSocialLinks(newBranding.socialLinks)
+        : currentBranding.socialLinks ?? DEFAULT_SOCIAL_LINKS,
     footerAddress:
       newBranding.footerAddress !== undefined
         ? newBranding.footerAddress.trim()

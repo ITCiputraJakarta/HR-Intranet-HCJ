@@ -33,7 +33,7 @@ import {
   Info,
   Hotel
 } from 'lucide-react';
-import { HomeCmsContent, HomeCmsTestimonial, HomeCmsServiceItem, User } from '../types';
+import { HomeCmsContent, HomeCmsTestimonial, HomeCmsServiceItem, User, SocialMediaItem } from '../types';
 import {
   getHomeCmsContent,
   saveHomeCmsContent,
@@ -44,10 +44,14 @@ import {
   subscribeToAppBranding,
   uploadCustomLogo,
   resetCustomLogo,
+  saveAppBranding,
+  DEFAULT_SOCIAL_LINKS,
   AppBranding
 } from '../lib/branding';
 import { compressImageFile } from '../lib/fileCompressor';
 import { getBackdropProps } from '../lib/modalHelper';
+import { UnifiedLogo } from './common/UnifiedLogo';
+import { SocialMediaBar, renderSocialIcon } from './common/SocialMediaBar';
 
 interface HomeCmsAdminViewProps {
   currentUser: User;
@@ -217,6 +221,39 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
     return () => unsub();
   }, []);
 
+  // Social Media Links State (Footer Dashboard & Public Pages)
+  const [socialLinks, setSocialLinks] = useState<SocialMediaItem[]>(
+    branding.socialLinks || DEFAULT_SOCIAL_LINKS
+  );
+
+  useEffect(() => {
+    if (branding.socialLinks && branding.socialLinks.length > 0) {
+      setSocialLinks(branding.socialLinks);
+    }
+  }, [branding.socialLinks]);
+
+  const handleUpdateSocialItem = (
+    index: number,
+    field: keyof SocialMediaItem,
+    value: string | boolean
+  ) => {
+    setSocialLinks((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleResetSocialLinks = () => {
+    if (
+      window.confirm(
+        'Kembalikan seluruh tautan media sosial ke standar resmi Hotel Ciputra Jakarta?'
+      )
+    ) {
+      setSocialLinks(DEFAULT_SOCIAL_LINKS.map((s) => ({ ...s })));
+    }
+  };
+
   // Testimonial modal state
   const [newTestimonialName, setNewTestimonialName] = useState('');
   const [newTestimonialRole, setNewTestimonialRole] = useState('');
@@ -265,9 +302,9 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
     },
     {
       key: 'footer',
-      label: '7. Kontak & Informasi Footer',
+      label: '7. Kontak & Media Sosial Footer',
       icon: <Mail className="w-4 h-4 text-rose-600" />,
-      desc: 'Nomor telepon, email resmi, alamat & hak cipta',
+      desc: 'Alamat, email, telepon, dan tautan sosial media resmi',
     },
   ];
 
@@ -320,10 +357,16 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSaving(true);
-    await saveHomeCmsContent(formData);
-    setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    try {
+      await saveHomeCmsContent(formData);
+      await saveAppBranding({ socialLinks }, currentUser.email);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save CMS settings:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleResetToDefault = () => {
@@ -547,17 +590,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      {branding.customLogoUrl ? (
-                        <img
-                          src={branding.customLogoUrl}
-                          alt="Custom Logo"
-                          className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-sm">
-                          <Hotel className="w-7 h-7 stroke-[2.2]" />
-                        </div>
-                      )}
+                      <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="xl" />
                       <div className="flex-1 space-y-1.5">
                         <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#F48C06] text-xs font-medium cursor-pointer border border-[#F48C06]/30 transition">
                           <Upload className="w-3.5 h-3.5" />
@@ -1370,19 +1403,163 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
             </div>
           )}
 
-          {/* SECTION 7: FOOTER & CONTACT */}
+          {/* SECTION 7: FOOTER & CONTACT & SOCIAL MEDIA */}
           {activeSection === 'footer' && (
-            <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="border-b border-slate-100 pb-3">
                 <h3 className="text-base font-normal text-[#2F327D]">
-                  7. Kontak HRD & Informasi Footer
+                  7. Kontak HRD & Media Sosial Footer
                 </h3>
                 <p className="text-slate-500 font-normal mt-0.5">
-                  Atur alamat hotel, email kontak, dan nomor telepon resmi pada footer beranda.
+                  Atur alamat hotel, kontak resmi, dan tautan media sosial yang tampil di footer dashboard maupun halaman publik.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Social Media Manager Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-orange-50/80 via-white to-sky-50/40 border border-orange-200/90 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-orange-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#F48C06]" />
+                      <h4 className="text-xs sm:text-sm font-semibold text-[#2F327D]">
+                        Pengaturan Tautan Media Sosial Resmi
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Kelola status aktif, URL akun, dan nama pengguna sosial media. Ditampilkan di footer dashboard dan portal.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleResetSocialLinks}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-white text-[11px] font-normal text-slate-600 transition flex items-center gap-1 cursor-pointer bg-slate-50 shadow-2xs"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset Sosmed</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Preview of Footer Icons */}
+                <div className="p-3 bg-white/90 rounded-xl border border-orange-100/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="text-[11px] text-[#2F327D] font-medium flex items-center gap-2">
+                    <span>Pratinjau Tampilan Footer:</span>
+                    <span className="text-slate-400 font-normal">
+                      ({socialLinks.filter((s) => s.enabled && s.url.trim()).length} Platform Aktif)
+                    </span>
+                  </div>
+                  <SocialMediaBar variant="dashboard" socialLinks={socialLinks} showLabels={true} />
+                </div>
+
+                {/* Social Items Grid */}
+                <div className="space-y-3 pt-1">
+                  {socialLinks.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        item.enabled
+                          ? 'bg-white border-orange-200 shadow-2xs'
+                          : 'bg-slate-50/70 border-slate-200 opacity-75'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        {/* Header: Platform Info & Toggle Switch */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={item.enabled}
+                              onChange={(e) =>
+                                handleUpdateSocialItem(idx, 'enabled', e.target.checked)
+                              }
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#F48C06]"></div>
+                            <span className="ml-2 text-xs font-semibold text-slate-800">
+                              {item.enabled ? 'Aktif' : 'Nonaktif'}
+                            </span>
+                          </label>
+
+                          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                            <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200/80 text-[#F48C06] flex items-center justify-center shrink-0">
+                              {renderSocialIcon(item.id, 'w-4 h-4')}
+                            </div>
+                            <span className="text-xs font-bold text-[#2F327D]">
+                              {item.name}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Input Fields: URL & Username / Handle */}
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] text-slate-500 font-medium mb-0.5">
+                              Tautan / URL Akun
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="url"
+                                value={item.url}
+                                onChange={(e) =>
+                                  handleUpdateSocialItem(idx, 'url', e.target.value)
+                                }
+                                placeholder={`https://${item.id}.com/...`}
+                                className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#F48C06]"
+                              />
+                              {item.url && (
+                                <a
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-lg border border-slate-200 hover:bg-orange-50 text-slate-500 hover:text-[#F48C06] transition shrink-0 cursor-pointer"
+                                  title="Tes buka link"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] text-slate-500 font-medium mb-0.5">
+                              Nama Akun / Handle (Opsional)
+                            </label>
+                            <input
+                              type="text"
+                              value={item.handle || ''}
+                              onChange={(e) =>
+                                handleUpdateSocialItem(idx, 'handle', e.target.value)
+                              }
+                              placeholder="@hotelciputrajkt"
+                              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#F48C06]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3 rounded-xl bg-orange-100/40 border border-orange-200/60 text-[11px] text-slate-600 space-y-1">
+                  <p className="font-semibold text-[#2F327D]">
+                    💡 Penempatan Tautan Media Sosial Otomatis:
+                  </p>
+                  <p>
+                    Semua platform yang berstatus <strong>Aktif</strong> akan otomatis muncul seragam di:
+                  </p>
+                  <ul className="list-disc list-inside text-[10.5px] space-y-0.5 text-slate-700">
+                    <li>Footer dashboard intranet seluruh karyawan setelah login (bawah tengah)</li>
+                    <li>Footer beranda utama (public homepage)</li>
+                    <li>Footer portal lowongan karir & rekrutmen</li>
+                    <li>Footer halaman login karyawan</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Contact Info Form */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
                   <label className="block text-slate-700 font-normal mb-1">
                     Email Kontak Resmi

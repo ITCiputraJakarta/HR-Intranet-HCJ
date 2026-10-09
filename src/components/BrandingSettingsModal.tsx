@@ -30,6 +30,7 @@ import {
   GalleryItemCaption,
 } from '../lib/branding';
 import { addAccessLog } from '../lib/storage';
+import { UnifiedLogo } from './common/UnifiedLogo';
 
 import defaultHeroBright from '../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
 import defaultGallery1 from '../assets/images/gallery_hotel_decor_lounge_1790666726376.jpg';
@@ -519,19 +520,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3.5">
-                    <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center p-2 overflow-hidden shrink-0">
-                      {branding.customLogoUrl ? (
-                        <img
-                          src={branding.customLogoUrl}
-                          alt="Current Logo"
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-[#005a8d]">
-                          <Building2 className="w-7 h-7" />
-                        </div>
-                      )}
-                    </div>
+                    <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="2xl" />
 
                     <div className="flex-1 space-y-2">
                       <input

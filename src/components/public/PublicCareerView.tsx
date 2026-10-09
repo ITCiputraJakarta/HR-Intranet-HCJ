@@ -40,6 +40,8 @@ import {
   MAX_PDF_BYTES,
 } from '../../lib/cmsService';
 import { getBackdropProps } from '../../lib/modalHelper';
+import { UnifiedLogo } from '../common/UnifiedLogo';
+import { SocialMediaBar } from '../common/SocialMediaBar';
 
 interface PublicCareerViewProps {
   onNavigateToHome: () => void;
@@ -222,9 +224,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
             onClick={onNavigateToHome}
             className="flex items-center gap-3 cursor-pointer select-none group"
           >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#F48C06] rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-md shadow-[#F48C06]/20 group-hover:scale-105 transition-transform duration-300 shrink-0">
-              <Hotel className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
-            </div>
+            <UnifiedLogo size="lg" />
             <div>
               <span className="text-[#2F327D] font-bold brand-top-left-bold text-xl sm:text-2xl tracking-tight leading-none block">
                 Hotel Ciputra
@@ -568,12 +568,20 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10 max-w-5xl mx-auto">
             {/* About Us */}
             <div>
-              <h4 className="font-normal text-white text-base mb-3 border-b-2 border-[#F48C06] inline-block pb-1">
-                Tentang Kami
-              </h4>
-              <p className="text-xs sm:text-sm text-white/70 leading-relaxed font-normal">
+              <div className="flex items-center gap-3 mb-4">
+                <UnifiedLogo size="md" />
+                <span className="text-white font-bold brand-top-left-bold text-lg tracking-tight leading-none">
+                  Hotel Ciputra<br />
+                  <span className="text-xs font-normal text-white/70">Jakarta • Karir</span>
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-white/70 leading-relaxed font-normal mb-4">
                 Hotel Ciputra Jakarta adalah salah satu hotel bintang empat bertaraf internasional di Jakarta Barat, terletak sangat strategis dekat pusat perbelanjaan, bandara, dan pusat bisnis.
               </p>
+              <div className="pt-1">
+                <p className="text-[11px] uppercase tracking-wider text-[#F48C06] font-semibold mb-2">Media Sosial Resmi:</p>
+                <SocialMediaBar variant="footer" />
+              </div>
             </div>
 
             {/* Address & Contact */}

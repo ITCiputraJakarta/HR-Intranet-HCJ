@@ -48,7 +48,6 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
     const [userInput, setUserInput] = useState<string>('');
     const [isMatched, setIsMatched] = useState<boolean>(false);
     const [touched, setTouched] = useState<boolean>(false);
-    const [pasteBlockedNotice, setPasteBlockedNotice] = useState<boolean>(false);
 
     const isId = currentLang === 'id';
 
@@ -170,11 +169,10 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
       setUserInput('');
       setIsMatched(false);
       setTouched(false);
-      setPasteBlockedNotice(false);
       onValidChange?.(false);
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         drawCaptcha(newCode);
-      }, 30);
+      });
     };
 
     useEffect(() => {
@@ -191,15 +189,11 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
       if (!secretCodeRef.current) return false;
       const isExpired = Date.now() - generatedAtRef.current > CAPTCHA_TTL_MS;
       if (isExpired) return false;
-      // Require genuine typing interaction (at least 2 input events) and minimum human reaction time (400ms)
-      const elapsed = Date.now() - generatedAtRef.current;
-      if (elapsed < 400 || keystrokeCountRef.current < 1) return false;
-      return cleanInput === secretCodeRef.current;
+      return cleanInput.trim().toUpperCase() === secretCodeRef.current.trim().toUpperCase();
     };
 
     const handleInputChange = (val: string) => {
       keystrokeCountRef.current += 1;
-      setPasteBlockedNotice(false);
       const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CAPTCHA_LENGTH);
       setUserInput(clean);
       setTouched(true);
@@ -265,12 +259,11 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
               value={userInput}
               onChange={(e) => handleInputChange(e.target.value)}
               onPaste={(e) => {
-                e.preventDefault();
-                setPasteBlockedNotice(true);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setPasteBlockedNotice(true);
+                const pasted = e.clipboardData.getData('text');
+                if (pasted) {
+                  e.preventDefault();
+                  handleInputChange(pasted);
+                }
               }}
               placeholder={isId ? 'Ketik kode' : 'Enter code'}
               className={`block w-full px-2.5 sm:px-3 py-2 text-xs rounded-xl border font-normal uppercase tracking-widest transition-colors ${
@@ -293,14 +286,6 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
             )}
           </div>
         </div>
-
-        {pasteBlockedNotice && (
-          <p className="text-[10.5px] text-amber-700 font-normal">
-            {isId
-              ? 'Demi keamanan anti-bot, fitur tempel (paste) dinonaktifkan. Silakan ketik manual.'
-              : 'For anti-bot security, pasting is disabled. Please type the code manually.'}
-          </p>
-        )}
 
         {touched && !isMatched && userInput.length >= CAPTCHA_LENGTH && (
           <p className="text-[10.5px] text-rose-600 font-normal">

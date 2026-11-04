@@ -192,8 +192,7 @@ let currentBranding: AppBranding = (() => {
           subTitle: parsed.subTitle !== undefined ? parsed.subTitle : DEFAULT_BRANDING.subTitle,
           customLogoUrl:
             parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
-          customBgUrl:
-            parsed.customBgUrl !== undefined ? parsed.customBgUrl : DEFAULT_BRANDING.customBgUrl,
+          customBgUrl: null,
           heroBadge:
             parsed.heroBadge && parsed.heroBadge.trim()
               ? parsed.heroBadge
@@ -551,23 +550,31 @@ export async function saveAppBranding(
       updatedBy: updated.updatedBy || '',
     };
 
+    const hasCustomGalleryImages =
+      Array.isArray(updated.galleryImages) && updated.galleryImages.some((img) => Boolean(img));
+
     const writeOps: Promise<any>[] = [
       setDoc(docRef, cleanPayload, { merge: true }).catch((err: any) => {
         console.error('Firestore branding save error:', err);
       }),
-      setDoc(
-        galleryRef,
-        {
-          galleryImages: updated.galleryImages,
-          galleryCaptions: updated.galleryCaptions,
-          updatedAt: updated.updatedAt,
-          updatedBy: updated.updatedBy || '',
-        },
-        { merge: true }
-      ).catch((err: any) => {
-        console.error('Firestore branding gallery save error:', err);
-      }),
     ];
+
+    if (hasCustomGalleryImages) {
+      writeOps.push(
+        setDoc(
+          galleryRef,
+          {
+            galleryImages: updated.galleryImages,
+            galleryCaptions: updated.galleryCaptions,
+            updatedAt: updated.updatedAt,
+            updatedBy: updated.updatedBy || '',
+          },
+          { merge: true }
+        ).catch((err: any) => {
+          console.error('Firestore branding gallery save error:', err);
+        })
+      );
+    }
 
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => resolve(), 3000);

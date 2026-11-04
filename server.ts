@@ -7,7 +7,36 @@ import { GoogleGenAI } from "@google/genai";
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+function resolvePort(): number {
+  // 1. Check CLI args: --port 3000 or --port=3000
+  const portArgIndex = process.argv.indexOf("--port");
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const p = Number(process.argv[portArgIndex + 1]);
+    if (!Number.isNaN(p) && p > 0) return p;
+  }
+  const portArgEqual = process.argv.find((a) => a.startsWith("--port="));
+  if (portArgEqual) {
+    const p = Number(portArgEqual.split("=")[1]);
+    if (!Number.isNaN(p) && p > 0) return p;
+  }
+
+  // 2. Check DEFAULT_APP_PORT
+  if (process.env.DEFAULT_APP_PORT) {
+    const p = Number(process.env.DEFAULT_APP_PORT);
+    if (!Number.isNaN(p) && p > 0) return p;
+  }
+
+  // 3. In development (when running dev script or not strictly production), port must be 3000
+  const isDev = process.env.npm_lifecycle_event === "dev" || process.env.NODE_ENV !== "production";
+  if (isDev) {
+    return 3000;
+  }
+
+  // 4. In production (Cloud Run container), use container PORT or fallback to 3000
+  return Number(process.env.PORT) || 3000;
+}
+
+const PORT = resolvePort();
 
 // Security hardening: Disable X-Powered-By fingerprinting
 app.disable("x-powered-by");

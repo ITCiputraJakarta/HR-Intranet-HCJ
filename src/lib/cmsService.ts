@@ -40,8 +40,7 @@ export const DEFAULT_HOME_CMS: HomeCmsContent = {
   floatingCard2: {
     name: 'Bpk. Hendra (HR)',
     message: 'Notifikasi HR: Panduan Cuti & Form 2026...',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80',
+    avatarUrl: '',
   },
   servicesTitle: 'Layanan Terintegrasi',
   servicesSubtitle:
@@ -78,10 +77,8 @@ export const DEFAULT_HOME_CMS: HomeCmsContent = {
     'Di Hotel Ciputra Jakarta, kami percaya bahwa komunikasi internal yang baik adalah kunci menuju Service Excellence. Portal ini dibangun secara khusus untuk menjembatani manajemen, HR, dan seluruh staf operasional.',
   aboutStatNumber: '100%',
   aboutStatLabel: 'Transparansi Data',
-  aboutImage1:
-    'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
-  aboutImage2:
-    'https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
+  aboutImage1: '',
+  aboutImage2: '',
   aboutFeature1Title: 'Akses Terpusat',
   aboutFeature1Desc:
     'Tidak ada lagi kebingungan birokrasi, semua dokumen, formulir operasional, dan SOP tersedia di satu tempat.',
@@ -92,28 +89,7 @@ export const DEFAULT_HOME_CMS: HomeCmsContent = {
   testimonialsTitle: 'Apa Kata Mereka?',
   testimonialsSubtitle:
     'Mendengar langsung pengalaman dari rekan kerja kita tentang bagaimana sistem internal ini membantu produktivitas dan perencanaan karir mereka di Hotel Ciputra.',
-  testimonials: [
-    {
-      id: 't-1',
-      name: 'Anita Rahayu',
-      role: 'Guest Relation Officer',
-      quote:
-        'Sangat memudahkan! Dulu mengurus cuti tahunan butuh waktu berminggu-minggu dengan form kertas. Sekarang melalui portal ini, approval atasan bisa didapat di hari yang sama. Fitur karir internalnya juga sangat memotivasi.',
-      photoUrl:
-        'https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-      rating: 5,
-    },
-    {
-      id: 't-2',
-      name: 'Rudi Hartono',
-      role: 'Chef de Partie (F&B)',
-      quote:
-        'Sistem SOP digital dan pembaruan KPI sangat transparan. Kita jadi tahu arah perkembangan tim dapur dan peluang promosi jabatan yang terbuka secara terbuka.',
-      photoUrl:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80',
-      rating: 5,
-    },
-  ],
+  testimonials: [],
   newsletterTitle: '',
   newsletterDescription: '',
   contactAddress:
@@ -127,8 +103,7 @@ export const DEFAULT_CAREER_CMS: CareerCmsContent = {
   heroTitle: 'JOIN OUR TEAM',
   heroSubtitle:
     'Menjadi bagian dari Hotel Ciputra Jakarta berarti bergabung dengan keluarga profesional perhotelan yang berdedikasi untuk memberikan pengalaman tak terlupakan. Bangun karir gemilang Anda bersama kami.',
-  heroBgUrl:
-    'https://images.unsplash.com/photo-1542314831-c6a4d27ece50?q=80&w=2000&auto=format&fit=crop',
+  heroBgUrl: '',
   benefitsTag: 'BENEFITS & CULTURE',
   benefitsTitle: 'Mengapa Anda Harus Bergabung Bersama Kami',
   benefitsDescription:

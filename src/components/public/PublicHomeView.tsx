@@ -26,6 +26,8 @@ import {
   ZoomIn,
   ZoomOut,
   FileText,
+  Megaphone,
+  UserCheck,
 } from 'lucide-react';
 import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
@@ -33,6 +35,9 @@ import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/b
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import defaultHotelLounge from '../../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
+import defaultHotelSuite from '../../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
+import defaultHotelDining from '../../assets/images/gallery_hotel_artisan_wall_1790666750842.jpg';
 
 interface PublicHomeViewProps {
   onNavigateToLogin: () => void;
@@ -337,11 +342,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
             {/* Floating Card 2: HR Notification (hidden on extra small screens to prevent overlap) */}
             <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-56 sm:w-64">
-              <img
-                src={content.floatingCard2.avatarUrl}
-                alt="HR Avatar"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-[#F48C06] shrink-0"
-              />
+              {content.floatingCard2.avatarUrl && !content.floatingCard2.avatarUrl.includes('unsplash.com') ? (
+                <img
+                  src={content.floatingCard2.avatarUrl}
+                  alt="HR Avatar"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-[#F48C06] shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-xs border-2 border-[#F48C06] shrink-0 shadow-2xs">
+                  <span>HR</span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-xs sm:text-sm text-[#2F327D] font-normal leading-tight truncate">
                   {content.floatingCard2.name || 'Bpk. Hendra (HR)'}
@@ -424,13 +435,21 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <div className="absolute top-0 left-0 w-full h-full bg-[#F48C06]/10 rounded-[40px] transform rotate-3 scale-105 -z-10" />
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <img
-                src={content.aboutImage1}
-                alt="Training Internal"
+                src={
+                  content.aboutImage1 && !content.aboutImage1.includes('unsplash.com')
+                    ? content.aboutImage1
+                    : defaultHotelLounge
+                }
+                alt="Fasilitas Hotel Ciputra Jakarta"
                 className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-br-sm shadow-md mt-4 sm:mt-6"
               />
               <img
-                src={content.aboutImage2}
-                alt="Diskusi Tim"
+                src={
+                  content.aboutImage2 && !content.aboutImage2.includes('unsplash.com')
+                    ? content.aboutImage2
+                    : defaultHotelSuite
+                }
+                alt="Akomodasi Hotel Ciputra Jakarta"
                 className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-tl-sm shadow-md"
               />
             </div>
@@ -604,6 +623,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             {publishedNews.length > 0 ? (
               publishedNews.map((item) => {
                 const badge = cleanPublicBadge(item.sub_kategori);
+                const hasValidPhoto = Boolean(
+                  (item.thumbUrl && !item.thumbUrl.includes('unsplash.com')) ||
+                  (item.fileType?.startsWith('image/') && item.fileUrl && !item.fileUrl.includes('unsplash.com')) ||
+                  (item.fileName?.match(/\.(jpg|jpeg|png|webp|gif)$/i) && item.fileUrl && !item.fileUrl.includes('unsplash.com'))
+                );
+                const photoSrc = (item.thumbUrl && !item.thumbUrl.includes('unsplash.com'))
+                  ? item.thumbUrl
+                  : (item.fileUrl && !item.fileUrl.includes('unsplash.com'))
+                  ? item.fileUrl
+                  : '';
+
                 return (
                   <article
                     key={item.id}
@@ -614,33 +644,41 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                         date: item.effectiveDate || item.uploadedAt?.slice(0, 10) || 'Terbaru',
                         tag: badge,
                         desc: item.keterangan || 'Pengumuman resmi operasional dan manajemen Hotel Ciputra Jakarta.',
-                        imgUrl:
-                          item.thumbUrl ||
-                          item.fileUrl ||
-                          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                        imgUrl: photoSrc,
                         attachmentName: item.attachmentName,
                       });
                       setIsPhotoMaximized(false);
                     }}
                     className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
                   >
-                    <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
-                      <img
-                        src={
-                          item.thumbUrl ||
-                          item.fileUrl ||
-                          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-                        }
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      />
-                      {/* Clean Category Badge - Completely hides any All unit / all departement */}
-                      {badge ? (
-                        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
-                          <span>{badge}</span>
+                    {hasValidPhoto && photoSrc ? (
+                      <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
+                        <img
+                          src={photoSrc}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                        />
+                        {badge ? (
+                          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
+                            <span>{badge}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="relative h-48 sm:h-52 bg-gradient-to-br from-[#2F327D] to-[#1E2050] flex flex-col items-center justify-center text-white p-4 select-none">
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                          <Megaphone className="w-6 h-6 text-[#F48C06]" />
                         </div>
-                      ) : null}
-                    </div>
+                        <span className="text-[11px] font-semibold text-orange-200 tracking-wider uppercase text-center px-2 line-clamp-1">
+                          {badge || 'Pengumuman Resmi'}
+                        </span>
+                        {badge ? (
+                          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
+                            <span>{badge}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                     <div className="p-5 sm:p-6 flex-1 flex flex-col text-center sm:text-left">
                       <p className="text-[11px] text-[#696984] mb-2 flex items-center justify-center sm:justify-start gap-1.5 font-normal">
                         <Calendar className="w-3 h-3 text-[#F48C06]" />
@@ -653,37 +691,44 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                         {item.keterangan || item.attachmentName || 'Klik untuk membaca detail pengumuman resmi.'}
                       </p>
                       <div className="flex justify-center sm:justify-start">
-                        <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-                          Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToLogin();
+                          }}
+                          className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 hover:text-[#d97706] hover:gap-2 transition-all cursor-pointer"
+                        >
+                          Baca Selengkapnya (Login) <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </article>
                 );
               })
             ) : (
-              // Default preview articles if none are uploaded yet
+              // Default preview articles using local hotel assets
               [
                 {
                   tag: 'Manajemen',
                   date: '12 Oktober 2026',
                   title: 'Hasil Evaluasi Kinerja Kuartal 3 & Target Operasional Q4',
                   desc: 'Rangkuman pencapaian tim Front Office, F&B, dan Housekeeping serta persiapan menyambut musim liburan.',
-                  img: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                  img: defaultHotelLounge,
                 },
                 {
                   tag: 'Event Karyawan',
                   date: '05 Oktober 2026',
                   title: 'Pendaftaran Employee Gathering 2026 Dibuka',
                   desc: 'Segera daftarkan diri dan keluarga untuk acara silaturahmi tahunan kita dengan ragam doorprize menarik.',
-                  img: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                  img: defaultHotelSuite,
                 },
                 {
                   tag: 'Sistem Internal',
                   date: '01 Oktober 2026',
                   title: 'Pembaruan Fitur Pengajuan & SOP Digital V2.0',
                   desc: 'Modul digitalisasi formulir dan arsip dokumen kini lebih cepat serta terintegrasi cloud database.',
-                  img: 'https://images.unsplash.com/photo-1542744094-3a31f272c490?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                  img: defaultHotelDining,
                 },
               ].map((defItem, idx) => {
                 const defBadge = cleanPublicBadge(defItem.tag);
@@ -727,9 +772,16 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                         {defItem.desc}
                       </p>
                       <div className="flex justify-center sm:justify-start">
-                        <span className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-                          Baca Selengkapnya <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToLogin();
+                          }}
+                          className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 hover:text-[#d97706] hover:gap-2 transition-all cursor-pointer"
+                        >
+                          Baca Selengkapnya (Login) <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -898,14 +950,28 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
             {/* Modal Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-6">
-              {/* Fit Image Hero Banner: Tampil pas & utuh tanpa perlu di-zoom lagi */}
-              <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 sm:p-4 w-full shadow-inner min-h-[220px] max-h-[70vh] sm:max-h-[76vh]">
-                <img
-                  src={zoomedNewsItem.imgUrl}
-                  alt={zoomedNewsItem.title}
-                  className="w-auto h-auto max-w-full max-h-[64vh] sm:max-h-[72vh] object-contain rounded-xl shadow-md transition-all duration-300"
-                />
-              </div>
+              {/* Fit Image Hero Banner: Tampil pas & utuh jika memiliki foto */}
+              {zoomedNewsItem.imgUrl && !zoomedNewsItem.imgUrl.includes('unsplash.com') ? (
+                <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 sm:p-4 w-full shadow-inner min-h-[220px] max-h-[70vh] sm:max-h-[76vh]">
+                  <img
+                    src={zoomedNewsItem.imgUrl}
+                    alt={zoomedNewsItem.title}
+                    className="w-auto h-auto max-w-full max-h-[64vh] sm:max-h-[72vh] object-contain rounded-xl shadow-md transition-all duration-300"
+                  />
+                </div>
+              ) : (
+                <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white p-6 sm:p-8 flex flex-col items-center justify-center text-center shadow-md">
+                  <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-3">
+                    <Megaphone className="w-7 h-7 text-[#F48C06]" />
+                  </div>
+                  <span className="text-xs font-semibold text-orange-200 uppercase tracking-widest">
+                    {cleanPublicBadge(zoomedNewsItem.tag) || 'Pengumuman Resmi Operasional'}
+                  </span>
+                  <h3 className="text-base sm:text-xl font-bold mt-1 text-white max-w-xl">
+                    {zoomedNewsItem.title}
+                  </h3>
+                </div>
+              )}
 
               {/* Meta & Title */}
               <div className="space-y-2 text-center sm:text-left">

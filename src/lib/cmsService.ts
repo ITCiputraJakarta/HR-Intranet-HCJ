@@ -36,11 +36,16 @@ export const DEFAULT_HOME_CMS: HomeCmsContent = {
     title: 'Jadwal Shift Terkini',
     subtitle: 'Update Sistem',
     status: 'Aktif',
+    icon: 'calendar',
+    badgeText: 'Live',
+    badgeColor: 'emerald',
   },
   floatingCard2: {
     name: 'Bpk. Hendra (HR)',
     message: 'Notifikasi HR: Panduan Cuti & Form 2026...',
     avatarUrl: '',
+    roleTag: 'HR',
+    badgeText: 'Baru',
   },
   servicesTitle: 'Layanan Terintegrasi',
   servicesSubtitle:

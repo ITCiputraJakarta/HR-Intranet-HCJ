@@ -46,8 +46,44 @@ app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   next();
 });
+
+// In-Memory Rate Limiting for AI & sensitive API endpoints (Anti-DoS / Anti-Brute-Force)
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+const rateLimitMap = new Map<string, RateLimitRecord>();
+
+function createRateLimiter(maxRequests: number, windowMs: number) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown-ip";
+    const ipKey = Array.isArray(ip) ? ip[0] : String(ip);
+    const now = Date.now();
+    const record = rateLimitMap.get(ipKey);
+
+    if (!record || now > record.resetTime) {
+      rateLimitMap.set(ipKey, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+
+    if (record.count >= maxRequests) {
+      const waitSeconds = Math.ceil((record.resetTime - now) / 1000);
+      return res.status(429).json({
+        error: `Terlalu banyak permintaan. Silakan tunggu ${waitSeconds} detik sebelum mencoba lagi.`,
+        retryAfter: waitSeconds,
+      });
+    }
+
+    record.count += 1;
+    next();
+  };
+}
+
+// Limit: Maks 20 request per menit untuk endpoint AI
+const aiRateLimiter = createRateLimiter(20, 60 * 1000);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -73,8 +109,8 @@ apiRouter.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// AI Announcement drafter endpoint
-apiRouter.post("/ai/draft-announcement", async (req, res) => {
+// AI Announcement drafter endpoint (Protected with rate limiter)
+apiRouter.post("/ai/draft-announcement", aiRateLimiter, async (req, res) => {
   try {
     const rawTitle = typeof req.body?.title === "string" ? req.body.title.trim() : "";
     const rawDepartment = typeof req.body?.department === "string" ? req.body.department.trim() : "";
@@ -112,8 +148,8 @@ apiRouter.post("/ai/draft-announcement", async (req, res) => {
   }
 });
 
-// AI Performance Appraisal Feedback endpoint
-apiRouter.post("/ai/performance-feedback", async (req, res) => {
+// AI Performance Appraisal Feedback endpoint (Protected with rate limiter)
+apiRouter.post("/ai/performance-feedback", aiRateLimiter, async (req, res) => {
   try {
     const rawName = typeof req.body?.employeeName === "string" ? req.body.employeeName.trim() : "";
     const rawRole = typeof req.body?.role === "string" ? req.body.role.trim() : "";

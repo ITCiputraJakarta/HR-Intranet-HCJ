@@ -222,11 +222,16 @@ export interface HomeCmsContent {
     title: string;
     subtitle: string;
     status: string;
+    icon?: string;
+    badgeText?: string;
+    badgeColor?: string;
   };
   floatingCard2: {
     name: string;
     message: string;
     avatarUrl: string;
+    roleTag?: string;
+    badgeText?: string;
   };
   servicesTitle: string;
   servicesSubtitle: string;

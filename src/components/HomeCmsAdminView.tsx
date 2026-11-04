@@ -31,7 +31,13 @@ import {
   MapPin,
   ChevronRight,
   Info,
-  Hotel
+  Hotel,
+  Calendar,
+  Clock,
+  Bell,
+  Award,
+  Coffee,
+  Zap,
 } from 'lucide-react';
 import { HomeCmsContent, HomeCmsTestimonial, HomeCmsServiceItem, User, SocialMediaItem } from '../types';
 import {
@@ -751,15 +757,137 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                   Dua Kartu Mengambang di Atas Foto Hero
                 </h4>
 
+                {/* Preset Inspirasi Cepat */}
+                <div className="bg-orange-50/70 p-3.5 rounded-2xl border border-orange-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#2F327D] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#F48C06]" />
+                      Ide &amp; Preset Cepat Floating Cards:
+                    </span>
+                    <span className="text-[10.5px] text-slate-500">Klik untuk langsung menerapkan ide</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          floatingCard1: {
+                            ...prev.floatingCard1,
+                            subtitle: 'Operasional Harian',
+                            title: 'Jadwal Shift & Roster Aktif',
+                            icon: 'calendar',
+                            badgeText: 'Live Roster',
+                            status: 'Aktif',
+                          },
+                          floatingCard2: {
+                            ...prev.floatingCard2,
+                            name: 'Duty Manager (Front Office)',
+                            message: 'Briefing Pagi Jam 08.00: VIP Arrival & Acara Ballroom',
+                            roleTag: 'MOD',
+                            badgeText: 'Briefing',
+                          },
+                        }));
+                      }}
+                      className="px-2.5 py-1 text-[11px] rounded-lg bg-white hover:bg-orange-100/60 text-[#2F327D] border border-orange-200 transition-colors font-medium shadow-2xs"
+                    >
+                      📅 Ide 1: Shift &amp; Duty Manager
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          floatingCard1: {
+                            ...prev.floatingCard1,
+                            subtitle: 'Kebersihan & K3',
+                            title: 'Audit HACCP & Kebersihan 100%',
+                            icon: 'shield',
+                            badgeText: 'Audit Lulus',
+                            status: 'Aktif',
+                          },
+                          floatingCard2: {
+                            ...prev.floatingCard2,
+                            name: 'Executive Chef (F&B)',
+                            message: 'Menu Baru Restoran & Standar Higienitas Dapur Terverifikasi',
+                            roleTag: 'F&B',
+                            badgeText: 'Mutu',
+                          },
+                        }));
+                      }}
+                      className="px-2.5 py-1 text-[11px] rounded-lg bg-white hover:bg-orange-100/60 text-[#2F327D] border border-orange-200 transition-colors font-medium shadow-2xs"
+                    >
+                      🛡️ Ide 2: Mutu HACCP &amp; F&amp;B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          floatingCard1: {
+                            ...prev.floatingCard1,
+                            subtitle: 'Apresiasi Karyawan',
+                            title: 'Employee of The Month 2026',
+                            icon: 'award',
+                            badgeText: 'Juara 1',
+                            status: 'Aktif',
+                          },
+                          floatingCard2: {
+                            ...prev.floatingCard2,
+                            name: 'Human Resources Division',
+                            message: 'Pengajuan Cuti Tahunan & Klaim Medis Kini 100% Online',
+                            roleTag: 'HRD',
+                            badgeText: 'Layanan',
+                          },
+                        }));
+                      }}
+                      className="px-2.5 py-1 text-[11px] rounded-lg bg-white hover:bg-orange-100/60 text-[#2F327D] border border-orange-200 transition-colors font-medium shadow-2xs"
+                    >
+                      🏆 Ide 3: Reward Staf &amp; HRD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          floatingCard1: {
+                            ...prev.floatingCard1,
+                            subtitle: 'Tingkat Okupansi',
+                            title: 'Room Occupancy 92% (High Season)',
+                            icon: 'zap',
+                            badgeText: 'Peak Season',
+                            status: 'Aktif',
+                          },
+                          floatingCard2: {
+                            ...prev.floatingCard2,
+                            name: 'General Manager Office',
+                            message: 'Apresiasi kepada seluruh jajaran atas Service Excellence',
+                            roleTag: 'GM',
+                            badgeText: 'Apresiasi',
+                          },
+                        }));
+                      }}
+                      className="px-2.5 py-1 text-[11px] rounded-lg bg-white hover:bg-orange-100/60 text-[#2F327D] border border-orange-200 transition-colors font-medium shadow-2xs"
+                    >
+                      ⚡ Ide 4: Okupansi Hotel &amp; GM
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Floating Card 1 */}
                   <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5">
-                    <p className="font-normal text-[#2F327D]">Kartu 1 (Kiri Atas):</p>
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-xs text-[#2F327D]">Kartu 1 (Kiri Atas):</p>
+                      <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-medium">Operasional &amp; Info</span>
+                    </div>
+
                     <div>
-                      <label className="text-[11px] text-slate-500 font-normal">Sub-label</label>
+                      <label className="text-[11px] text-slate-500 font-normal">Sub-label (Atas)</label>
                       <input
                         type="text"
-                        value={formData.floatingCard1.subtitle}
+                        value={formData.floatingCard1.subtitle || ''}
+                        placeholder="misal: Update Sistem / Operasional Harian"
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -769,14 +897,16 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                             },
                           })
                         }
-                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs"
                       />
                     </div>
+
                     <div>
-                      <label className="text-[11px] text-slate-500 font-normal">Judul Kartu</label>
+                      <label className="text-[11px] text-slate-500 font-normal">Judul Utama Kartu</label>
                       <input
                         type="text"
-                        value={formData.floatingCard1.title}
+                        value={formData.floatingCard1.title || ''}
+                        placeholder="misal: Jadwal Shift Terkini / Roster Aktif"
                         onChange={(e) =>
                           setFormData({
                             ...formData,
@@ -786,51 +916,147 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                             },
                           })
                         }
-                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5"
+                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs font-semibold"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-normal">Ikon Kartu</label>
+                        <select
+                          value={formData.floatingCard1.icon || 'calendar'}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard1: {
+                                ...formData.floatingCard1,
+                                icon: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs"
+                        >
+                          <option value="calendar">📅 Kalender (Shift)</option>
+                          <option value="clock">⏰ Jam (Waktu Kerja)</option>
+                          <option value="bell">🔔 Lonceng (Pengumuman)</option>
+                          <option value="award">🏆 Trofi (Prestasi)</option>
+                          <option value="shield">🛡️ Perisai (K3/SOP)</option>
+                          <option value="zap">⚡ Kilat (Okupansi)</option>
+                          <option value="coffee">☕ Kopi (F&amp;B/Istirahat)</option>
+                          <option value="briefcase">💼 Koper (Manajemen)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-normal">Teks Label Lencana</label>
+                        <input
+                          type="text"
+                          value={formData.floatingCard1.badgeText || ''}
+                          placeholder="misal: Live / Aktif / Teruji"
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard1: {
+                                ...formData.floatingCard1,
+                                badgeText: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* Floating Card 2 */}
                   <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5">
-                    <p className="font-normal text-[#2F327D]">Kartu 2 (Kanan Bawah):</p>
-                    <div>
-                      <label className="text-[11px] text-slate-500 font-normal">Nama / Pengirim</label>
-                      <input
-                        type="text"
-                        value={formData.floatingCard2.name}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            floatingCard2: {
-                              ...formData.floatingCard2,
-                              name: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5"
-                      />
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-xs text-[#2F327D]">Kartu 2 (Kanan Bawah):</p>
+                      <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-medium">Notifikasi &amp; Staf</span>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-500 font-normal">Pesan Notifikasi</label>
-                      <input
-                        type="text"
-                        value={formData.floatingCard2.message}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            floatingCard2: {
-                              ...formData.floatingCard2,
-                              message: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5"
-                      />
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-[11px] text-slate-500 font-normal">Nama / Jabatan Pengirim</label>
+                        <input
+                          type="text"
+                          value={formData.floatingCard2.name || ''}
+                          placeholder="misal: Bpk. Hendra (HR) / Duty Manager"
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard2: {
+                                ...formData.floatingCard2,
+                                name: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-normal">Kode Role/Inisial</label>
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={formData.floatingCard2.roleTag || ''}
+                          placeholder="HR / GM / MOD"
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard2: {
+                                ...formData.floatingCard2,
+                                roleTag: e.target.value.toUpperCase(),
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs font-bold text-center"
+                        />
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-[11px] text-slate-500 font-normal">Pesan Notifikasi Ringkas</label>
+                        <input
+                          type="text"
+                          value={formData.floatingCard2.message || ''}
+                          placeholder="misal: Notifikasi HR: Panduan Cuti & Form 2026..."
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard2: {
+                                ...formData.floatingCard2,
+                                message: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-normal">Label Lencana</label>
+                        <input
+                          type="text"
+                          value={formData.floatingCard2.badgeText || ''}
+                          placeholder="Baru / Info"
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              floatingCard2: {
+                                ...formData.floatingCard2,
+                                badgeText: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white mt-0.5 text-xs"
+                        />
+                      </div>
+                    </div>
+
                     <div className="pt-1">
                       <ImageUploadField
-                        label="Foto Avatar Notifikasi"
+                        label="Foto Avatar Notifikasi (Opsional)"
                         value={formData.floatingCard2.avatarUrl}
                         onChange={(val) =>
                           setFormData({

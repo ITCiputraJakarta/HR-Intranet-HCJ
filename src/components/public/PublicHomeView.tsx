@@ -28,6 +28,12 @@ import {
   FileText,
   Megaphone,
   UserCheck,
+  Clock,
+  Bell,
+  Award,
+  Coffee,
+  Zap,
+  ShieldCheck,
 } from 'lucide-react';
 import { HomeCmsContent, IntranetDocument } from '../../types';
 import { getHomeCmsContent, subscribeToHomeCms } from '../../lib/cmsService';
@@ -63,6 +69,28 @@ function cleanPublicBadge(tag?: string): string {
     return '';
   }
   return tag;
+}
+
+function renderFloatingIcon(iconName?: string) {
+  switch (iconName) {
+    case 'clock':
+      return <Clock className="w-5 h-5" />;
+    case 'bell':
+      return <Bell className="w-5 h-5" />;
+    case 'award':
+      return <Award className="w-5 h-5" />;
+    case 'coffee':
+      return <Coffee className="w-5 h-5" />;
+    case 'zap':
+      return <Zap className="w-5 h-5" />;
+    case 'shield':
+      return <ShieldCheck className="w-5 h-5" />;
+    case 'briefcase':
+      return <Briefcase className="w-5 h-5" />;
+    case 'calendar':
+    default:
+      return <Calendar className="w-5 h-5" />;
+  }
 }
 
 export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
@@ -322,16 +350,23 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
             />
 
-            {/* Floating Card 1: Shift & Jadwal (hidden on extra small screens to prevent overlap) */}
-            <div className="hidden sm:flex absolute top-12 -left-3 sm:-left-8 md:-left-12 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 animate-pulse">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center text-[#F48C06] shrink-0">
-                <Calendar className="w-5 h-5" />
+            {/* Floating Card 1: Shift / Operasional / Sistem (hidden on extra small screens to prevent overlap) */}
+            <div className="hidden sm:flex absolute top-12 -left-3 sm:-left-8 md:-left-12 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 transition-transform hover:scale-105 duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center text-[#F48C06] shrink-0 shadow-2xs">
+                {renderFloatingIcon(content.floatingCard1.icon)}
               </div>
               <div>
-                <p className="text-[10.5px] sm:text-xs text-[#696984] font-normal mb-0.5">
-                  {content.floatingCard1.subtitle || 'Update Sistem'}
-                </p>
-                <p className="text-xs sm:text-sm text-[#2F327D] font-normal whitespace-nowrap">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <p className="text-[10px] sm:text-[11px] text-[#696984] font-normal">
+                    {content.floatingCard1.subtitle || 'Update Sistem'}
+                  </p>
+                  {content.floatingCard1.badgeText && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                      {content.floatingCard1.badgeText}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs sm:text-sm text-[#2F327D] font-bold whitespace-nowrap">
                   {content.floatingCard1.title || 'Jadwal Shift Terkini'}
                 </p>
               </div>
@@ -340,8 +375,8 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               </div>
             </div>
 
-            {/* Floating Card 2: HR Notification (hidden on extra small screens to prevent overlap) */}
-            <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-56 sm:w-64">
+            {/* Floating Card 2: HR / Manajemen / Pengumuman (hidden on extra small screens to prevent overlap) */}
+            <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-60 sm:w-72 transition-transform hover:scale-105 duration-300">
               {content.floatingCard2.avatarUrl && !content.floatingCard2.avatarUrl.includes('unsplash.com') ? (
                 <img
                   src={content.floatingCard2.avatarUrl}
@@ -350,13 +385,20 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 />
               ) : (
                 <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-xs border-2 border-[#F48C06] shrink-0 shadow-2xs">
-                  <span>HR</span>
+                  <span>{content.floatingCard2.roleTag || 'HR'}</span>
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-[#2F327D] font-normal leading-tight truncate">
-                  {content.floatingCard2.name || 'Bpk. Hendra (HR)'}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs sm:text-sm text-[#2F327D] font-bold leading-tight truncate">
+                    {content.floatingCard2.name || 'Bpk. Hendra (HR)'}
+                  </p>
+                  {content.floatingCard2.badgeText && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold uppercase tracking-wider bg-orange-100 text-[#F48C06] shrink-0">
+                      {content.floatingCard2.badgeText}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10.5px] sm:text-xs text-[#696984] mt-0.5 line-clamp-1 font-normal">
                   {content.floatingCard2.message || 'Notifikasi HR: Panduan Cuti...'}
                 </p>

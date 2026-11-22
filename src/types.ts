@@ -296,6 +296,7 @@ export interface CareerApplication {
   cvFileSize: number; // Max 1,048,576 bytes (1MB)
   cvFileData: string; // Base64 data URI (PDF only)
   notes?: string;
+  verificationRef?: string;
   status: 'Pending' | 'Reviewed' | 'Interview' | 'Rejected';
   submittedAt: string;
 }

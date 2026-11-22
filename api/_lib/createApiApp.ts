@@ -748,6 +748,316 @@ export function createApiApp() {
     return res.json({ success: true });
   });
 
+  // =========================================================================
+  // PUBLIC CAREER ANTI-BOT & ANTI-SPAM PROTECTION
+  // =========================================================================
+  const careerChallengeLimiter = createRateLimiter("career-challenge", 25, 10 * 60 * 1000);
+  const careerVerifyLimiter = createRateLimiter("career-verify-ip", 4, 15 * 60 * 1000);
+
+  const usedCareerNonces = new Map<string, number>();
+  const recentCareerEmailHistory = new Map<
+    string,
+    { lastSubmittedAt: number; windowStart: number; count: number; jobTimestamps: Map<string, number> }
+  >();
+
+  const DISPOSABLE_EMAIL_DOMAINS = new Set([
+    "mailinator.com",
+    "tempmail.com",
+    "temp-mail.org",
+    "10minutemail.com",
+    "guerrillamail.com",
+    "guerrillamailblock.com",
+    "yopmail.com",
+    "trashmail.com",
+    "sharklasers.com",
+    "throwawaymail.com",
+    "getnada.com",
+    "fakeinbox.com",
+    "dispostable.com",
+    "maildrop.cc",
+    "mintemail.com",
+  ]);
+
+  const ALLOWED_CAREER_EDUCATIONS = new Set(["SMA/SMK", "D1/D2/D3", "S1", "S2"]);
+  const CAREER_MIN_DWELL_MS = 3000; // Minimum human form-fill duration (3 seconds)
+  const CAREER_CHALLENGE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+  const CAREER_POW_DIFFICULTY = 3; // SHA-256 leading "000" (~4096 hashes avg, ~15-50ms in browser)
+
+  function pruneCareerAntiSpamMaps(now: number) {
+    if (usedCareerNonces.size > 500) {
+      for (const [k, exp] of usedCareerNonces.entries()) {
+        if (now > exp) usedCareerNonces.delete(k);
+      }
+    }
+    if (recentCareerEmailHistory.size > 500) {
+      const dayMs = 24 * 60 * 60 * 1000;
+      for (const [email, entry] of recentCareerEmailHistory.entries()) {
+        if (now - entry.lastSubmittedAt > dayMs) {
+          recentCareerEmailHistory.delete(email);
+        }
+      }
+    }
+  }
+
+  function signCareerChallenge(payload: {
+    jti: string;
+    jobId: string;
+    issuedAt: number;
+    salt: string;
+    difficulty: number;
+  }): string {
+    const b64 = base64UrlEncode(JSON.stringify(payload));
+    const sig = crypto.createHmac("sha256", getSessionSecret()).update(`career:${b64}`).digest();
+    return `${b64}.${base64UrlEncode(sig)}`;
+  }
+
+  function verifyCareerChallengeToken(token: string): {
+    jti: string;
+    jobId: string;
+    issuedAt: number;
+    salt: string;
+    difficulty: number;
+  } | null {
+    if (!token || typeof token !== "string") return null;
+    const parts = token.split(".");
+    if (parts.length !== 2) return null;
+    const [b64, sigB64] = parts;
+    if (!b64 || !sigB64) return null;
+    try {
+      const expected = crypto
+        .createHmac("sha256", getSessionSecret())
+        .update(`career:${b64}`)
+        .digest();
+      const provided = base64UrlDecode(sigB64);
+      if (expected.length !== provided.length || !crypto.timingSafeEqual(expected, provided)) {
+        return null;
+      }
+      const parsed = JSON.parse(base64UrlDecode(b64).toString("utf8"));
+      if (
+        !parsed ||
+        typeof parsed.jti !== "string" ||
+        typeof parsed.jobId !== "string" ||
+        typeof parsed.issuedAt !== "number" ||
+        typeof parsed.salt !== "string" ||
+        typeof parsed.difficulty !== "number"
+      ) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  // Step 1: Issue single-use signed Proof-of-Work & dwell-time challenge when opening application form
+  apiRouter.post("/public/career-challenge", careerChallengeLimiter, (req, res) => {
+    const jobId = typeof req.body?.jobId === "string" ? req.body.jobId.trim() : "";
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
+      return res.status(400).json({ error: "Identitas lowongan tidak valid." });
+    }
+    const now = Date.now();
+    pruneCareerAntiSpamMaps(now);
+
+    const jti = crypto.randomBytes(16).toString("hex");
+    const salt = crypto.randomBytes(12).toString("hex");
+    const challengeToken = signCareerChallenge({
+      jti,
+      jobId,
+      issuedAt: now,
+      salt,
+      difficulty: CAREER_POW_DIFFICULTY,
+    });
+
+    return res.json({
+      challengeToken,
+      salt,
+      difficulty: CAREER_POW_DIFFICULTY,
+      minDwellMs: CAREER_MIN_DWELL_MS,
+    });
+  });
+
+  // Step 2: Verify human submission (honeypot, PoW, dwell-time, single-use nonce, field validation, anti-spam cooldown)
+  apiRouter.post("/public/career-verify", careerVerifyLimiter, (req, res) => {
+    const now = Date.now();
+    pruneCareerAntiSpamMaps(now);
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+
+    // 1. Honeypot trap check
+    const trapWebsite = typeof body.website === "string" ? body.website.trim() : "";
+    const trapCompanyPhone = typeof body.companyPhone === "string" ? body.companyPhone.trim() : "";
+    const trapFax = typeof body.faxNumber === "string" ? body.faxNumber.trim() : "";
+    if (trapWebsite || trapCompanyPhone || trapFax) {
+      return res.status(400).json({ error: "Verifikasi keamanan formulir gagal." });
+    }
+
+    // 2. Signed challenge + replay + dwell-time + PoW verification
+    const challengeToken = typeof body.challengeToken === "string" ? body.challengeToken.trim() : "";
+    const powNonce = typeof body.powNonce === "string" ? body.powNonce.trim() : "";
+    const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
+
+    const challenge = verifyCareerChallengeToken(challengeToken);
+    if (!challenge || challenge.jobId !== jobId) {
+      return res.status(400).json({
+        error: "Sesi verifikasi formulir tidak valid. Silakan tutup dan buka kembali formulir lamaran.",
+      });
+    }
+
+    if (usedCareerNonces.has(challenge.jti)) {
+      return res.status(400).json({
+        error: "Token formulir sudah digunakan. Silakan kirim ulang melalui formulir baru.",
+      });
+    }
+
+    const elapsedMs = now - challenge.issuedAt;
+    if (elapsedMs < CAREER_MIN_DWELL_MS) {
+      return res.status(400).json({
+        error: "Pengiriman terdeteksi terlalu cepat. Mohon periksa kembali data lamaran Anda.",
+      });
+    }
+    if (elapsedMs > CAREER_CHALLENGE_TTL_MS) {
+      return res.status(400).json({
+        error: "Sesi formulir telah kedaluwarsa. Silakan tutup dan buka kembali halaman lamaran.",
+      });
+    }
+
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(powNonce)) {
+      return res.status(400).json({ error: "Bukti verifikasi keamanan tidak valid." });
+    }
+    const powDigest = crypto
+      .createHash("sha256")
+      .update(`${challenge.salt}:${powNonce}`)
+      .digest("hex");
+    if (!powDigest.startsWith("0".repeat(challenge.difficulty))) {
+      return res.status(400).json({ error: "Verifikasi keamanan anti-bot tidak terpenuhi." });
+    }
+
+    // Consume single-use nonce immediately to prevent replay even on validation error retries
+    usedCareerNonces.set(challenge.jti, challenge.issuedAt + CAREER_CHALLENGE_TTL_MS + 60000);
+
+    // 3. Strict input & anti-spam content validation
+    const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+    const domisili = typeof body.domisili === "string" ? body.domisili.trim() : "";
+    const education = typeof body.education === "string" ? body.education.trim() : "";
+    const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+    const cvFileName = typeof body.cvFileName === "string" ? body.cvFileName.trim() : "";
+    const cvFileType = typeof body.cvFileType === "string" ? body.cvFileType.trim() : "";
+    const cvFileSize = typeof body.cvFileSize === "number" ? body.cvFileSize : 0;
+
+    if (
+      fullName.length < 3 ||
+      fullName.length > 150 ||
+      !/[A-Za-z]/.test(fullName) ||
+      /https?:\/\/|www\.|<[^>]+>/i.test(fullName)
+    ) {
+      return res.status(400).json({ error: "Nama lengkap wajib diisi dengan benar (minimal 3 huruf)." });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 150) {
+      return res.status(400).json({ error: "Format alamat email tidak valid." });
+    }
+    const emailDomain = email.split("@")[1] || "";
+    if (DISPOSABLE_EMAIL_DOMAINS.has(emailDomain)) {
+      return res.status(400).json({
+        error: "Mohon gunakan alamat email aktif pribadi atau profesional yang valid.",
+      });
+    }
+
+    if (!/^[0-9+\-\s()]{8,25}$/.test(phone)) {
+      return res.status(400).json({ error: "Format nomor WhatsApp / HP tidak valid." });
+    }
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 8 || phoneDigits.length > 15 || /^(\d)\1+$/.test(phoneDigits)) {
+      return res.status(400).json({ error: "Nomor WhatsApp / HP harus berupa nomor aktif yang valid." });
+    }
+
+    if (domisili.length < 2 || domisili.length > 150 || /<[^>]+>/.test(domisili)) {
+      return res.status(400).json({ error: "Domisili kota wajib diisi dengan benar." });
+    }
+
+    if (!ALLOWED_CAREER_EDUCATIONS.has(education)) {
+      return res.status(400).json({ error: "Pilihan pendidikan terakhir tidak valid." });
+    }
+
+    if (notes.length > 600) {
+      return res.status(400).json({ error: "Catatan tambahan maksimal 600 karakter." });
+    }
+    const urlMatches = notes.match(/https?:\/\/|www\./gi);
+    if ((urlMatches && urlMatches.length > 1) || /<script\b|<iframe\b|javascript:/i.test(notes)) {
+      return res.status(400).json({
+        error: "Pesan tambahan mengandung tautan atau format karakter yang tidak diizinkan.",
+      });
+    }
+
+    if (
+      !cvFileName.toLowerCase().endsWith(".pdf") ||
+      cvFileType !== "application/pdf" ||
+      !Number.isFinite(cvFileSize) ||
+      cvFileSize <= 0 ||
+      cvFileSize > 1048576
+    ) {
+      return res.status(400).json({ error: "Berkas CV wajib berformat PDF dengan ukuran maksimal 1 MB." });
+    }
+
+    // 4. Per-email cooldown & duplicate job application prevention
+    const existingEmail = recentCareerEmailHistory.get(email);
+    const COOLDOWN_MS = 60 * 1000;
+    const WINDOW_MS = 15 * 60 * 1000;
+    const DUPLICATE_JOB_MS = 24 * 60 * 60 * 1000;
+
+    if (existingEmail) {
+      const lastForJob = existingEmail.jobTimestamps.get(jobId);
+      if (lastForJob && now - lastForJob < DUPLICATE_JOB_MS) {
+        return res.status(429).json({
+          error: "Email ini sudah terdaftar melamar posisi tersebut hari ini. Tim HRD akan meninjau berkas Anda.",
+        });
+      }
+      if (now - existingEmail.lastSubmittedAt < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - (now - existingEmail.lastSubmittedAt)) / 1000);
+        return res.status(429).json({
+          error: `Mohon tunggu ${waitSec} detik sebelum mengirim lamaran berikutnya.`,
+        });
+      }
+      if (now - existingEmail.windowStart < WINDOW_MS && existingEmail.count >= 2) {
+        return res.status(429).json({
+          error: "Batas pengiriman lamaran tercapai untuk sementara. Silakan coba kembali setelah 15 menit.",
+        });
+      }
+    }
+
+    // Record email rate window
+    if (!existingEmail || now - existingEmail.windowStart >= WINDOW_MS) {
+      const jobMap = existingEmail?.jobTimestamps || new Map<string, number>();
+      jobMap.set(jobId, now);
+      recentCareerEmailHistory.set(email, {
+        lastSubmittedAt: now,
+        windowStart: now,
+        count: 1,
+        jobTimestamps: jobMap,
+      });
+    } else {
+      existingEmail.lastSubmittedAt = now;
+      existingEmail.count += 1;
+      existingEmail.jobTimestamps.set(jobId, now);
+    }
+
+    const appId = `app-${now}-${crypto.randomBytes(4).toString("hex")}`;
+    const verificationRef = `HCJ-${crypto
+      .createHmac("sha256", getSessionSecret())
+      .update(`${appId}:${jobId}:${email}`)
+      .digest("hex")
+      .slice(0, 12)
+      .toUpperCase()}`;
+
+    return res.json({
+      ok: true,
+      appId,
+      verificationRef,
+    });
+  });
+
   // AI Announcement drafter endpoint (Protected: Authenticated + Rate Limited)
   apiRouter.post(
     "/ai/draft-announcement",

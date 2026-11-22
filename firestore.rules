@@ -316,23 +316,24 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'jobId', 'jobTitle', 'department', 'fullName', 'email', 'phone',
           'domisili', 'education', 'cvFileName', 'cvFileType', 'cvFileSize',
-          'cvFileData', 'notes', 'status', 'submittedAt'
+          'cvFileData', 'notes', 'verificationRef', 'status', 'submittedAt'
         ])
         && isValidId(data.id)
         && isValidId(data.jobId)
         && isOptionalString(data, 'jobTitle', 200)
         && isOptionalString(data, 'department', 100)
-        && data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 150
-        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
-        && data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 40
-        && isOptionalString(data, 'domisili', 150)
-        && isOptionalString(data, 'education', 64)
+        && data.fullName is string && data.fullName.size() >= 3 && data.fullName.size() <= 150
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 150 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$')
+        && data.phone is string && data.phone.size() >= 8 && data.phone.size() <= 25 && data.phone.matches('^[0-9+\\-\\s()]{8,25}$')
+        && (!('domisili' in data) || (data.domisili is string && data.domisili.size() >= 2 && data.domisili.size() <= 150))
+        && (!('education' in data) || (data.education is string && data.education in ['SMA/SMK', 'D1/D2/D3', 'S1', 'S2']))
         && data.cvFileName is string && data.cvFileName.size() > 0 && data.cvFileName.size() <= 255
         && data.cvFileType == 'application/pdf'
         && data.cvFileSize is number && data.cvFileSize > 0 && data.cvFileSize <= 1048576
         && data.cvFileData is string && data.cvFileData.size() > 0 && data.cvFileData.size() <= 1500000
-        && data.cvFileData.matches('^data:application/pdf.*')
-        && isOptionalString(data, 'notes', 2000)
+        && data.cvFileData.matches('^data:application/pdf;base64,[A-Za-z0-9+/=]+$')
+        && isOptionalString(data, 'notes', 600)
+        && (!('verificationRef' in data) || (data.verificationRef is string && data.verificationRef.matches('^HCJ-[0-9A-F]{12}$')))
         && data.status is string && data.status in ['Pending', 'Reviewed', 'Interview', 'Rejected']
         && data.submittedAt is string && data.submittedAt.size() > 0 && data.submittedAt.size() <= 64;
     }
@@ -551,14 +552,19 @@ service cloud.firestore {
       allow delete: if isValidId(jobId) && isAdmin();
     }
 
-    // Career Candidate Applications (Write-only public apply with strict PDF + Pending lock; Admin-only read/review)
+    // Career Candidate Applications (Write-only public apply with strict PDF, Open-job, Anti-overwrite & Pending lock; Admin-only read/review)
     match /career_applications/{appId} {
       allow get: if isValidId(appId) && isAdmin();
       allow list: if isBootstrapAdmin();
       allow create: if isValidId(appId)
+        && !exists(/databases/$(database)/documents/career_applications/$(appId))
         && isValidCareerApplication(incoming())
+        && incoming().id == appId
         && incoming().status == 'Pending'
-        && exists(/databases/$(database)/documents/career_jobs/$(incoming().jobId));
+        && ('verificationRef' in incoming())
+        && incoming().verificationRef.matches('^HCJ-[0-9A-F]{12}$')
+        && exists(/databases/$(database)/documents/career_jobs/$(incoming().jobId))
+        && get(/databases/$(database)/documents/career_jobs/$(incoming().jobId)).data.status == 'Open';
       allow update: if isValidId(appId) && isAdmin() && isValidCareerApplication(incoming()) && (
         incoming().diff(existing()).affectedKeys().hasOnly(['status'])
       );

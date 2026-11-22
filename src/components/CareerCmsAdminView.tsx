@@ -566,6 +566,11 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
                         <p className="text-[11px] text-slate-400">
                           Pendidikan: {app.education || '-'} • {app.submittedAt?.slice(0, 10)}
                         </p>
+                        {app.verificationRef && (
+                          <span className="inline-block mt-0.5 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            Ref: {app.verificationRef}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded text-[10px] bg-orange-50 text-[#F48C06] border border-orange-200 font-normal block w-fit mb-0.5">

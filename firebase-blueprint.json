@@ -265,20 +265,21 @@
         "jobId": { "type": "string", "maxLength": 128 },
         "jobTitle": { "type": "string", "maxLength": 200 },
         "department": { "type": "string", "maxLength": 100 },
-        "fullName": { "type": "string", "minLength": 1, "maxLength": 150 },
-        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
-        "phone": { "type": "string", "minLength": 5, "maxLength": 40 },
-        "domisili": { "type": "string", "maxLength": 150 },
-        "education": { "type": "string", "maxLength": 64 },
+        "fullName": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "email": { "type": "string", "minLength": 5, "maxLength": 150, "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$" },
+        "phone": { "type": "string", "minLength": 8, "maxLength": 25, "pattern": "^[0-9+\\-\\s()]{8,25}$" },
+        "domisili": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "education": { "type": "string", "enum": ["SMA/SMK", "D1/D2/D3", "S1", "S2"], "maxLength": 64 },
         "cvFileName": { "type": "string", "maxLength": 255 },
         "cvFileType": { "type": "string", "enum": ["application/pdf"] },
         "cvFileSize": { "type": "number" },
-        "cvFileData": { "type": "string", "maxLength": 1500000 },
-        "notes": { "type": "string", "maxLength": 2000 },
+        "cvFileData": { "type": "string", "maxLength": 1500000, "pattern": "^data:application/pdf;base64,[A-Za-z0-9+/=]+$" },
+        "notes": { "type": "string", "maxLength": 600 },
+        "verificationRef": { "type": "string", "maxLength": 32, "pattern": "^HCJ-[0-9A-F]{12}$" },
         "status": { "type": "string", "enum": ["Pending", "Reviewed", "Interview", "Rejected"] },
         "submittedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
       },
-      "required": ["id", "jobId", "fullName", "email", "cvFileType", "cvFileData", "status"]
+      "required": ["id", "jobId", "fullName", "email", "phone", "cvFileName", "cvFileType", "cvFileSize", "cvFileData", "verificationRef", "status", "submittedAt"]
     }
   },
   "firestore": {

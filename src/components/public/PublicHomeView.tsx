@@ -348,11 +348,11 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <img
               src={sanitizeSafeUrl(content.heroImageUrl, { allowDataImage: true }) || defaultHotelLounge}
               alt="Profesional Hotel Ciputra Jakarta"
-              className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
+              className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover object-top w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
             />
 
-            {/* Floating Card 1: Shift / Operasional / Sistem (hidden on extra small screens to prevent overlap) */}
-            <div className="hidden sm:flex absolute top-12 -left-3 sm:-left-8 md:-left-12 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 transition-transform hover:scale-105 duration-300">
+            {/* Floating Card 1: Apresiasi / Shift / Operasional (positioned cleanly at bottom-left edge away from face) */}
+            <div className="hidden sm:flex absolute -bottom-7 left-0 sm:-left-6 md:-left-10 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 transition-transform hover:scale-105 duration-300">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center text-[#F48C06] shrink-0 shadow-2xs">
                 {renderFloatingIcon(content.floatingCard1.icon)}
               </div>

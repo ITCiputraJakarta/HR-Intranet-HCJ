@@ -650,6 +650,11 @@ export async function submitCareerApplication(
     throw new Error('Berkas CV tidak valid atau mengandung format yang tidak aman.');
   }
 
+  const refCode = typeof app.verificationRef === 'string' ? app.verificationRef.trim().toUpperCase() : '';
+  if (!/^HCJ-[0-9A-F]{12}$/.test(refCode)) {
+    throw new Error('Token verifikasi anti-spam tidak valid.');
+  }
+
   const sanitizedApp: CareerApplication = {
     ...app,
     fullName: sanitizeInput(app.fullName),
@@ -660,7 +665,8 @@ export async function submitCareerApplication(
     cvFileName: sanitizeFileName(app.cvFileName, 'cv.pdf'),
     cvFileType: 'application/pdf',
     cvFileData: safeCvData,
-    notes: app.notes ? sanitizeInput(app.notes) : undefined,
+    notes: app.notes ? sanitizeInput(app.notes).slice(0, 600) : undefined,
+    verificationRef: refCode,
     status: 'Pending',
   };
 

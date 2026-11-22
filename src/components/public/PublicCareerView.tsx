@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Hotel,
   Briefcase,
@@ -39,10 +39,82 @@ import {
   submitCareerApplication,
   MAX_PDF_BYTES,
 } from '../../lib/cmsService';
-import { sanitizeSafeUrl } from '../../lib/security';
+import { sanitizeSafeUrl, sha256Pure } from '../../lib/security';
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { CaptchaWidget, CaptchaWidgetRef } from '../CaptchaWidget';
+
+interface CareerChallengeState {
+  challengeToken: string;
+  salt: string;
+  difficulty: number;
+  minDwellMs: number;
+}
+
+const CAREER_GUARD_STORAGE_KEY = 'hcj_career_guard_v1';
+
+async function solvePowChallenge(salt: string, difficulty: number): Promise<string> {
+  const prefix = '0'.repeat(Math.max(1, Math.min(5, difficulty)));
+  const subtle = typeof globalThis !== 'undefined' ? globalThis.crypto?.subtle : undefined;
+  const encoder = new TextEncoder();
+
+  for (let nonce = 0; nonce < 250000; nonce++) {
+    const candidate = nonce.toString(36);
+    let hex = '';
+    if (subtle) {
+      const buf = await subtle.digest('SHA-256', encoder.encode(`${salt}:${candidate}`));
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+      }
+    } else {
+      hex = sha256Pure(`${salt}:${candidate}`);
+    }
+    if (hex.startsWith(prefix)) {
+      return candidate;
+    }
+    // Yield periodically to keep UI responsive
+    if (nonce > 0 && nonce % 800 === 0) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+  return '0';
+}
+
+function readCareerGuard(): { lastAt: number; jobs: Record<string, number> } {
+  try {
+    const raw = localStorage.getItem(CAREER_GUARD_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        lastAt: typeof parsed?.lastAt === 'number' ? parsed.lastAt : 0,
+        jobs: parsed?.jobs && typeof parsed.jobs === 'object' ? parsed.jobs : {},
+      };
+    }
+  } catch {}
+  return { lastAt: 0, jobs: {} };
+}
+
+function recordCareerGuard(email: string, jobId: string): void {
+  try {
+    const current = readCareerGuard();
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const cleanedJobs: Record<string, number> = {};
+    for (const [k, ts] of Object.entries(current.jobs)) {
+      if (typeof ts === 'number' && now - ts < dayMs) {
+        cleanedJobs[k] = ts;
+      }
+    }
+    const keyHash = sha256Pure(`${email.trim().toLowerCase()}:${jobId}`).slice(0, 24);
+    cleanedJobs[keyHash] = now;
+    localStorage.setItem(
+      CAREER_GUARD_STORAGE_KEY,
+      JSON.stringify({ lastAt: now, jobs: cleanedJobs })
+    );
+  } catch {}
+}
 
 interface PublicCareerViewProps {
   onNavigateToHome: () => void;
@@ -73,7 +145,15 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
   const [cvError, setCvError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submittedRefCode, setSubmittedRefCode] = useState('');
   const [generalError, setGeneralError] = useState('');
+
+  // Anti-Bot & Anti-Spam States
+  const applyCaptchaRef = useRef<CaptchaWidgetRef | null>(null);
+  const modalOpenedAtRef = useRef<number>(0);
+  const [challengeState, setChallengeState] = useState<CareerChallengeState | null>(null);
+  const [trapWebsite, setTrapWebsite] = useState('');
+  const [trapCompanyPhone, setTrapCompanyPhone] = useState('');
 
   useEffect(() => {
     const unsubCms = subscribeToCareerCms((c) => setCmsContent(c));
@@ -135,12 +215,39 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
     }
   };
 
+  const fetchCareerChallenge = async (jobId: string) => {
+    try {
+      const resp = await fetch('/api/public/career-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId }),
+      });
+      if (resp.ok) {
+        const data = (await resp.json()) as CareerChallengeState;
+        if (data?.challengeToken && data?.salt) {
+          setChallengeState(data);
+          return data;
+        }
+      }
+    } catch {}
+    return null;
+  };
+
   const handleOpenModal = (job: CareerJobPosting) => {
     setSelectedJob(job);
     setCvFile(null);
     setCvError('');
     setGeneralError('');
     setSubmitSuccess(false);
+    setSubmittedRefCode('');
+    setTrapWebsite('');
+    setTrapCompanyPhone('');
+    setChallengeState(null);
+    modalOpenedAtRef.current = Date.now();
+    void fetchCareerChallenge(job.id);
+    setTimeout(() => {
+      applyCaptchaRef.current?.reset();
+    }, 50);
   };
 
   const handleCloseModal = () => {
@@ -149,11 +256,85 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
     setCvError('');
     setGeneralError('');
     setSubmitSuccess(false);
+    setSubmittedRefCode('');
+    setChallengeState(null);
+    setTrapWebsite('');
+    setTrapCompanyPhone('');
   };
 
   const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedJob) return;
+
+    // 1. Silent Honeypot check (automated form fillers)
+    if (trapWebsite.trim().length > 0 || trapCompanyPhone.trim().length > 0) {
+      setGeneralError('Verifikasi keamanan formulir gagal.');
+      return;
+    }
+
+    // 2. Visual Canvas Captcha verification
+    if (!applyCaptchaRef.current || !applyCaptchaRef.current.isValid()) {
+      setGeneralError('Kode keamanan Captcha belum sesuai. Silakan ketik ulang kode yang tampil.');
+      applyCaptchaRef.current?.reset();
+      return;
+    }
+
+    // 3. Human dwell-time check (minimum 3 seconds after opening modal)
+    const minDwell = challengeState?.minDwellMs || 3000;
+    if (Date.now() - modalOpenedAtRef.current < minDwell) {
+      setGeneralError('Mohon periksa kembali data lamaran Anda sebelum mengirim.');
+      return;
+    }
+
+    // 4. Strict Candidate Field Validation
+    const cleanName = candidateName.trim();
+    const cleanEmail = candidateEmail.trim().toLowerCase();
+    const cleanPhone = candidatePhone.trim();
+    const cleanDomisili = candidateDomisili.trim();
+    const cleanNotes = candidateNotes.trim();
+
+    if (cleanName.length < 3 || !/[A-Za-z]/.test(cleanName) || /https?:\/\/|www\./i.test(cleanName)) {
+      setGeneralError('Nama lengkap wajib diisi dengan benar (minimal 3 huruf).');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+      setGeneralError('Format alamat email tidak valid.');
+      return;
+    }
+
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 8 || phoneDigits.length > 15 || /^(\d)\1+$/.test(phoneDigits)) {
+      setGeneralError('Nomor WhatsApp / HP wajib diisi dengan nomor aktif yang valid (8–15 digit).');
+      return;
+    }
+
+    if (cleanDomisili.length < 2) {
+      setGeneralError('Domisili kota wajib diisi.');
+      return;
+    }
+
+    const urlMatches = cleanNotes.match(/https?:\/\/|www\./gi);
+    if ((urlMatches && urlMatches.length > 1) || /<script\b|<iframe\b|javascript:/i.test(cleanNotes)) {
+      setGeneralError('Pesan tambahan mengandung tautan atau format karakter yang tidak diizinkan.');
+      return;
+    }
+
+    // 5. Client-side anti-spam cooldown & duplicate-job check
+    const guard = readCareerGuard();
+    const now = Date.now();
+    const keyHash = sha256Pure(`${cleanEmail}:${selectedJob.id}`).slice(0, 24);
+    if (guard.jobs[keyHash] && now - guard.jobs[keyHash] < 24 * 60 * 60 * 1000) {
+      setGeneralError(
+        'Anda sudah mengirimkan lamaran untuk posisi ini hari ini. Tim HRD akan meninjau berkas Anda.'
+      );
+      return;
+    }
+    if (guard.lastAt && now - guard.lastAt < 60 * 1000) {
+      const waitSec = Math.ceil((60 * 1000 - (now - guard.lastAt)) / 1000);
+      setGeneralError(`Mohon tunggu ${waitSec} detik sebelum mengirim lamaran berikutnya.`);
+      return;
+    }
 
     if (!cvFile) {
       setCvError('Harap lampirkan berkas CV / Resume berformat PDF (maksimal 1 MB).');
@@ -170,30 +351,86 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
     setGeneralError('');
 
     try {
+      // 6. Ensure challenge token exists and solve lightweight anti-bot Proof-of-Work
+      let activeChallenge = challengeState;
+      if (!activeChallenge) {
+        activeChallenge = await fetchCareerChallenge(selectedJob.id);
+      }
+      if (!activeChallenge) {
+        setIsSubmitting(false);
+        setGeneralError('Layanan verifikasi keamanan sedang sibuk. Silakan coba beberapa saat lagi.');
+        applyCaptchaRef.current?.reset();
+        return;
+      }
+
+      const powNonce = await solvePowChallenge(activeChallenge.salt, activeChallenge.difficulty);
+
+      // 7. Server-side Anti-Bot, Rate Limit & Anti-Spam Verification
+      const verifyResp = await fetch('/api/public/career-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          challengeToken: activeChallenge.challengeToken,
+          powNonce,
+          jobId: selectedJob.id,
+          fullName: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+          domisili: cleanDomisili,
+          education: candidateEducation,
+          notes: cleanNotes,
+          cvFileName: cvFile.name,
+          cvFileType: cvFile.type || 'application/pdf',
+          cvFileSize: cvFile.size,
+          website: trapWebsite,
+          companyPhone: trapCompanyPhone,
+        }),
+      });
+
+      const verifyData = (await verifyResp.json().catch(() => ({}))) as {
+        ok?: boolean;
+        appId?: string;
+        verificationRef?: string;
+        error?: string;
+      };
+
+      if (!verifyResp.ok || !verifyData.ok || !verifyData.appId || !verifyData.verificationRef) {
+        setIsSubmitting(false);
+        setGeneralError(
+          verifyData.error || 'Verifikasi keamanan gagal. Silakan periksa data Anda dan coba lagi.'
+        );
+        applyCaptchaRef.current?.reset();
+        void fetchCareerChallenge(selectedJob.id);
+        return;
+      }
+
       const base64Data = await readFileAsBase64(cvFile);
 
       const application: CareerApplication = {
-        id: `app-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+        id: verifyData.appId,
         jobId: selectedJob.id,
         jobTitle: selectedJob.title,
         department: selectedJob.department,
-        fullName: candidateName.trim(),
-        email: candidateEmail.trim(),
-        phone: candidatePhone.trim(),
-        domisili: candidateDomisili.trim(),
+        fullName: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        domisili: cleanDomisili,
         education: candidateEducation,
         cvFileName: cvFile.name,
         cvFileType: cvFile.type || 'application/pdf',
         cvFileSize: cvFile.size,
         cvFileData: base64Data,
-        notes: candidateNotes.trim() || undefined,
+        notes: cleanNotes || undefined,
+        verificationRef: verifyData.verificationRef,
         status: 'Pending',
         submittedAt: new Date().toISOString(),
       };
 
       await submitCareerApplication(application);
+      recordCareerGuard(cleanEmail, selectedJob.id);
 
       setIsSubmitting(false);
+      setSubmittedRefCode(verifyData.verificationRef);
       setSubmitSuccess(true);
 
       // Reset form
@@ -203,13 +440,12 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       setCandidateDomisili('');
       setCandidateNotes('');
       setCvFile(null);
-
-      setTimeout(() => {
-        handleCloseModal();
-      }, 3500);
-    } catch (err: any) {
+      setChallengeState(null);
+    } catch {
       setIsSubmitting(false);
       setGeneralError('Gagal mengirim lamaran. Silakan periksa koneksi dan coba lagi.');
+      applyCaptchaRef.current?.reset();
+      void fetchCareerChallenge(selectedJob.id);
     }
   };
 
@@ -660,6 +896,12 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
                   <h4 className="text-lg font-normal text-[#2F327D]">
                     Lamaran Berhasil Terkirim!
                   </h4>
+                  {submittedRefCode && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-mono text-emerald-800">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>No. Referensi: {submittedRefCode}</span>
+                    </div>
+                  )}
                   <p className="text-xs text-[#696984] max-w-sm mx-auto leading-relaxed font-normal">
                     Terima kasih telah melamar di Hotel Ciputra Jakarta. Tim HRD kami akan meninjau berkas CV Anda dan menghubungi kandidat yang memenuhi kualifikasi.
                   </p>
@@ -863,7 +1105,47 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#F48C06] resize-y min-h-[75px]"
                     />
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      💡 Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                      Kolom dapat ditarik ke bawah untuk melihat teks panjang.
+                    </p>
+                  </div>
+
+                  {/* Hidden Anti-Bot Honeypot Trap Fields */}
+                  <div
+                    aria-hidden="true"
+                    className="sr-only pointer-events-none -left-[9999px] opacity-0"
+                  >
+                    <label htmlFor="career-trap-website">Website</label>
+                    <input
+                      id="career-trap-website"
+                      name="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={trapWebsite}
+                      onChange={(e) => setTrapWebsite(e.target.value)}
+                    />
+                    <label htmlFor="career-trap-phone">Company Phone</label>
+                    <input
+                      id="career-trap-phone"
+                      name="companyPhone"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={trapCompanyPhone}
+                      onChange={(e) => setTrapCompanyPhone(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Anti-Bot Visual Captcha & Spam Shield */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-2">
+                    <CaptchaWidget
+                      ref={applyCaptchaRef}
+                      idPrefix="career-apply"
+                      currentLang="id"
+                    />
+                    <p className="text-[10.5px] text-slate-500 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Formulir ini dilindungi verifikasi anti-bot &amp; pembatasan spam otomatis.</span>
                     </p>
                   </div>
 

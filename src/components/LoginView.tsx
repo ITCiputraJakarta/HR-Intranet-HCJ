@@ -58,6 +58,7 @@ import {
 } from '../lib/security';
 import { auth } from '../lib/firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { safeReadJson } from '../lib/authSession';
 
 const AUTH_LOCKOUT_STORAGE_KEY = 'hcj_auth_security_lockout_v1';
 const MAX_FAILED_ATTEMPTS = 5;
@@ -201,7 +202,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
     // Check whether First-Run Super Admin Setup is required (no pre-login user collection dump)
     fetch('/api/auth/bootstrap-status')
-      .then((res) => (res.ok ? res.json() : null))
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const { data } = await safeReadJson<{ bootstrapRequired?: boolean }>(res);
+        return data;
+      })
       .then((data) => {
         if (data && data.bootstrapRequired === true) {
           setBootstrapRequired(true);
@@ -316,10 +321,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
           body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
         });
         if (apiResp.ok) {
-          const apiData = await apiResp.json();
+          const { data: apiData } = await safeReadJson<{ token?: string; user?: User }>(apiResp);
           if (apiData?.token && apiData?.user) {
             apiToken = apiData.token;
-            serverUser = apiData.user as User;
+            serverUser = apiData.user;
           }
         }
       } catch {
@@ -516,9 +521,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
           password: bootstrapPassword,
         }),
       });
-      const data = await resp.json();
+      const { data } = await safeReadJson<{ token?: string; user?: User; error?: string }>(resp);
       if (!resp.ok || !data?.token || !data?.user) {
-        setErrorMessage(data?.error || 'Gagal mengonfigurasi Super Admin awal.');
+        const fallbackMsg =
+          resp.status >= 500
+            ? `Server API sedang mengalami gangguan (${resp.status}). Silakan coba beberapa saat lagi.`
+            : 'Gagal mengonfigurasi Super Admin awal.';
+        setErrorMessage(data?.error || fallbackMsg);
         setIsBootstrapping(false);
         return;
       }
@@ -560,9 +569,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const apiData = await resp.json();
+      const { data: apiData } = await safeReadJson<{ token?: string; user?: User; error?: string }>(resp);
       if (!resp.ok || !apiData?.token || !apiData?.user) {
-        setErrorMessage(apiData?.error || 'Verifikasi Google SSO gagal.');
+        const fallbackMsg =
+          resp.status >= 500
+            ? `Server sesi API mengalami gangguan internal (HTTP ${resp.status}). Pastikan backend server terbaru sudah aktif/dideploy ulang.`
+            : 'Verifikasi Google SSO gagal.';
+        setErrorMessage(apiData?.error || fallbackMsg);
         setIsGoogleLoading(false);
         return;
       }
@@ -608,7 +621,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
       setIsGoogleLoading(false);
     } catch (err: any) {
       setIsGoogleLoading(false);
-      if (err?.code !== 'auth/popup-closed-by-user') {
+      if (err?.code === 'auth/unauthorized-domain') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        setErrorMessage(
+          `Domain "${host || 'aplikasi ini'}" belum terdaftar di Firebase Authorized Domains (proyek hr-intranet-31ff4). Buka Firebase Console > Authentication > Settings > Authorized domains lalu tambahkan domain tersebut, atau masuk menggunakan Email & Kata Sandi di atas.`
+        );
+      } else if (err?.code === 'auth/popup-blocked') {
+        setErrorMessage(
+          'Pop-up login Google diblokir browser. Izinkan pop-up untuk situs ini atau masuk menggunakan Email & Kata Sandi di atas.'
+        );
+      } else if (err?.code !== 'auth/popup-closed-by-user') {
         setErrorMessage('Login Google dibatalkan atau gagal: ' + (err?.message || 'Coba lagi.'));
       }
     }

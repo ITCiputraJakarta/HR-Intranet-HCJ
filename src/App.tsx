@@ -93,7 +93,7 @@ import {
 } from './lib/firestoreService';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { setInMemoryApiToken, getInMemoryApiToken, fetchWithApiAuth, clearInMemoryApiToken } from './lib/authSession';
+import { setInMemoryApiToken, getInMemoryApiToken, fetchWithApiAuth, clearInMemoryApiToken, safeReadJson } from './lib/authSession';
 
 export default function App() {
   const [currentUser, setUserState] = useState<User | null>(() => {
@@ -198,7 +198,7 @@ export default function App() {
       try {
         const resp = await fetchWithApiAuth('/api/auth/session');
         if (resp.ok) {
-          const payload = await resp.json();
+          const { data: payload } = await safeReadJson<{ authenticated?: boolean; user?: User }>(resp);
           if (payload?.authenticated && payload?.user && active) {
             setCurrentUser(payload.user);
             setUserState(payload.user);
@@ -223,7 +223,7 @@ export default function App() {
             body: JSON.stringify({ idToken }),
           });
           if (resp.ok) {
-            const data = await resp.json();
+            const { data } = await safeReadJson<{ token?: string; user?: User }>(resp);
             if (data?.token && data?.user && active) {
               setInMemoryApiToken(data.token);
               const remote = await firestoreGetUserById(currentUser.id).catch(() => null);
@@ -273,7 +273,7 @@ export default function App() {
             body: JSON.stringify({ idToken }),
           });
           if (resp.ok) {
-            const data = await resp.json();
+            const { data } = await safeReadJson<{ token?: string }>(resp);
             if (data?.token && active) {
               setInMemoryApiToken(data.token);
             }

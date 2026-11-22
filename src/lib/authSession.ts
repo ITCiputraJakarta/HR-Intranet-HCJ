@@ -39,3 +39,21 @@ export async function fetchWithApiAuth(
     headers: mergedHeaders,
   });
 }
+
+export async function safeReadJson<T = Record<string, any>>(
+  resp: Response
+): Promise<{ data: T | null; rawText: string }> {
+  const rawText = await resp.text().catch(() => '');
+  if (!rawText) {
+    return { data: null, rawText: '' };
+  }
+  const trimmed = rawText.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return { data: null, rawText: trimmed };
+  }
+  try {
+    return { data: JSON.parse(trimmed) as T, rawText: trimmed };
+  } catch {
+    return { data: null, rawText: trimmed };
+  }
+}

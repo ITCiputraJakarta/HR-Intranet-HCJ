@@ -1,7 +1,7 @@
 import path from "path";
 import express from "express";
 import dotenv from "dotenv";
-import { createApiApp } from "./api/_lib/createApiApp";
+import { createApiApp } from "./api/_lib/createApiApp.ts";
 
 dotenv.config();
 

@@ -166,16 +166,14 @@ export function handleFirestoreError(
  */
 export async function testFirestoreConnection(): Promise<FirebaseDiagnosticReport> {
   if (!isFirebaseConfigured()) {
-    notifyFirebaseState('error', 'Konfigurasi Firebase belum lengkap.');
+    notifyFirebaseState('error', 'Konfigurasi layanan basis data belum lengkap.');
     return {
       success: false,
       status: 'CONFIG_ERROR',
-      title: 'Konfigurasi Firebase Belum Lengkap',
-      message: 'Project ID atau API Key Firebase belum tersedia pada konfigurasi aplikasi.',
+      title: 'Konfigurasi Basis Data Belum Lengkap',
+      message: 'Konfigurasi layanan basis data belum tersedia pada lingkungan aplikasi.',
       troubleshootingSteps: [
-        'Buka tab "Kredensial Firebase" di dialog pengaturan ini.',
-        'Pastikan API Key dan Project ID (hr-intranet-31ff4) terisi dengan benar.',
-        'Klik Simpan Kredensial.'
+        'Hubungi administrator IT untuk memeriksa konfigurasi layanan basis data.',
       ],
     };
   }
@@ -232,20 +230,16 @@ export async function testFirestoreConnection(): Promise<FirebaseDiagnosticRepor
       errorMsg.includes('not found') ||
       errorMsg.includes('does not exist')
     ) {
-      notifyFirebaseState('not_found', 'Database Firestore belum dibuat.');
+      notifyFirebaseState('not_found', 'Layanan basis data sedang tidak tersedia.');
       return {
         success: false,
         status: 'NOT_FOUND',
-        title: 'Database Cloud Firestore Belum Dibuat',
-        message: 'Database Cloud Firestore belum diaktifkan pada project hr-intranet-31ff4.',
+        title: 'Basis Data Belum Tersedia',
+        message: 'Layanan basis data utama belum dapat diakses saat ini.',
         details: errorMsg,
         troubleshootingSteps: [
-          'Buka Firebase Console di https://console.firebase.google.com/project/hr-intranet-31ff4',
-          'Di menu sebelah kiri, klik Build > Firestore Database.',
-          'Klik tombol "Create Database".',
-          'Pilih lokasi server (misal: asia-southeast2 / Jakarta atau asia-southeast1 / Singapore).',
-          'Pilih Start in test mode (atau Production mode dengan izin baca/tulis).',
-          'Setelah database aktif, uji koneksi kembali di sini.'
+          'Pastikan layanan basis data cloud telah aktif dan dapat dijangkau.',
+          'Muat ulang halaman atau hubungi administrator IT jika kendala berlanjut.',
         ],
       };
     }
@@ -304,7 +298,6 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
       }
     }
 
-    console.log('Seeding initial Hotel Ciputra Jakarta data into Firestore...');
     const batch = writeBatch(db);
 
     // 1. Seed Users (respect deleted IDs)
@@ -383,17 +376,16 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
 
     await batch.commit();
     notifyFirebaseState('connected');
-    console.log('Firestore seeding completed successfully!');
     return { seeded: true, message: 'Data master awal Hotel Ciputra Jakarta berhasil disimpan ke Firebase Firestore!' };
   } catch (error: any) {
     console.warn('Error during Firestore seed:', error);
     const msg = error?.message || 'Gagal melakukan inisialisasi Firestore.';
     let humanReadable = msg;
     if (error?.code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) {
-      humanReadable = 'Izin akses ditolak oleh Security Rules Firestore. Masuk dengan akun Google SSO / Super Admin terverifikasi (it@hotelciputra.com) untuk melakukan inisialisasi data master.';
+      humanReadable = 'Izin akses ditolak oleh aturan keamanan sistem. Masuk dengan akun Google SSO / Super Admin terverifikasi untuk menyinkronkan data master.';
       notifyFirebaseState('permission_denied', humanReadable);
     } else if (error?.code === 'not-found' || msg.includes('does not exist')) {
-      humanReadable = 'Database Firestore belum dibuat pada project hr-intranet-31ff4.';
+      humanReadable = 'Basis data utama belum tersedia.';
       notifyFirebaseState('not_found', humanReadable);
     } else {
       notifyFirebaseState('error', msg);
@@ -1052,10 +1044,9 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
 }
 
 /**
- * Permanently cleans up any pre-deploy legacy mock items (dummy users, dummy documents, dummy appraisals)
- * from Cloud Firestore and local caches so database is completely clean for production deploy.
+ * Cleans up any legacy sample records from Cloud Firestore and local caches.
  */
-export async function cleanupPreDeployDummyData(): Promise<void> {
+export async function cleanupLegacySampleData(): Promise<void> {
   if (!isFirebaseConfigured()) return;
 
   const legacyDummyDocIds = [
@@ -1108,9 +1099,8 @@ export async function cleanupPreDeployDummyData(): Promise<void> {
     });
 
     await Promise.all(deletePromises);
-    console.log('[Firestore] Legacy pre-deploy dummy items & orphan chunks purged successfully.');
   } catch (err) {
-    console.warn('cleanupPreDeployDummyData error:', err);
+    console.warn('cleanupLegacySampleData error:', err);
   }
 }
 
@@ -1231,7 +1221,6 @@ export async function firestoreDeleteDocument(docId: string): Promise<void> {
     if (chunksSnap && !chunksSnap.empty) {
       await Promise.all(chunksSnap.docs.map((c) => deleteDoc(c.ref).catch(() => {})));
     }
-    console.log('[Firestore] Document deleted:', docId);
   } catch (err: any) {
     console.warn('[Firestore] firestoreDeleteDocument error:', err);
   }

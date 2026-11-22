@@ -13,7 +13,6 @@ import {
   Layers,
   Sparkles,
   AlertTriangle,
-  Server,
 } from 'lucide-react';
 import { User } from '../types';
 import {
@@ -30,7 +29,6 @@ import {
   seedInitialFirestoreData,
   FirebaseDiagnosticReport,
 } from '../lib/firestoreService';
-import { firebaseConfig } from '../lib/firebase';
 import { getBackdropProps } from '../lib/modalHelper';
 
 interface FirestoreSyncModalProps {
@@ -129,13 +127,10 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base tracking-tight flex items-center gap-2">
-                Status Koneksi & Sinkronisasi Firebase
-                <span className="text-[10px] bg-white/20 text-white font-mono px-2 py-0.5 rounded-full border border-white/20">
-                  {firebaseConfig.projectId}
-                </span>
+                Status Koneksi &amp; Sinkronisasi Sistem
               </h3>
               <p className="text-xs text-amber-100/90 mt-0.5">
-                Terhubung ke Project ID: {firebaseConfig.projectId} • Database: (default)
+                Sinkronisasi Data &amp; Pemeliharaan Sistem Hotel Ciputra Jakarta
               </p>
             </div>
           </div>
@@ -216,37 +211,6 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
               </ol>
             </div>
           )}
-
-          {/* Active Firebase SDK Config Details */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <Server className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Konfigurasi Aktif SDK Firebase</span>
-              </span>
-              <span className="font-mono text-[11px] text-emerald-700 font-semibold">
-                Analytics & Firestore Aktif
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px] text-slate-600 bg-white p-3 rounded-xl border border-slate-200/80">
-              <div>
-                <span className="text-slate-400">projectId:</span>{' '}
-                <strong className="text-slate-800">{firebaseConfig.projectId}</strong>
-              </div>
-              <div>
-                <span className="text-slate-400">authDomain:</span>{' '}
-                <strong className="text-slate-800">{firebaseConfig.authDomain}</strong>
-              </div>
-              <div>
-                <span className="text-slate-400">storageBucket:</span>{' '}
-                <strong className="text-slate-800">{firebaseConfig.storageBucket}</strong>
-              </div>
-              <div>
-                <span className="text-slate-400">measurementId:</span>{' '}
-                <strong className="text-slate-800">{firebaseConfig.measurementId}</strong>
-              </div>
-            </div>
-          </div>
 
           {/* Real-time Synced Collections Stats */}
           <div>
@@ -345,9 +309,7 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>
-              Project: <strong className="text-slate-700">{firebaseConfig.projectId}</strong>
-            </span>
+            <span>Sistem Informasi Internal • Hotel Ciputra Jakarta</span>
           </div>
           <button
             type="button"

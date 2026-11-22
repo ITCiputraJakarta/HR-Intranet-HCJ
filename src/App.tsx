@@ -68,12 +68,12 @@ import {
   subscribeToCareerApplications,
 } from './lib/cmsService';
 import { useIdleTimeout, recordUserActivity, clearActivityTimer, isSessionExpiredByInactivity } from './lib/useIdleTimeout';
-import { Megaphone, FileCheck2, FileText, Award, Menu as MenuIcon, Flame, Cloud, ShieldAlert, Hotel } from 'lucide-react';
+import { Menu as MenuIcon, ShieldAlert } from 'lucide-react';
 import { Language, getSavedLanguage, saveLanguage } from './lib/i18n';
 import { getAppBranding, subscribeToAppBranding, AppBranding } from './lib/branding';
 import {
   seedInitialFirestoreData,
-  cleanupPreDeployDummyData,
+  cleanupLegacySampleData,
   subscribeToUsers,
   subscribeToDocuments,
   subscribeToAccessLogs,
@@ -349,7 +349,7 @@ export default function App() {
 
       if (isVerifiedAdmin) {
         seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
-        cleanupPreDeployDummyData().catch((err) => console.warn('Pre-deploy cleanup check:', err));
+        cleanupLegacySampleData().catch(() => {});
       }
 
       unsubCats = subscribeToCategories((newCats) => {
@@ -475,7 +475,7 @@ export default function App() {
 
           await firestoreSyncQuotaTelemetry({
             id: 'cloud_quota_telemetry',
-            projectId: 'intranet-hcj',
+            projectId: 'hr-intranet-31ff4',
             databaseId: '(default)',
             dateKey: nowIso.slice(0, 10),
             monthKey: nowIso.slice(0, 7),
@@ -488,13 +488,13 @@ export default function App() {
             dailyWritesUsed: res.documents.length + res.accessLogs.length,
             dailyDeletesUsed: 0,
             vercelBandwidthUsedMB: Number(
-              Math.max(14.8, (totalKB * 4.5 + res.accessLogs.length * 18) / 1024).toFixed(2)
+              Math.max(0.1, (totalKB * 4.5 + res.accessLogs.length * 18) / 1024).toFixed(2)
             ),
-            vercelEdgeRequestsUsed: totalDocs * 16 + res.accessLogs.length * 28 + 420,
-            vercelBuildMinutesUsed: 6.6,
-            vercelBundleSizeMB: 0.64,
+            vercelEdgeRequestsUsed: totalDocs * 16 + res.accessLogs.length * 28,
+            vercelBuildMinutesUsed: 0,
+            vercelBundleSizeMB: 0,
             lastSyncedAt: nowIso,
-            syncedBy: `${currentUser.nama} (Auto-Sync 1m)`,
+            syncedBy: currentUser.nama,
           });
         }
       } catch {
@@ -668,7 +668,7 @@ export default function App() {
         </div>
 
         <p className="text-[11px] text-slate-400">
-          Memuat basis data terverifikasi dan membersihkan cache lama...
+          Menyiapkan Portal Resmi Hotel Ciputra Jakarta...
         </p>
       </div>
     </div>
@@ -755,21 +755,21 @@ export default function App() {
         isMobileMenuOpen={isMobileMenuOpen}
       />
 
-      {/* Actionable Banner if Firebase Security Rules Need Attention */}
-      {firebaseState === 'permission_denied' && (
+      {/* Super Admin Only: Database Permission Attention */}
+      {isSuperAdmin && firebaseState === 'permission_denied' && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-normal shadow-xs flex items-center justify-between animate-in fade-in">
           <div className="w-full max-w-[1920px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0 text-slate-950" />
               <span>
-                Perhatian Firebase (hr-intranet-31ff4): Aturan keamanan (Rules) di Firebase Console Anda sedang memblokir akses database.
+                Sinkronisasi basis data memerlukan verifikasi ulang sesi Super Admin.
               </span>
             </div>
             <button
               onClick={() => setShowFirestoreModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-950 text-white font-normal text-[11px] hover:bg-slate-800 transition-colors shrink-0 self-start sm:self-auto cursor-pointer"
             >
-              <span>Buka Status Firestore</span>
+              <span>Periksa Sinkronisasi</span>
               <span>→</span>
             </button>
           </div>
@@ -981,9 +981,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
           <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-normal">
-                Mode Pratinjau Publik: Halaman Beranda (Home Landing Page)
+                Pratinjau Halaman Beranda
               </span>
             </div>
             <button
@@ -1013,9 +1012,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
           <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-normal">
-                Mode Pratinjau Publik: Halaman Karir & Rekrutmen (Career Portal)
+                Pratinjau Portal Karir &amp; Rekrutmen
               </span>
             </div>
             <button
@@ -1045,7 +1043,7 @@ export default function App() {
           <div className="flex items-center gap-2.5 justify-center sm:justify-start text-center sm:text-left">
             <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="xs" />
             <span className="font-normal text-[#004872]">
-              {branding.footerCopyright || '© 2026 Intranet HCJ JBagas • All Rights Reserved'}
+              {branding.footerCopyright || '© 2026 Hotel Ciputra Jakarta. All Rights Reserved.'}
             </span>
           </div>
 
@@ -1064,7 +1062,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Right: Session Info & Super Admin / Cloud Status */}
+          {/* Right: Session Info & Super Admin Shortcut */}
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
             {isSuperAdmin && (
               <button
@@ -1074,44 +1072,6 @@ export default function App() {
               >
                 <span>Kelola Beranda (Home CMS)</span>
               </button>
-            )}
-
-            {isSuperAdmin ? (
-              <button
-                onClick={() => setShowFirestoreModal(true)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-normal text-[11px] transition-all cursor-pointer shadow-2xs ${
-                  firebaseState === 'connected'
-                    ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                    : firebaseState === 'permission_denied'
-                    ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
-                    : firebaseState === 'not_found'
-                    ? 'bg-rose-50 text-rose-900 border-rose-300 hover:bg-rose-100'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-                title={firebaseErrorMsg || 'Status Database Cloud Firestore'}
-              >
-                <Flame
-                  className={`w-3 h-3 ${
-                    firebaseState === 'connected'
-                      ? 'text-emerald-600 fill-emerald-500'
-                      : 'text-amber-600'
-                  }`}
-                />
-                <span>
-                  {firebaseState === 'connected'
-                    ? 'Firestore: Online'
-                    : firebaseState === 'permission_denied'
-                    ? 'Perbaiki Rules'
-                    : firebaseState === 'not_found'
-                    ? 'DB Belum Aktif'
-                    : 'Offline'}
-                </span>
-              </button>
-            ) : (
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-[11px] font-normal">
-                <Flame className="w-3 h-3 text-emerald-600 fill-emerald-600" />
-                <span>Cloud Aktif</span>
-              </div>
             )}
 
             <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 bg-white/90 px-3 py-1 rounded-full border border-sky-200/80 shadow-2xs">

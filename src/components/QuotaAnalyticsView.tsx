@@ -163,7 +163,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     const rawTotalBytes = docsBytes + usersBytes + perfsBytes + logsBytes + sysConfigBytes;
     const indexedTotalBytes = Math.max(Math.round(rawTotalBytes * 1.18), 1024);
 
-    // Spark Free Tier Limit: 1 GiB = 1,048,576 KB = 1,073,741,824 Bytes
+    // Kapasitas Layanan Cloud Firestore: 1 GiB = 1,048,576 KB = 1,073,741,824 Bytes
     const limitKB = 1048576;
     const usedKB = Math.max(1, Math.round(indexedTotalBytes / 1024));
     const remainingKB = Math.max(0, limitKB - usedKB);
@@ -180,7 +180,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     const maxDocLimitKB = 1024; // 1 MiB per document limit in Firestore
     const avgDocPercent = Math.min(100, (avgDocKB / maxDocLimitKB) * 100);
 
-    // Daily operations estimation (Spark Free Tier: 50,000 reads/day, 20,000 writes/day, 20,000 deletes/day)
+    // Estimasi operasi harian (50.000 read/hari, 20.000 write/hari, 20.000 delete/hari)
     const todayStr = new Date().toISOString().slice(0, 10);
     const todayLogs = logs.filter((l) => l.timestamp && l.timestamp.startsWith(todayStr));
 
@@ -211,10 +211,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     const writesPercent = Math.min(100, (estimatedDailyWrites / dailyWritesLimit) * 100);
     const deletesPercent = Math.min(100, (estimatedDailyDeletes / dailyDeletesLimit) * 100);
 
-    // Vercel Hosting Quota Calculations (Hobby Plan Free Limits: 100 GB Bandwidth, 1,000,000 Edge Requests, 100 GB-Hrs Execution, 6,000 Build Mins)
+    // Kapasitas Trafik & Bandwidth Hosting (100 GB Bandwidth, 1.000.000 Edge Requests, 100 GB-Hrs Compute)
     const vercelBandwidthLimitMB = 102400; // 100 GB in MB
     const calculatedBandwidthMB = Number(
-      Math.max(14.8, (usedKB * 4.5 + logsCount * 18) / 1024).toFixed(2)
+      Math.max(0.1, (usedKB * 4.5 + logsCount * 18) / 1024).toFixed(2)
     );
     const vercelBandwidthUsedMB = cloudTelemetry?.vercelBandwidthUsedMB
       ? Math.max(calculatedBandwidthMB, cloudTelemetry.vercelBandwidthUsedMB)
@@ -226,7 +226,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     );
 
     const vercelEdgeReqLimit = 1000000; // 1,000,000 requests/month
-    const calculatedEdgeReq = totalEntitiesCount * 16 + logsCount * 28 + 420;
+    const calculatedEdgeReq = totalEntitiesCount * 16 + logsCount * 28;
     const vercelEdgeReqUsed = cloudTelemetry?.vercelEdgeRequestsUsed
       ? Math.max(calculatedEdgeReq, cloudTelemetry.vercelEdgeRequestsUsed)
       : calculatedEdgeReq;
@@ -238,7 +238,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
 
     const vercelFunctionLimitGBHrs = 100; // 100 GB-Hours/month
     const calculatedFunctionGBHrs = Number(
-      Math.min(99, Math.max(0.45, vercelEdgeReqUsed / 18500)).toFixed(2)
+      Math.min(99, Math.max(0.05, vercelEdgeReqUsed / 18500)).toFixed(2)
     );
     const vercelFunctionUsedGBHrs = calculatedFunctionGBHrs;
     const vercelFunctionRemainingGBHrs = Math.max(
@@ -249,21 +249,6 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
       100,
       Math.max(0.01, (vercelFunctionUsedGBHrs / vercelFunctionLimitGBHrs) * 100)
     );
-
-    const vercelBuildCount = 14;
-    const vercelBuildMinsLimit = 6000; // 6,000 minutes/month
-    const vercelBuildMinsUsed = cloudTelemetry?.vercelBuildMinutesUsed || Number((vercelBuildCount * 0.47).toFixed(1));
-    const vercelBuildMinsRemaining = Number((vercelBuildMinsLimit - vercelBuildMinsUsed).toFixed(1));
-    const vercelBuildMinsPercent = Math.min(
-      100,
-      Math.max(0.01, (vercelBuildMinsUsed / vercelBuildMinsLimit) * 100)
-    );
-
-    const vercelBundleSizeKB = cloudTelemetry?.vercelBundleSizeMB
-      ? Math.round(cloudTelemetry.vercelBundleSizeMB * 1024)
-      : 642;
-    const vercelBundleMaxKB = 51200; // 50 MB max serverless bundle
-    const vercelBundlePercent = Math.min(100, (vercelBundleSizeKB / vercelBundleMaxKB) * 100);
 
     const collections = [
       {
@@ -366,15 +351,6 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
         functionRemainingGBHrs: vercelFunctionRemainingGBHrs,
         functionPercent: vercelFunctionPercent,
         functionRemainingPercent: Math.max(0, 100 - vercelFunctionPercent),
-        buildCount: vercelBuildCount,
-        buildMinsLimit: vercelBuildMinsLimit,
-        buildMinsUsed: vercelBuildMinsUsed,
-        buildMinsRemaining: vercelBuildMinsRemaining,
-        buildMinsPercent: vercelBuildMinsPercent,
-        buildMinsRemainingPercent: Math.max(0, 100 - vercelBuildMinsPercent),
-        bundleSizeKB: vercelBundleSizeKB,
-        bundleMaxKB: vercelBundleMaxKB,
-        bundlePercent: vercelBundlePercent,
       },
     };
   }, [
@@ -447,10 +423,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             ).toFixed(2)
           ),
           vercelEdgeRequestsUsed: quotaMetrics.vercel.edgeReqUsed + 15,
-          vercelBuildMinutesUsed: quotaMetrics.vercel.buildMinsUsed,
-          vercelBundleSizeMB: 0.64,
+          vercelBuildMinutesUsed: 0,
+          vercelBundleSizeMB: 0,
           lastSyncedAt: nowIso,
-          syncedBy: currentUser?.nama || 'Super Admin Auto-Sync',
+          syncedBy: currentUser?.nama || 'Super Admin',
         };
 
         await firestoreSyncQuotaTelemetry(telemetryPayload);
@@ -471,7 +447,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
         if (!silent) {
           setStatusToast({
             type: 'success',
-            text: `Sinkronisasi Cloud Selesai! Kuota Firebase (~${totalKB.toLocaleString('id-ID')} KB / ${formatPct((totalKB / 1048576) * 100)}%) & Vercel (~${telemetryPayload.vercelBandwidthUsedMB} MB) berhasil diperbarui.`,
+            text: `Sinkronisasi Cloud Selesai! Pemakaian penyimpanan (~${totalKB.toLocaleString('id-ID')} KB / ${formatPct((totalKB / 1048576) * 100)}%) & trafik (~${telemetryPayload.vercelBandwidthUsedMB} MB) berhasil diperbarui.`,
           });
         }
       } catch (err: any) {
@@ -696,13 +672,13 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
-                100% FIREBASE FIRESTORE (SPARK FREE TIER)
+                CLOUD DATABASE TERPADU
               </span>
               <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
                 SINKRON REAL-TIME
               </span>
               <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                MONITOR KUOTA VERCEL &amp; CLOUD
+                MONITOR KAPASITAS &amp; TRAFIK PORTAL
               </span>
             </div>
 
@@ -710,7 +686,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold">
                 <Clock className="w-3.5 h-3.5 text-sky-600 animate-pulse shrink-0" />
                 <span>
-                  Auto-Update Aktif (1 Menit) • Pembaruan dalam{' '}
+                  Pembaruan otomatis dalam{' '}
                   <strong className="font-mono text-sky-950">{secondsUntilNextSync} dtk</strong>
                 </span>
               </div>
@@ -724,12 +700,12 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-lg sm:text-xl lg:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-                Pusat Analitik Kuota Cloud Firebase &amp; Pemakaian Hosting Vercel
+                Pusat Analitik Penyimpanan &amp; Operasional Cloud
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                Pantau batas kuota penyimpanan gratis Firebase Firestore (1 GiB), persentase sisa
-                kuota baca/tulis harian, serta persentase pemakaian trafik &amp; bandwidth hosting
-                Vercel secara real-time untuk seluruh unit hotel.
+                Pantau kapasitas penyimpanan basis data Cloud Firestore (1 GiB), persentase sisa
+                kuota baca/tulis harian, serta trafik dan bandwidth operasional portal secara
+                real-time untuk seluruh unit hotel.
               </p>
             </div>
           </div>
@@ -846,7 +822,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 ~{quotaMetrics.usedKB.toLocaleString('id-ID')} KB
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                Dari Batas Gratis:{' '}
+                Kapasitas Sistem:{' '}
                 <strong className="text-slate-700">1.048.576 KB (1 GiB)</strong>
               </div>
             </div>
@@ -882,7 +858,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 {quotaMetrics.estimatedDailyReads.toLocaleString('id-ID')} Dok
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                Dari Batas Gratis:{' '}
+                Kapasitas Harian:{' '}
                 <strong className="text-slate-700">50.000 Read / Hari</strong>
               </div>
             </div>
@@ -918,7 +894,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 {quotaMetrics.estimatedDailyWrites.toLocaleString('id-ID')} Dok
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                Dari Batas Gratis:{' '}
+                Kapasitas Harian:{' '}
                 <strong className="text-slate-700">20.000 Write / Hari</strong>
               </div>
             </div>
@@ -946,7 +922,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             <div>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                  Bandwidth Hosting Vercel
+                  Bandwidth Trafik Portal
                 </span>
                 <Wifi className="w-4 h-4 text-amber-600 shrink-0" />
               </div>
@@ -954,7 +930,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 ~{quotaMetrics.vercel.bandwidthUsedMB.toLocaleString('id-ID')} MB
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                Dari Batas Gratis:{' '}
+                Alokasi Bulanan:{' '}
                 <strong className="text-slate-700">102.400 MB (100 GB)</strong>
               </div>
             </div>
@@ -987,10 +963,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/90 border border-emerald-700/70 text-emerald-300 text-[11px] font-extrabold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>PAKET GRATIS SELAMANYA (SPARK PLAN — 1 GiB)</span>
+                <span>KAPASITAS CLOUD FIRESTORE (1 GiB)</span>
               </div>
               <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
-                Monitor Pemakaian Penyimpanan Gratis Firebase Firestore
+                Monitor Kapasitas Penyimpanan Data Portal
               </h2>
             </div>
 
@@ -1139,9 +1115,8 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 <strong className="text-emerald-400">Aktif &amp; Terlindungi</strong>
               </span>
             </div>
-            <div className="font-mono text-[11px] text-slate-300">
-              Project ID: <strong className="text-white">{firebaseConfig.projectId}</strong> • DB:
-              (default)
+            <div className="text-xs text-slate-300">
+              Lingkungan Produksi • <strong className="text-white">Hotel Ciputra Jakarta</strong>
             </div>
           </div>
         </div>
@@ -1213,7 +1188,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
         </div>
       </div>
 
-      {/* SECTION 4: VERCEL HOSTING QUOTA & TRAFFIC MONITOR WITH PERCENTAGES */}
+      {/* SECTION 4: HOSTING TRAFFIC & COMPUTE MONITOR */}
       <div className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-200/90 shadow-sm p-4 sm:p-6 lg:p-7 space-y-5 overflow-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -1224,28 +1199,27 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                  Monitor Kuota &amp; Persentase Pemakaian Hosting Vercel
+                  Monitor Trafik &amp; Layanan Web Portal
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-wider">
-                  SINKRON KE FIREBASE
+                  TERINTEGRASI CLOUD
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                Pemantauan real-time persentase kuota Bandwidth CDN, Edge Requests, Serverless
-                Compute, dan Build Pipeline pada paket Vercel Hobby (100% Gratis).
+                Pemantauan kapasitas Bandwidth CDN, Edge Requests, dan Serverless Compute operasional portal.
               </p>
             </div>
           </div>
 
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold self-start sm:self-center shrink-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Status Edge CDN: Online (99,99% Uptime)</span>
+            <span>Status Edge CDN: Online</span>
           </div>
         </div>
 
-        {/* 2x2 Spacious Grid for Vercel Metrics (Zero Text Truncation) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Vercel Metric 1: Fast Origin Transfer (Bandwidth 100 GB) */}
+        {/* 3-Column Grid for Operational Hosting Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Metric 1: Fast Origin Transfer (Bandwidth 100 GB) */}
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1254,10 +1228,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
-                    Fast Origin Transfer (Bandwidth)
+                    Fast Origin Transfer
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Batas Kuota Gratis: <strong>100 GB / Bulan (102.400 MB)</strong>
+                    Alokasi: <strong>100 GB / Bulan (102.400 MB)</strong>
                   </div>
                 </div>
               </div>
@@ -1276,8 +1250,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 </span>
               </div>
               <div className="text-xs font-bold text-slate-700 tabular-nums">
-                Sisa Kuota: {formatPct(quotaMetrics.vercel.bandwidthRemainingPercent)}% (~
-                {(quotaMetrics.vercel.bandwidthRemainingMB / 1024).toFixed(2)} GB)
+                Sisa: {formatPct(quotaMetrics.vercel.bandwidthRemainingPercent)}%
               </div>
             </div>
 
@@ -1291,7 +1264,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             </div>
           </div>
 
-          {/* Vercel Metric 2: Edge Network Requests (1,000,000 Req/Month) */}
+          {/* Metric 2: Edge Network Requests */}
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1300,10 +1273,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
-                    Edge Network Requests (HTTPS &amp; API)
+                    Edge Network Requests
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Batas Kuota Gratis: <strong>1.000.000 Request / Bulan</strong>
+                    Alokasi: <strong>1.000.000 Request / Bulan</strong>
                   </div>
                 </div>
               </div>
@@ -1319,8 +1292,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 {quotaMetrics.vercel.edgeReqUsed.toLocaleString('id-ID')} Req
               </div>
               <div className="text-xs font-bold text-slate-700 tabular-nums">
-                Sisa Kuota: {formatPct(quotaMetrics.vercel.edgeReqRemainingPercent)}% (
-                {quotaMetrics.vercel.edgeReqRemaining.toLocaleString('id-ID')} Req)
+                Sisa: {formatPct(quotaMetrics.vercel.edgeReqRemainingPercent)}%
               </div>
             </div>
 
@@ -1334,7 +1306,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             </div>
           </div>
 
-          {/* Vercel Metric 3: Serverless & Edge Functions Execution (100 GB-Hrs) */}
+          {/* Metric 3: Serverless & Edge Functions Compute */}
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1343,10 +1315,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
-                    Serverless &amp; Edge Functions Compute
+                    Serverless Compute
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Batas Kuota Gratis: <strong>100 GB-Jam / Bulan</strong>
+                    Alokasi: <strong>100 GB-Jam / Bulan</strong>
                   </div>
                 </div>
               </div>
@@ -1362,8 +1334,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 {quotaMetrics.vercel.functionUsedGBHrs} GB-Jam
               </div>
               <div className="text-xs font-bold text-slate-700 tabular-nums">
-                Sisa Kuota: {formatPct(quotaMetrics.vercel.functionRemainingPercent)}% (
-                {quotaMetrics.vercel.functionRemainingGBHrs} GB-Jam)
+                Sisa: {formatPct(quotaMetrics.vercel.functionRemainingPercent)}%
               </div>
             </div>
 
@@ -1372,54 +1343,6 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
                 className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
                 style={{
                   width: `${Math.max(2, Math.min(100, quotaMetrics.vercel.functionPercent))}%`,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Vercel Metric 4: Build Execution & Bundle Size (6,000 Mins/Month) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-extrabold text-slate-900 uppercase tracking-wide">
-                    Build Execution &amp; Ukuran Bundle SPA
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Batas Kuota Build: <strong>6.000 Menit / Bulan</strong> • Bundle Maks 50 MB
-                  </div>
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="inline-block px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-extrabold text-xs tabular-nums">
-                  Terpakai: {formatPct(quotaMetrics.vercel.buildMinsPercent)}%
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-baseline justify-between gap-2 pt-1">
-              <div className="text-lg sm:text-xl font-black text-slate-900 tabular-nums">
-                {quotaMetrics.vercel.buildMinsUsed} Menit{' '}
-                <span className="text-xs font-semibold text-slate-500">
-                  ({quotaMetrics.vercel.buildCount}x Deploy • Bundle ~
-                  {quotaMetrics.vercel.bundleSizeKB} KB /{' '}
-                  {formatPct(quotaMetrics.vercel.bundlePercent)}%)
-                </span>
-              </div>
-              <div className="text-xs font-bold text-slate-700 tabular-nums">
-                Sisa Kuota: {formatPct(quotaMetrics.vercel.buildMinsRemainingPercent)}% (
-                {quotaMetrics.vercel.buildMinsRemaining.toLocaleString('id-ID')} Menit)
-              </div>
-            </div>
-
-            <div className="w-full h-2.5 rounded-full bg-slate-200 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
-                style={{
-                  width: `${Math.max(2, Math.min(100, quotaMetrics.vercel.buildMinsPercent))}%`,
                 }}
               />
             </div>

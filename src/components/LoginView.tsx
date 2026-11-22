@@ -14,7 +14,6 @@ import {
   Sparkles,
   FileText,
   Award,
-  Shield,
   ArrowLeft,
   ChevronRight,
   Building2,
@@ -137,13 +136,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
 
-  // First-Run Super Admin Bootstrap & Google SSO states
-  const [bootstrapRequired, setBootstrapRequired] = useState(false);
-  const [showBootstrapForm, setShowBootstrapForm] = useState(false);
-  const [bootstrapName, setBootstrapName] = useState('Super Admin IT');
-  const [bootstrapPassword, setBootstrapPassword] = useState('');
-  const [bootstrapConfirm, setBootstrapConfirm] = useState('');
-  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  // Google SSO state
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Register form state (role strictly locked to 'staff' & 'Pending' on public self-registration)
@@ -200,20 +193,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
       saveHotelUnits(newUnits);
       setHotelUnits(getHotelUnits());
     });
-
-    // Check whether First-Run Super Admin Setup is required (no pre-login user collection dump)
-    fetch('/api/auth/bootstrap-status')
-      .then(async (res) => {
-        if (!res.ok) return null;
-        const { data } = await safeReadJson<{ bootstrapRequired?: boolean }>(res);
-        return data;
-      })
-      .then((data) => {
-        if (data && data.bootstrapRequired === true) {
-          setBootstrapRequired(true);
-        }
-      })
-      .catch(() => {});
 
     return () => {
       unsubBranding();
@@ -415,16 +394,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
         if (!matchedUser.password) {
           setIsLoggingIn(false);
           loginCaptchaRef.current?.reset();
-          if (cleanEmail === 'it@hotelciputra.com' && bootstrapRequired) {
-            setShowBootstrapForm(true);
-            setErrorMessage(
-              'Sandi awal Super Admin IT belum dikonfigurasi. Silakan tetapkan sandi awal melalui formulir Pengaturan Awal Super Admin di bawah ini.'
-            );
-          } else {
-            setErrorMessage(
-              'Kredensial akun belum memiliki kata sandi aktif. Gunakan Pengaturan Awal Super Admin, Masuk dengan Google SSO, atau hubungi IT Administrator.'
-            );
-          }
+          setErrorMessage(
+            'Akun ini belum memiliki kata sandi aktif. Silakan masuk dengan Google (SSO) atau hubungi Administrator IT.'
+          );
           return;
         }
         isPasswordValid = await verifyPassword(cleanPassword, matchedUser.password);
@@ -495,64 +467,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
-  const handleBootstrapAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    const pwCheck = validatePasswordStrength(bootstrapPassword);
-    if (!pwCheck.valid) {
-      setErrorMessage(pwCheck.error || 'Kata sandi wajib minimal 8 karakter dengan huruf dan angka.');
-      return;
-    }
-    if (bootstrapPassword !== bootstrapConfirm) {
-      setErrorMessage('Konfirmasi kata sandi tidak cocok.');
-      return;
-    }
-
-    setIsBootstrapping(true);
-    try {
-      const resp = await fetch('/api/auth/bootstrap-admin', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'it@hotelciputra.com',
-          nama: sanitizeInput(bootstrapName.trim()) || 'Super Admin IT',
-          password: bootstrapPassword,
-        }),
-      });
-      const { data } = await safeReadJson<{ token?: string; user?: User; error?: string }>(resp);
-      if (!resp.ok || !data?.token || !data?.user) {
-        const fallbackMsg =
-          resp.status >= 500
-            ? `Server API sedang mengalami gangguan (${resp.status}). Silakan coba beberapa saat lagi.`
-            : 'Gagal mengonfigurasi Super Admin awal.';
-        setErrorMessage(data?.error || fallbackMsg);
-        setIsBootstrapping(false);
-        return;
-      }
-
-      const pbkdf2Hash = await hashPassword(bootstrapPassword);
-      const adminUser: User = {
-        ...(data.user as User),
-        password: pbkdf2Hash,
-      };
-      const remaining = getUsers().filter((u) => u.email.toLowerCase() !== 'it@hotelciputra.com');
-      saveUsers([...remaining, adminUser]);
-      await firestoreSaveUser(adminUser).catch(() => {});
-
-      setBootstrapRequired(false);
-      setShowBootstrapForm(false);
-      setBootstrapPassword('');
-      setBootstrapConfirm('');
-      setIsBootstrapping(false);
-      onLoginSuccess(adminUser, data.token);
-    } catch (err: any) {
-      setIsBootstrapping(false);
-      setErrorMessage('Gagal menghubungi server bootstrap: ' + (err?.message || 'Unknown error'));
-    }
-  };
 
   const cleanupUnapprovedGoogleSession = async () => {
     await auth.signOut().catch(() => {});
@@ -642,7 +556,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         await cleanupUnapprovedGoogleSession();
         const fallbackMsg =
           resp.status >= 500
-            ? `Server sesi API mengalami gangguan internal (HTTP ${resp.status}). Pastikan backend server terbaru sudah aktif/dideploy ulang.`
+            ? 'Layanan sesi sedang tidak tersedia sementara. Silakan coba beberapa saat lagi.'
             : 'Verifikasi Google SSO gagal atau akun belum disetujui Super Admin.';
         setErrorMessage(apiData?.error || fallbackMsg);
         setIsGoogleLoading(false);
@@ -675,16 +589,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
       await cleanupUnapprovedGoogleSession().catch(() => {});
       setIsGoogleLoading(false);
       if (err?.code === 'auth/unauthorized-domain') {
-        const host = typeof window !== 'undefined' ? window.location.hostname : '';
         setErrorMessage(
-          `Domain "${host || 'aplikasi ini'}" belum terdaftar di Firebase Authorized Domains (proyek hr-intranet-31ff4). Buka Firebase Console > Authentication > Settings > Authorized domains lalu tambahkan domain tersebut, atau masuk menggunakan Email & Kata Sandi di atas.`
+          'Login Google tidak diizinkan pada domain ini. Silakan masuk menggunakan Email & Kata Sandi di atas atau hubungi Tim IT.'
         );
       } else if (err?.code === 'auth/popup-blocked') {
         setErrorMessage(
           'Pop-up login Google diblokir browser. Izinkan pop-up untuk situs ini atau masuk menggunakan Email & Kata Sandi di atas.'
         );
       } else if (err?.code !== 'auth/popup-closed-by-user') {
-        setErrorMessage('Login Google dibatalkan atau gagal: ' + (err?.message || 'Coba lagi.'));
+        setErrorMessage('Login Google dibatalkan atau gagal. Silakan coba lagi.');
       }
     }
   };
@@ -1147,60 +1060,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </button>
               </div>
 
-              {/* Inline First-Run Super Admin Setup Panel */}
-              {bootstrapRequired && (
-                <div className="mt-3 p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#2F327D] font-semibold">
-                      <Shield className="w-3.5 h-3.5 text-[#F48C06]" />
-                      <span>Aktivasi Awal Super Admin IT</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowBootstrapForm((v) => !v)}
-                      className="text-[11px] text-[#F48C06] hover:underline cursor-pointer"
-                    >
-                      {showBootstrapForm ? 'Tutup' : 'Atur Sandi Awal'}
-                    </button>
-                  </div>
-                  {showBootstrapForm && (
-                    <div className="space-y-2 pt-1 border-t border-indigo-200/60">
-                      <p className="text-[10.5px] text-slate-600 leading-snug">
-                        Tetapkan kata sandi pertama untuk <strong>it@hotelciputra.com</strong> sebelum sistem digunakan.
-                      </p>
-                      <input
-                        type="text"
-                        value={bootstrapName}
-                        onChange={(e) => setBootstrapName(e.target.value.slice(0, 80))}
-                        placeholder="Nama Super Admin"
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
-                      />
-                      <input
-                        type="password"
-                        value={bootstrapPassword}
-                        onChange={(e) => setBootstrapPassword(e.target.value)}
-                        placeholder="Kata sandi awal (min. 8 huruf & angka)"
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
-                      />
-                      <input
-                        type="password"
-                        value={bootstrapConfirm}
-                        onChange={(e) => setBootstrapConfirm(e.target.value)}
-                        placeholder="Ulangi kata sandi awal"
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
-                      />
-                      <button
-                        type="button"
-                        disabled={isBootstrapping}
-                        onClick={handleBootstrapAdmin}
-                        className="w-full py-2 rounded-lg bg-[#2F327D] hover:bg-[#232561] text-white text-xs transition cursor-pointer disabled:opacity-60"
-                      >
-                        {isBootstrapping ? 'Menyimpan...' : 'Aktifkan Super Admin'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
               </form>
             ) : (
               /* REGISTER FORM */

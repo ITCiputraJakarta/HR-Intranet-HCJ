@@ -12,7 +12,7 @@ export interface SessionClaims {
   role: ApiUserRole;
   departemen: string;
   unit: string;
-  authProvider: "password" | "firebase-google" | "bootstrap";
+  authProvider: "password" | "firebase-google";
   iat: number;
   exp: number;
 }
@@ -472,9 +472,8 @@ export function createApiApp() {
   const strictAuthRateLimiter = createRateLimiter("auth-strict", 5, 60 * 1000);
   const softAuthRateLimiter = createRateLimiter("auth-soft", 40, 60 * 1000);
 
-  // Server user registry + atomic bootstrap guard
+  // Server user registry (pre-populated when ADMIN_BOOTSTRAP_PASSWORD is set in env)
   const usersByEmail = new Map<string, ServerUserRecord>();
-  let adminBootstrapped = false;
 
   const envAdminPass = process.env.ADMIN_BOOTSTRAP_PASSWORD?.trim();
   if (envAdminPass && envAdminPass.length >= 8) {
@@ -489,7 +488,6 @@ export function createApiApp() {
       passwordHash: hashPasswordScrypt(envAdminPass),
       createdAt: "2026-01-01T08:00:00Z",
     });
-    adminBootstrapped = true;
   }
 
   function sanitizeUser(u: ServerUserRecord) {
@@ -549,75 +547,6 @@ export function createApiApp() {
   // Health check
   apiRouter.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
-
-  // Check whether first-run Super Admin bootstrap is required
-  apiRouter.get("/auth/bootstrap-status", softAuthRateLimiter, (_req, res) => {
-    res.json({
-      bootstrapRequired: !adminBootstrapped,
-      primaryAdminEmail: PRIMARY_ADMIN_EMAIL,
-    });
-  });
-
-  // Atomic First-Run Super Admin Setup for it@hotelciputra.com (when ADMIN_BOOTSTRAP_PASSWORD not set)
-  apiRouter.post("/auth/bootstrap-admin", strictAuthRateLimiter, (req, res) => {
-    if (adminBootstrapped) {
-      return res.status(403).json({
-        error: "Super Admin awal sudah dikonfigurasi. Gunakan halaman login standar.",
-      });
-    }
-
-    const emailInput =
-      typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
-    const namaInput =
-      typeof req.body?.nama === "string"
-        ? req.body.nama.trim().slice(0, 80).replace(/[<>{}\\]/g, "")
-        : "Super Admin IT";
-
-    if (emailInput !== PRIMARY_ADMIN_EMAIL) {
-      return res.status(403).json({
-        error: `Pengaturan awal Super Admin hanya diizinkan untuk akun resmi ${PRIMARY_ADMIN_EMAIL}.`,
-      });
-    }
-
-    if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        error: "Kata sandi wajib minimal 8 karakter dan mengandung kombinasi huruf serta angka.",
-      });
-    }
-
-    // Lock atomically before writing record
-    adminBootstrapped = true;
-
-    const adminRecord: ServerUserRecord = {
-      id: "usr-it-01",
-      nama: namaInput || "Super Admin IT",
-      email: PRIMARY_ADMIN_EMAIL,
-      unit: "Hotel Ciputra Jakarta",
-      departemen: "Engineering",
-      role: "admin",
-      status: "Approved",
-      passwordHash: hashPasswordScrypt(password),
-      createdAt: new Date().toISOString(),
-    };
-    usersByEmail.set(PRIMARY_ADMIN_EMAIL, adminRecord);
-
-    const token = signSessionToken({
-      sub: adminRecord.id,
-      email: adminRecord.email,
-      nama: adminRecord.nama,
-      role: adminRecord.role,
-      departemen: adminRecord.departemen,
-      unit: adminRecord.unit,
-      authProvider: "bootstrap",
-    });
-
-    setSessionCookie(req, res, token);
-    return res.status(201).json({
-      token,
-      user: sanitizeUser(adminRecord),
-    });
   });
 
   // Standard email/password login
@@ -944,6 +873,11 @@ export function createApiApp() {
       }
     }
   );
+
+  // Return strict JSON 404 for unknown /api/* routes (never fall through to SPA HTML)
+  apiRouter.use((_req, res) => {
+    res.status(404).json({ error: "Endpoint tidak ditemukan." });
+  });
 
   // Single mount on /api only
   app.use("/api", apiRouter);

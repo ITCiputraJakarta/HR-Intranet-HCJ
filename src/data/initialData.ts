@@ -122,8 +122,8 @@ export const INITIAL_ACCESS_LOGS: AccessLog[] = [
     target: "Hotel Ciputra Jakarta",
     status: "SUCCESS",
     details: "Sistem resmi Hotel Ciputra Jakarta aktif dan tersinkronisasi ke Cloud Firestore.",
-    ipAddress: "127.0.0.1",
-    userAgent: "Internal Portal Engine"
+    ipAddress: "System",
+    userAgent: "Portal Hotel Ciputra Jakarta"
   }
 ];
 

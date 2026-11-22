@@ -152,7 +152,7 @@ export const DEFAULT_BRANDING: AppBranding = {
   socialLinks: DEFAULT_SOCIAL_LINKS,
   footerAddress: 'Hospitality Operations & Human Capital Management Division',
   footerContact: 'Layanan Bantuan IT & HRD: it@hotelciputra.com',
-  footerCopyright: '© 2026 Intranet HCJ JBagas • All Rights Reserved',
+  footerCopyright: '© 2026 Hotel Ciputra Jakarta • All Rights Reserved',
   creatorSignature: 'JBagas',
   updatedAt: new Date().toISOString(),
 };

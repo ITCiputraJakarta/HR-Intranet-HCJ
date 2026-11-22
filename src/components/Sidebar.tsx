@@ -453,9 +453,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="flex-1 text-left truncate">
                       {currentLang === 'en' ? 'Cloud Quota & Sync' : 'Analitik & Kuota Cloud'}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-normal bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                      1 GiB
-                    </span>
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />}
                   </button>
                 );
               })()}

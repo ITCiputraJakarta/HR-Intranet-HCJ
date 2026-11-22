@@ -770,7 +770,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
                 <span className="text-slate-400 text-[10px] uppercase font-bold block font-sans">
                   Metadata Jaringan
                 </span>
-                <p className="text-slate-700 mt-0.5">IP: {selectedLog.ipAddress || '127.0.0.1'}</p>
+                <p className="text-slate-700 mt-0.5">IP: {selectedLog.ipAddress || '-'}</p>
                 <p className="text-slate-500 text-[10px] mt-0.5 truncate">
                   UA: {selectedLog.userAgent || '-'}
                 </p>

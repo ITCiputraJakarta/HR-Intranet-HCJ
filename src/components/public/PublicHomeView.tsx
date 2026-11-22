@@ -787,7 +787,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 {
                   tag: 'Sistem Internal',
                   date: '01 Oktober 2026',
-                  title: 'Pembaruan Fitur Pengajuan & SOP Digital V2.0',
+                  title: 'Digitalisasi Pengajuan & Arsip SOP Departemen',
                   desc: 'Modul digitalisasi formulir dan arsip dokumen kini lebih cepat serta terintegrasi cloud database.',
                   img: defaultHotelDining,
                 },

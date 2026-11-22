@@ -525,11 +525,12 @@ service cloud.firestore {
       allow delete: if isValidId(notifId) && isAdmin();
     }
 
-    // System Configuration (Curated Public UI/CMS Configs vs Internal Configs)
+    // System Configuration (Curated Public UI/CMS Configs vs Admin Telemetry vs Internal Configs)
     match /systemConfig/{configId} {
       allow get: if isValidId(configId) && (
         configId in ['app_branding', 'app_branding_gallery', 'home_cms', 'career_cms', 'hotel_units_master']
-        || isSignedIn()
+        || (configId == 'cloud_quota_telemetry' && isAdmin())
+        || (configId != 'cloud_quota_telemetry' && isSignedIn())
       );
       allow list: if isBootstrapAdmin();
       allow create, update: if isValidId(configId) && isAdmin() && isValidSystemConfig(incoming());

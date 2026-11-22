@@ -71,6 +71,9 @@ function evaluateDirtyDozen(payload: {
         'hotel_units_master',
       ]);
       if (payload.operation === 'get') {
+        if (payload.docId === 'cloud_quota_telemetry') {
+          return isAdmin(payload.auth) ? 'ALLOWED' : 'PERMISSION_DENIED';
+        }
         return publicConfigIds.has(payload.docId) || isSignedIn(payload.auth)
           ? 'ALLOWED'
           : 'PERMISSION_DENIED';
@@ -284,6 +287,12 @@ export function runFirestoreRulesSpecTests(): void {
       operation: 'create',
       auth: attackerAuth,
       data: { id: 'doc-unsafe-url', title: 'Bad Link', category: 'SOP', fileUrl: 'javascript:void(0)' },
+    }),
+    evaluateDirtyDozen({
+      collection: 'systemConfig',
+      docId: 'cloud_quota_telemetry',
+      operation: 'get',
+      auth: attackerAuth,
     }),
   ];
 

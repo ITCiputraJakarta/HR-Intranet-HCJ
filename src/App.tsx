@@ -230,6 +230,7 @@ export default function App() {
               if (!active) return;
               if (remote) {
                 if ((remote.status || '').toLowerCase() !== 'approved') {
+                  await auth.signOut().catch(() => {});
                   clearAllSessionCache();
                   setCurrentUser(null);
                   setUserState(null);
@@ -245,6 +246,8 @@ export default function App() {
               setIsSessionVerified(true);
               return;
             }
+          } else if (resp.status === 401 || resp.status === 403) {
+            await auth.signOut().catch(() => {});
           }
         } catch {
           // Fall through to fail-closed reset
@@ -277,6 +280,8 @@ export default function App() {
             if (data?.token && active) {
               setInMemoryApiToken(data.token);
             }
+          } else if (resp.status === 401 || resp.status === 403) {
+            await auth.signOut().catch(() => {});
           }
         } catch {
           // Non-blocking
@@ -591,9 +596,10 @@ export default function App() {
       setIdleTimeoutMessage('');
     }
 
-    // Reset volatile states
-    setDocuments(getDocuments());
-    setAnnouncements(getAnnouncements());
+    // Reset volatile states to strictly public announcements only
+    const publicDocs = getDocuments().filter((d) => d.isPublic === true);
+    setDocuments(publicDocs);
+    setAnnouncements(publicDocs.filter((d) => d.category === 'Pengumuman'));
     setUsers([]);
     setLogs([]);
     setPerformances([]);

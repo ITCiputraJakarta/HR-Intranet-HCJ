@@ -18,7 +18,14 @@ import {
 const HOME_CMS_STORAGE_KEY = 'hcj_home_cms_v1';
 const CAREER_CMS_STORAGE_KEY = 'hcj_career_cms_v1';
 const CAREER_JOBS_STORAGE_KEY = 'hcj_career_jobs_v1';
-const CAREER_APPLICATIONS_STORAGE_KEY = 'hcj_career_applications_v1';
+
+// Security: Career candidate PII & PDF CVs are held strictly in memory while authenticated (never in localStorage)
+let memoryCareerApplications: CareerApplication[] = [];
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('hcj_career_applications_v1');
+  } catch {}
+}
 
 // 1MB Maximum limit strictly enforced for PDF CV uploads
 export const MAX_PDF_BYTES = 1048576; // 1 MB = 1024 * 1024 bytes
@@ -614,27 +621,14 @@ export function subscribeToCareerJobs(
 // =========================================================================
 
 export function getCareerApplications(): CareerApplication[] {
-  try {
-    const local = localStorage.getItem(CAREER_APPLICATIONS_STORAGE_KEY);
-    if (local) {
-      const parsed = JSON.parse(local);
-      if (Array.isArray(parsed)) return parsed.filter((a) => !isFirestoreIdDeleted(a.id));
-    }
-  } catch (e) {
-    console.warn('Error reading local career applications:', e);
-  }
-  return [];
+  return memoryCareerApplications.filter((a) => !isFirestoreIdDeleted(a.id));
 }
 
 export async function saveCareerApplications(
   apps: CareerApplication[]
 ): Promise<void> {
   const clean = (apps || []).filter((a) => !isFirestoreIdDeleted(a.id));
-  try {
-    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(clean));
-  } catch (e) {
-    console.warn('LocalStorage save career applications error:', e);
-  }
+  memoryCareerApplications = clean;
 
   if (isFirebaseConfigured()) {
     try {
@@ -682,10 +676,7 @@ export async function updateApplicationStatus(
   status: 'Pending' | 'Reviewed' | 'Interview' | 'Rejected'
 ): Promise<void> {
   const current = getCareerApplications();
-  const updated = current.map((a) => (a.id === appId ? { ...a, status } : a));
-  try {
-    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(updated));
-  } catch {}
+  memoryCareerApplications = current.map((a) => (a.id === appId ? { ...a, status } : a));
   if (isFirebaseConfigured()) {
     await setDoc(doc(db, 'career_applications', appId), { status }, { merge: true });
   }
@@ -694,10 +685,7 @@ export async function updateApplicationStatus(
 export async function deleteCareerApplication(appId: string): Promise<void> {
   markFirestoreIdDeleted(appId);
   const current = getCareerApplications();
-  const filtered = current.filter((a) => a.id !== appId);
-  try {
-    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(filtered));
-  } catch {}
+  memoryCareerApplications = current.filter((a) => a.id !== appId);
 
   if (isFirebaseConfigured()) {
     try {
@@ -726,9 +714,7 @@ export function subscribeToCareerApplications(
         if (!snapshot.empty) {
           const list: CareerApplication[] = [];
           snapshot.forEach((d) => list.push(d.data() as CareerApplication));
-          try {
-            localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(list));
-          } catch {}
+          memoryCareerApplications = list;
           callback(list);
         }
       },

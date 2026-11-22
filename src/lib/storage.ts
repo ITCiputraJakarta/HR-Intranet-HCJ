@@ -57,7 +57,10 @@ import { clearInMemoryApiToken } from './authSession';
 
 function stripUserPassword(user: User): User {
   if (!user || typeof user !== 'object') return user;
-  const { password: _omit, ...rest } = user as User & { password?: string };
+  const { password: _omit, avatar: _omitAvatar, ...rest } = user as User & {
+    password?: string;
+    avatar?: string;
+  };
   return rest as User;
 }
 
@@ -81,6 +84,49 @@ const STORAGE_KEYS = {
   CONFIG: 'ciputra_intra_config_v1',
   HOTEL_UNITS: 'ciputra_intra_units_v1',
 };
+
+// Keys that must NEVER stay persisted in browser localStorage
+const SENSITIVE_STORAGE_KEYS = [
+  STORAGE_KEYS.USERS,
+  STORAGE_KEYS.ACCESS_LOGS,
+  STORAGE_KEYS.KPIS,
+  STORAGE_KEYS.CATEGORIES,
+  STORAGE_KEYS.PERFORMANCES,
+  STORAGE_KEYS.NOTIFICATIONS,
+  'hcj_career_applications_v1',
+];
+
+function scrubLegacySensitiveLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    SENSITIVE_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
+    const rawDocs = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
+    if (rawDocs) {
+      const parsed = JSON.parse(rawDocs);
+      if (Array.isArray(parsed)) {
+        const publicOnly = parsed
+          .filter((d: any) => d && d.isPublic === true && d.category === 'Pengumuman')
+          .slice(0, 15)
+          .map((d: any) => ({
+            ...d,
+            fileUrl: d.fileUrl && String(d.fileUrl).length <= 120000 ? d.fileUrl : '',
+            previewUrl: '',
+            downloadUrl: '',
+            attachmentUrl: '',
+          }));
+        if (publicOnly.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(publicOnly));
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.DOCUMENTS);
+        }
+      }
+    }
+  } catch {
+    // ignore storage access issues
+  }
+}
+
+scrubLegacySensitiveLocalStorage();
 
 // Runtime in-memory cache to prevent excessive Firestore reads and ensure instant UI performance
 let memoryUsers: User[] | null = null;
@@ -142,8 +188,11 @@ export function clearMemoryCache(): void {
   memoryHotelUnits = null;
 }
 
-// Safe storage getter with fallback
+// Safe storage getter with fallback (sensitive collections return fallback without touching localStorage)
 function getStored<T>(key: string, fallback: T): T {
+  if (SENSITIVE_STORAGE_KEYS.includes(key)) {
+    return fallback;
+  }
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
@@ -159,26 +208,40 @@ function getStored<T>(key: string, fallback: T): T {
 }
 
 function setStored<T>(key: string, data: T): void {
+  // Security: Never persist users, audit logs, appraisal scores, notifications, or candidate PII in localStorage
+  if (SENSITIVE_STORAGE_KEYS.includes(key)) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+    return;
+  }
+  // Security: Persist ONLY public announcements in localStorage (private SOP/Form files remain strictly in JS memory & Cloud Firestore)
+  if (key === STORAGE_KEYS.DOCUMENTS && Array.isArray(data)) {
+    try {
+      const publicDocs = (data as any[])
+        .filter((d) => d && d.isPublic === true && d.category === 'Pengumuman')
+        .slice(0, 15)
+        .map((d) => ({
+          ...d,
+          fileUrl: d.fileUrl && String(d.fileUrl).length <= 120000 ? d.fileUrl : '',
+          previewUrl: '',
+          downloadUrl: '',
+          thumbUrl: d.thumbUrl && String(d.thumbUrl).length <= 80000 ? d.thumbUrl : '',
+          attachmentUrl: '',
+        }));
+      if (publicDocs.length > 0) {
+        localStorage.setItem(key, JSON.stringify(publicDocs));
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // Ignore secondary quota error
+    }
+    return;
+  }
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    // If localStorage quota is exceeded (e.g., large PDF/SOP base64 files), store compact metadata in localStorage while keeping full files in memory & Cloud Firestore
-    if (key === STORAGE_KEYS.DOCUMENTS && Array.isArray(data)) {
-      try {
-        const compactDocs = (data as any[]).map((d) => ({
-          ...d,
-          fileUrl: d.fileUrl && d.fileUrl.length > 150000 ? '' : d.fileUrl,
-          previewUrl: '',
-          downloadUrl: '',
-          thumbUrl: d.thumbUrl && d.thumbUrl.length > 100000 ? '' : d.thumbUrl,
-          attachmentUrl: d.attachmentUrl && d.attachmentUrl.length > 100000 ? '' : d.attachmentUrl,
-        }));
-        localStorage.setItem(key, JSON.stringify(compactDocs));
-        return;
-      } catch {
-        // Ignore secondary quota error
-      }
-    }
     console.warn(`Storage quota notice for ${key}:`, e);
   }
 }
@@ -436,7 +499,7 @@ export function deleteHotelUnit(
   };
 }
 
-// ----------------- USERS -----------------
+// ----------------- USERS (IN-MEMORY ONLY; NEVER PERSISTED IN LOCALSTORAGE) -----------------
 export function getUsers(): User[] {
   if (memoryUsers && memoryUsers.length > 0) {
     return memoryUsers.filter((u) => !isFirestoreIdDeleted(u.id)).map((u) => ({
@@ -444,21 +507,21 @@ export function getUsers(): User[] {
       unit: u.unit || 'Hotel Ciputra Jakarta',
     }));
   }
-  const loaded = getStored<User[]>(STORAGE_KEYS.USERS, INITIAL_USERS)
-    .filter((u) => !isFirestoreIdDeleted(u.id))
-    .map((u) => ({
-      ...u,
-      unit: u.unit || 'Hotel Ciputra Jakarta',
-    }));
-  memoryUsers = loaded;
-  return loaded;
+  const initialClean = INITIAL_USERS.filter((u) => !isFirestoreIdDeleted(u.id)).map((u) => ({
+    ...u,
+    unit: u.unit || 'Hotel Ciputra Jakarta',
+  }));
+  memoryUsers = initialClean;
+  return initialClean;
 }
 
 export function saveUsers(users: User[]): void {
   const clean = (users || []).filter((u) => !isFirestoreIdDeleted(u.id));
   memoryUsers = clean;
-  // Security: Never persist user password hashes into localStorage
-  setStored(STORAGE_KEYS.USERS, clean.map(stripUserPassword));
+  // Security: Never persist user directory or password hashes into localStorage
+  try {
+    localStorage.removeItem(STORAGE_KEYS.USERS);
+  } catch {}
 }
 
 export function getCurrentUser(): User | null {
@@ -486,6 +549,8 @@ export function clearAllSessionCache(): void {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
       localStorage.removeItem(STORAGE_KEYS.USERS);
       localStorage.removeItem(STORAGE_KEYS.ACCESS_LOGS);
+      localStorage.removeItem(STORAGE_KEYS.KPIS);
+      localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
       localStorage.removeItem(STORAGE_KEYS.PERFORMANCES);
       localStorage.removeItem(STORAGE_KEYS.DOCUMENTS);
       localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
@@ -954,7 +1019,7 @@ export const LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 hari (3 bulan)
  * Log hanya bertahan selama 3 bulan agar penyimpanan lokal maupun Cloud Firestore tidak penuh.
  */
 export function pruneExpiredAccessLogs(): AccessLog[] {
-  const all = memoryLogs || getStored<AccessLog[]>(STORAGE_KEYS.ACCESS_LOGS, INITIAL_ACCESS_LOGS);
+  const all = memoryLogs || INITIAL_ACCESS_LOGS;
   const now = Date.now();
   const valid: AccessLog[] = [];
   const expired: AccessLog[] = [];
@@ -976,9 +1041,6 @@ export function pruneExpiredAccessLogs(): AccessLog[] {
   }
 
   memoryLogs = valid;
-  if (valid.length !== all.length) {
-    setStored(STORAGE_KEYS.ACCESS_LOGS, valid);
-  }
   return valid;
 }
 

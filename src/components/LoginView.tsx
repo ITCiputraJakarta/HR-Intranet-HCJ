@@ -32,6 +32,7 @@ import {
   getHotelUnits,
   saveHotelUnits,
   generateSecureClientId,
+  clearAllSessionCache,
 } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
@@ -553,6 +554,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
+  const cleanupUnapprovedGoogleSession = async () => {
+    await auth.signOut().catch(() => {});
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    clearAllSessionCache();
+  };
+
   const handleGoogleSignIn = async () => {
     setErrorMessage('');
     setSuccessMessage('');
@@ -561,8 +568,69 @@ export const LoginView: React.FC<LoginViewProps> = ({
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await signInWithPopup(auth, provider);
-      const idToken = await cred.user.getIdToken();
 
+      const cleanEmail = (cred.user.email || '').trim().toLowerCase();
+      const hasGoogleProvider = cred.user.providerData.some((p) => p.providerId === 'google.com');
+      if (!cleanEmail || !cred.user.emailVerified || !hasGoogleProvider) {
+        await cleanupUnapprovedGoogleSession();
+        setIsGoogleLoading(false);
+        setErrorMessage('Akun Google wajib memiliki alamat email yang terverifikasi.');
+        return;
+      }
+
+      // Check Firestore approval status FIRST before requesting server API session
+      let existingRemote: User | null = null;
+      let lookupFailed = false;
+      try {
+        existingRemote = await firestoreFindUserByEmail(cleanEmail);
+      } catch {
+        lookupFailed = true;
+      }
+
+      if (lookupFailed && cleanEmail !== 'it@hotelciputra.com') {
+        await cleanupUnapprovedGoogleSession();
+        setIsGoogleLoading(false);
+        setErrorMessage('Gagal memverifikasi status persetujuan akun Anda di database. Silakan coba beberapa saat lagi.');
+        return;
+      }
+
+      if (existingRemote) {
+        const statusLower = (existingRemote.status || '').toLowerCase();
+        if (statusLower === 'rejected') {
+          await cleanupUnapprovedGoogleSession();
+          setIsGoogleLoading(false);
+          setErrorMessage('Akun Google Anda ditolak atau dinonaktifkan oleh Administrator.');
+          return;
+        }
+        if (statusLower !== 'approved' && cleanEmail !== 'it@hotelciputra.com') {
+          await cleanupUnapprovedGoogleSession();
+          setIsGoogleLoading(false);
+          setErrorMessage('Akun Google Anda masih menunggu persetujuan Super Admin.');
+          return;
+        }
+      } else if (cleanEmail !== 'it@hotelciputra.com') {
+        // First-time Google SSO user: create least-privilege Pending Staff profile then sign out immediately
+        const newPendingStaff: User = {
+          id: generateSecureClientId('usr'),
+          nama: sanitizeInput(cred.user.displayName || cleanEmail.split('@')[0]),
+          email: cleanEmail,
+          unit: 'Hotel Ciputra Jakarta',
+          departemen: 'Front Office',
+          role: 'staff',
+          status: 'Pending',
+          createdAt: new Date().toISOString(),
+        };
+        await registerUser(newPendingStaff);
+        await cleanupUnapprovedGoogleSession();
+        setIsGoogleLoading(false);
+        setSuccessMessage(
+          'Akun Google berhasil didaftarkan sebagai Staff (Pending). Silakan hubungi Super Admin untuk persetujuan.'
+        );
+        return;
+      }
+
+      // Exchange verified Google ID token for signed server HttpOnly cookie + in-memory Bearer token
+      const idToken = await cred.user.getIdToken();
       const resp = await fetch('/api/auth/firebase-session', {
         method: 'POST',
         credentials: 'include',
@@ -571,28 +639,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
       });
       const { data: apiData } = await safeReadJson<{ token?: string; user?: User; error?: string }>(resp);
       if (!resp.ok || !apiData?.token || !apiData?.user) {
+        await cleanupUnapprovedGoogleSession();
         const fallbackMsg =
           resp.status >= 500
             ? `Server sesi API mengalami gangguan internal (HTTP ${resp.status}). Pastikan backend server terbaru sudah aktif/dideploy ulang.`
-            : 'Verifikasi Google SSO gagal.';
+            : 'Verifikasi Google SSO gagal atau akun belum disetujui Super Admin.';
         setErrorMessage(apiData?.error || fallbackMsg);
         setIsGoogleLoading(false);
         return;
       }
 
-      const cleanEmail = (apiData.user.email || '').toLowerCase();
-      const existingRemote = await firestoreFindUserByEmail(cleanEmail).catch(() => null);
       if (existingRemote) {
-        if ((existingRemote.status || '').toLowerCase() !== 'approved') {
-          setIsGoogleLoading(false);
-          setErrorMessage('Akun Google Anda masih menunggu persetujuan Super Admin.');
-          return;
-        }
-        onLoginSuccess(existingRemote, apiData.token);
-      } else if (cleanEmail === 'it@hotelciputra.com') {
+        const mergedProfile: User = {
+          ...existingRemote,
+          role: cleanEmail === 'it@hotelciputra.com' ? 'admin' : apiData.user.role || existingRemote.role,
+          status: 'Approved',
+        };
+        onLoginSuccess(mergedProfile, apiData.token);
+      } else {
         const adminProfile: User = {
-          id: existingRemote?.id || apiData.user.id || 'usr-it-01',
-          nama: apiData.user.nama || 'Super Admin IT',
+          id: apiData.user.id || 'usr-it-01',
+          nama: apiData.user.nama || cred.user.displayName || 'Super Admin IT',
           email: cleanEmail,
           unit: 'Hotel Ciputra Jakarta',
           departemen: 'Engineering',
@@ -602,24 +669,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         };
         await firestoreSaveUser(adminProfile).catch(() => {});
         onLoginSuccess(adminProfile, apiData.token);
-      } else {
-        const newPendingStaff: User = {
-          id: generateSecureClientId('usr'),
-          nama: sanitizeInput(apiData.user.nama || cleanEmail.split('@')[0]),
-          email: cleanEmail,
-          unit: 'Hotel Ciputra Jakarta',
-          departemen: 'Front Office',
-          role: 'staff',
-          status: 'Pending',
-          createdAt: new Date().toISOString(),
-        };
-        await registerUser(newPendingStaff);
-        setSuccessMessage(
-          'Akun Google berhasil didaftarkan sebagai Staff (Pending). Silakan hubungi Super Admin untuk persetujuan.'
-        );
       }
       setIsGoogleLoading(false);
     } catch (err: any) {
+      await cleanupUnapprovedGoogleSession().catch(() => {});
       setIsGoogleLoading(false);
       if (err?.code === 'auth/unauthorized-domain') {
         const host = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -1058,14 +1111,38 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </button>
 
               {/* Google SSO Option */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2.5">
+                <div className="relative flex items-center justify-center">
+                  <span className="w-full border-t border-slate-200/80" />
+                  <span className="bg-white px-2.5 text-[10.5px] uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    atau masuk melalui
+                  </span>
+                  <span className="w-full border-t border-slate-200/80" />
+                </div>
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={isGoogleLoading}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-normal text-[#2F327D] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
                 >
-                  <ShieldCheck className="w-4 h-4 text-[#005a8d]" />
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.37 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"
+                    />
+                  </svg>
                   <span>{isGoogleLoading ? 'Menghubungkan Google...' : 'Masuk dengan Google (SSO)'}</span>
                 </button>
               </div>

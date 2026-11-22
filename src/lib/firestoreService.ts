@@ -144,20 +144,20 @@ export function handleFirestoreError(
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid || null,
-      email: auth.currentUser?.email || null,
+      email: auth.currentUser?.email ? '***' : null,
       emailVerified: auth.currentUser?.emailVerified ?? null,
       isAnonymous: auth.currentUser?.isAnonymous ?? null,
       tenantId: auth.currentUser?.tenantId || null,
       providerInfo:
         auth.currentUser?.providerData?.map((provider) => ({
           providerId: provider.providerId,
-          email: provider.email,
+          email: null,
         })) || [],
     },
     operationType,
     path,
   };
-  console.error('Firestore Error:', JSON.stringify(errInfo));
+  console.warn('Firestore access notice:', operationType, path);
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -910,9 +910,7 @@ export async function firestoreSaveUser(user: User): Promise<void> {
       delete cleanUser.password;
     }
 
-    const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true }).then(() => {
-      console.log('[Firestore] User saved successfully:', user.id, cleanUser.email, cleanUser.status);
-    });
+    const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true });
     const timeoutPromise = new Promise<void>((resolve) => {
       setTimeout(() => resolve(), 3000);
     });
@@ -961,7 +959,6 @@ export async function firestoreUpdateUserStatus(userId: string, status: UserStat
       { status: normalizedStatus, updatedAt: new Date().toISOString() },
       { merge: true }
     );
-    console.log('[Firestore] Status updated to', normalizedStatus, 'for user', userId);
     return true;
   } catch (e) {
     console.warn('firestoreUpdateUserStatus error:', e);
@@ -1042,46 +1039,7 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
           }
         }
       } catch (targetedErr) {
-        // Fallback to scan if targeted query encounters index or permission delay
-      }
-
-      // 2. Scan users collection as fallback (handles case variations or missing index)
-      let snap;
-      try {
-        const serverPromise = getDocsFromServer(collection(db, USERS_COL));
-        const timeout = new Promise<null>((r) => setTimeout(() => r(null), 3500));
-        const res = await Promise.race([serverPromise, timeout]);
-        if (res && 'docs' in (res as any)) {
-          snap = res as any;
-        } else {
-          snap = await getDocs(collection(db, USERS_COL));
-        }
-      } catch {
-        snap = await getDocs(collection(db, USERS_COL));
-      }
-
-      const matchingDocs: User[] = [];
-      for (const d of snap.docs) {
-        const u = d.data() as User;
-        const id = u.id || d.id;
-        if (
-          u &&
-          u.email &&
-          u.email.trim().toLowerCase() === cleanEmail
-        ) {
-          matchingDocs.push({ ...u, id });
-        }
-      }
-
-      if (matchingDocs.length > 0) {
-        matchingDocs.sort((a, b) => {
-          if (a.status === 'Approved' && b.status !== 'Approved') return -1;
-          if (b.status === 'Approved' && a.status !== 'Approved') return 1;
-          return (b.createdAt || '').localeCompare(a.createdAt || '');
-        });
-        const selected = matchingDocs[0];
-        unmarkFirestoreIdDeleted(selected.id);
-        return selected;
+        console.warn('firestoreFindUserByEmail targeted lookup notice:', targetedErr);
       }
     } catch (err) {
       console.warn('firestoreFindUserByEmail error:', err);
@@ -1244,7 +1202,6 @@ async function saveDocumentWithChunksToFirestore(docItem: IntranetDocument): Pro
   }
 
   await setDoc(doc(db, DOCS_COL, docItem.id), firestorePayload, { merge: true });
-  console.log('[Firestore] Document saved:', docItem.id, docItem.title);
 }
 
 // Documents (Firestore Native Storage with Auto-Chunking & Deduplication)

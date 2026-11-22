@@ -247,8 +247,16 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<{
     if (typeof payload.sub !== "string" || !payload.sub) return null;
     if (typeof payload.exp !== "number" || payload.exp <= nowSec) return null;
     if (typeof payload.iat !== "number" || payload.iat > nowSec + 300) return null;
+    if (typeof payload.auth_time === "number" && payload.auth_time > nowSec + 300) return null;
     if (typeof payload.email !== "string" || !payload.email) return null;
     if (payload.email_verified !== true) return null;
+
+    const fbClaim =
+      payload.firebase && typeof payload.firebase === "object"
+        ? (payload.firebase as Record<string, unknown>)
+        : null;
+    const signInProvider = typeof fbClaim?.sign_in_provider === "string" ? fbClaim.sign_in_provider : "";
+    if (signInProvider !== "google.com") return null;
 
     return {
       uid: payload.sub,
@@ -261,6 +269,110 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<{
   }
 }
 
+interface FirestoreLookupProfile {
+  id: string;
+  nama: string;
+  email: string;
+  unit: string;
+  departemen: string;
+  role: ApiUserRole;
+  status: string;
+}
+
+const VALID_API_ROLES = new Set<ApiUserRole>(["staff", "spv", "manager", "hod", "admin"]);
+
+function readFirestoreString(fields: Record<string, any> | undefined, key: string): string {
+  const val = fields?.[key]?.stringValue;
+  return typeof val === "string" ? val.trim() : "";
+}
+
+async function lookupFirestoreUserByEmail(
+  idToken: string,
+  email: string
+): Promise<{ ok: true; user: FirestoreLookupProfile | null } | { ok: false }> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`,
+      {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: "users" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "email" },
+                op: "EQUAL",
+                value: { stringValue: email },
+              },
+            },
+            limit: 5,
+          },
+        }),
+      }
+    );
+    clearTimeout(timer);
+
+    if (!resp.ok) {
+      return { ok: false };
+    }
+
+    const rows = (await resp.json()) as Array<{ document?: { name?: string; fields?: Record<string, any> } }>;
+    if (!Array.isArray(rows)) {
+      return { ok: true, user: null };
+    }
+
+    const candidates: Array<FirestoreLookupProfile & { createdAt: string }> = [];
+    for (const row of rows) {
+      const fields = row?.document?.fields;
+      if (!fields) continue;
+      const docNameParts = (row.document?.name || "").split("/");
+      const docId = docNameParts[docNameParts.length - 1] || "";
+      const rawRole = readFirestoreString(fields, "role").toLowerCase() as ApiUserRole;
+      const role: ApiUserRole = VALID_API_ROLES.has(rawRole) ? rawRole : "staff";
+      const statusRaw = readFirestoreString(fields, "status");
+      const status =
+        statusRaw.toLowerCase() === "approved"
+          ? "Approved"
+          : statusRaw.toLowerCase() === "rejected"
+          ? "Rejected"
+          : "Pending";
+
+      candidates.push({
+        id: readFirestoreString(fields, "id") || docId,
+        nama: readFirestoreString(fields, "nama") || email.split("@")[0],
+        email: (readFirestoreString(fields, "email") || email).toLowerCase(),
+        unit: readFirestoreString(fields, "unit") || "Hotel Ciputra Jakarta",
+        departemen: readFirestoreString(fields, "departemen") || "Front Office",
+        role,
+        status,
+        createdAt: readFirestoreString(fields, "createdAt"),
+      });
+    }
+
+    if (candidates.length === 0) {
+      return { ok: true, user: null };
+    }
+
+    candidates.sort((a, b) => {
+      if (a.status === "Approved" && b.status !== "Approved") return -1;
+      if (b.status === "Approved" && a.status !== "Approved") return 1;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+
+    const { createdAt: _omit, ...best } = candidates[0];
+    return { ok: true, user: best };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export function createApiApp() {
   const app = express();
 
@@ -268,7 +380,7 @@ export function createApiApp() {
   app.disable("x-powered-by");
 
   // Security Headers middleware (compatible with AI Studio iframe via frame-ancestors)
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader(
@@ -276,7 +388,42 @@ export function createApiApp() {
       "frame-ancestors 'self' https://aistudio.google.com https://*.google.com"
     );
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    if (isHttpsRequest(req)) {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
     next();
+  });
+
+  // Same-origin CSRF verification for state-changing requests authenticated via cookies
+  app.use((req, res, next) => {
+    const method = req.method.toUpperCase();
+    if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+      return next();
+    }
+    const originHeader = typeof req.headers.origin === "string" ? req.headers.origin.trim() : "";
+    if (!originHeader) {
+      return next();
+    }
+    const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+    const hasCookieSession = Boolean(parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME]);
+    if (!hasCookieSession && authHeader.startsWith("Bearer ")) {
+      return next();
+    }
+    try {
+      const originHost = new URL(originHeader).host.toLowerCase();
+      const forwardedHost = String(req.headers["x-forwarded-host"] || "")
+        .split(",")[0]
+        ?.trim()
+        .toLowerCase();
+      const hostHeader = String(req.headers.host || "").trim().toLowerCase();
+      const expectedHost = forwardedHost || hostHeader;
+      if (expectedHost && originHost !== expectedHost) {
+        return res.status(403).json({ error: "Permintaan lintas asal ditolak demi keamanan sesi." });
+      }
+    } catch {
+      return res.status(403).json({ error: "Header Origin tidak valid." });
+    }
+    return next();
   });
 
   app.use(express.json({ limit: "100kb" }));
@@ -564,27 +711,72 @@ export function createApiApp() {
 
     const verified = await verifyFirebaseIdToken(idToken);
     if (!verified || !verified.emailVerified) {
-      return res.status(401).json({ error: "Verifikasi token Firebase gagal atau email belum terverifikasi." });
+      clearSessionCookie(req, res);
+      return res.status(401).json({ error: "Verifikasi token Google Firebase gagal atau email belum terverifikasi." });
     }
 
-    const existing = usersByEmail.get(verified.email);
-    const role: ApiUserRole =
-      existing?.role ||
-      (verified.email === PRIMARY_ADMIN_EMAIL ? "admin" : "staff");
+    const memoryExisting = usersByEmail.get(verified.email);
+    const firestoreLookup = await lookupFirestoreUserByEmail(idToken, verified.email);
 
-    if (existing && existing.status !== "Approved") {
-      return res.status(403).json({ error: "Akun Anda masih menunggu persetujuan Super Admin." });
+    // Non-primary accounts MUST pass live Firestore lookup (fail closed on lookup error)
+    if (!firestoreLookup.ok && verified.email !== PRIMARY_ADMIN_EMAIL) {
+      clearSessionCookie(req, res);
+      return res.status(503).json({
+        error: "Gagal memverifikasi status persetujuan akun dari database Firestore. Silakan coba lagi.",
+      });
     }
+
+    const fsUser = firestoreLookup.ok ? firestoreLookup.user : null;
+
+    // Enforce approval status strictly (check Firestore first, then in-memory registry)
+    if (fsUser) {
+      if (fsUser.status === "Rejected") {
+        clearSessionCookie(req, res);
+        return res.status(403).json({
+          code: "ACCOUNT_REJECTED",
+          error: "Akun Google Anda ditolak atau dinonaktifkan oleh Administrator.",
+        });
+      }
+      if (fsUser.status !== "Approved" && verified.email !== PRIMARY_ADMIN_EMAIL) {
+        clearSessionCookie(req, res);
+        return res.status(403).json({
+          code: "ACCOUNT_PENDING",
+          error: "Akun Google Anda masih menunggu persetujuan Super Admin.",
+        });
+      }
+    } else if (verified.email !== PRIMARY_ADMIN_EMAIL) {
+      if (!memoryExisting) {
+        clearSessionCookie(req, res);
+        return res.status(403).json({
+          code: "ACCOUNT_NOT_REGISTERED",
+          needsRegistration: true,
+          error: "Akun Google belum terdaftar dan disetujui Super Admin.",
+        });
+      }
+      if (memoryExisting.status !== "Approved") {
+        clearSessionCookie(req, res);
+        return res.status(403).json({
+          code: "ACCOUNT_PENDING",
+          error: "Akun Google Anda masih menunggu persetujuan Super Admin.",
+        });
+      }
+    }
+
+    const authoritativeRole: ApiUserRole =
+      verified.email === PRIMARY_ADMIN_EMAIL
+        ? "admin"
+        : fsUser?.role || memoryExisting?.role || "staff";
 
     const userClaims = {
-      sub: existing?.id || verified.uid,
+      sub: fsUser?.id || memoryExisting?.id || (verified.email === PRIMARY_ADMIN_EMAIL ? "usr-it-01" : verified.uid),
       email: verified.email,
-      nama: existing?.nama || verified.name || verified.email.split("@")[0],
-      role,
+      nama: fsUser?.nama || memoryExisting?.nama || verified.name || verified.email.split("@")[0],
+      role: authoritativeRole,
       departemen:
-        existing?.departemen ||
+        fsUser?.departemen ||
+        memoryExisting?.departemen ||
         (verified.email === PRIMARY_ADMIN_EMAIL ? "Engineering" : "Front Office"),
-      unit: "Hotel Ciputra Jakarta",
+      unit: fsUser?.unit || memoryExisting?.unit || "Hotel Ciputra Jakarta",
       authProvider: "firebase-google" as const,
     };
 

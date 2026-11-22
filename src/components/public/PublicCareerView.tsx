@@ -34,11 +34,12 @@ import {
   subscribeToCareerCms,
   getCareerJobs,
   subscribeToCareerJobs,
-  validatePdfCv,
+  validatePdfCvSecure,
   readFileAsBase64,
   submitCareerApplication,
   MAX_PDF_BYTES,
 } from '../../lib/cmsService';
+import { sanitizeSafeUrl } from '../../lib/security';
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
@@ -119,11 +120,11 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
     return acc;
   }, {} as Record<string, CareerJobPosting[]>);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setCvError('');
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const check = validatePdfCv(file);
+      const check = await validatePdfCvSecure(file);
       if (!check.valid) {
         setCvError(check.error || 'Berkas tidak valid');
         setCvFile(null);
@@ -159,7 +160,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       return;
     }
 
-    const check = validatePdfCv(cvFile);
+    const check = await validatePdfCvSecure(cvFile);
     if (!check.valid) {
       setCvError(check.error || 'Berkas tidak valid');
       return;
@@ -172,7 +173,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       const base64Data = await readFileAsBase64(cvFile);
 
       const application: CareerApplication = {
-        id: `app-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: `app-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
         jobId: selectedJob.id,
         jobTitle: selectedJob.title,
         department: selectedJob.department,
@@ -286,11 +287,16 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       <section className="relative bg-[#2F327D] text-white pt-20 sm:pt-28 pb-28 sm:pb-36 overflow-hidden">
         {/* Background Image Overlay with deep luxury navy tone */}
         <div className="absolute inset-0 z-0">
-          <img
-            src={cmsContent.heroBgUrl}
-            alt="Hotel Lobby Background"
-            className="w-full h-full object-cover opacity-25"
-          />
+          {(() => {
+            const safeHeroBgUrl = sanitizeSafeUrl(cmsContent.heroBgUrl, { allowDataImage: true });
+            return safeHeroBgUrl ? (
+              <img
+                src={safeHeroBgUrl}
+                alt="Hotel Lobby Background"
+                className="w-full h-full object-cover opacity-25"
+              />
+            ) : null;
+          })()}
           <div className="absolute inset-0 bg-gradient-to-b from-[#2F327D]/80 via-[#2F327D]/95 to-[#2F327D]" />
         </div>
 

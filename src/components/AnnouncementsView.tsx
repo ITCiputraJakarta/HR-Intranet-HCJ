@@ -32,7 +32,7 @@ import {
   Globe
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster } from '../types';
-import { validateAndScanFileUpload, sanitizeInput } from '../lib/security';
+import { validateAndScanFileUpload, sanitizeInput, sanitizeSafeUrl } from '../lib/security';
 import { getBackdropProps } from '../lib/modalHelper';
 import {
   addDocument,
@@ -45,7 +45,7 @@ import {
   getHotelUnitRule,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
-import { processFileForFirestore, formatBytes } from '../lib/fileCompressor';
+import { processFileForFirestore, formatBytes, downloadFileFromDataUrl } from '../lib/fileCompressor';
 import { Language, t } from '../lib/i18n';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
@@ -64,7 +64,10 @@ const AnnouncementCardBanner: React.FC<{
 }> = ({ doc, expInfo, onClick }) => {
   const [imgError, setImgError] = useState(false);
 
-  const rawUrl = doc.thumbUrl || doc.fileUrl;
+  const rawUrl = sanitizeSafeUrl(doc.thumbUrl || doc.fileUrl, {
+    allowDataImage: true,
+    allowBlob: true,
+  });
   const isImageValid = Boolean(
     rawUrl &&
     !imgError &&
@@ -80,7 +83,7 @@ const AnnouncementCardBanner: React.FC<{
       onClick={onClick}
       className="relative h-48 bg-slate-200 overflow-hidden cursor-pointer flex items-center justify-center group/banner"
     >
-      {isImageValid ? (
+      {isImageValid && rawUrl ? (
         <img
           src={rawUrl}
           alt={doc.title}
@@ -1021,7 +1024,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <input
                   id="up-announcement-photo"
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                   required={upIsPublic}
                   onChange={(e) => setPhotoInput(e.target.files?.[0] || null)}
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
@@ -1236,16 +1239,18 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                             </div>
                           </div>
                           {doc.attachmentUrl && (
-                            <a
-                              href={doc.attachmentUrl}
-                              download={doc.attachmentName}
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadFileFromDataUrl(doc.attachmentUrl!, doc.attachmentName || 'lampiran');
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-colors flex items-center gap-1 shrink-0 shadow-xs cursor-pointer"
                               title="Unduh Berkas Lampiran"
                             >
                               <Download className="w-3 h-3" />
                               <span>Unduh</span>
-                            </a>
+                            </button>
                           )}
                         </div>
                       )}
@@ -1383,19 +1388,28 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-200 shrink-0 flex items-center justify-center border border-slate-200">
-                            {doc.thumbUrl &&
-                            !doc.thumbUrl.includes('unsplash.com') &&
-                            (doc.fileType?.startsWith('image/') || doc.thumbUrl.startsWith('data:image/')) ? (
-                              <img src={doc.thumbUrl} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-500">
-                                {doc.attachmentName ? (
-                                  <FileText className="w-4 h-4 text-slate-600" />
-                                ) : (
-                                  <Megaphone className="w-4 h-4 text-slate-500" />
-                                )}
-                              </div>
-                            )}
+                            {(() => {
+                              const safeThumb = sanitizeSafeUrl(doc.thumbUrl, {
+                                allowDataImage: true,
+                                allowBlob: true,
+                              });
+                              if (
+                                safeThumb &&
+                                !safeThumb.includes('unsplash.com') &&
+                                (doc.fileType?.startsWith('image/') || safeThumb.startsWith('data:image/'))
+                              ) {
+                                return <img src={safeThumb} alt="" className="w-full h-full object-cover" />;
+                              }
+                              return (
+                                <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-500">
+                                  {doc.attachmentName ? (
+                                    <FileText className="w-4 h-4 text-slate-600" />
+                                  ) : (
+                                    <Megaphone className="w-4 h-4 text-slate-500" />
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="truncate max-w-sm">
                             <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate flex items-center gap-1.5 flex-wrap">
@@ -1649,7 +1663,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
                     onChange={(e) => {
                       setEditPhotoInput(e.target.files?.[0] || null);
                       setRemovePhoto(false);

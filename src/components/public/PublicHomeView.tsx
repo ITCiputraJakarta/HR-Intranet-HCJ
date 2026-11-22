@@ -41,6 +41,7 @@ import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/b
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { sanitizeSafeUrl } from '../../lib/security';
 import defaultHotelLounge from '../../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
 import defaultHotelSuite from '../../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
 import defaultHotelDining from '../../assets/images/gallery_hotel_artisan_wall_1790666750842.jpg';
@@ -345,7 +346,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
             {/* Main Hero Photo */}
             <img
-              src={content.heroImageUrl}
+              src={sanitizeSafeUrl(content.heroImageUrl, { allowDataImage: true }) || defaultHotelLounge}
               alt="Profesional Hotel Ciputra Jakarta"
               className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
             />
@@ -377,17 +378,22 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
             {/* Floating Card 2: HR / Manajemen / Pengumuman (hidden on extra small screens to prevent overlap) */}
             <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-60 sm:w-72 transition-transform hover:scale-105 duration-300">
-              {content.floatingCard2.avatarUrl && !content.floatingCard2.avatarUrl.includes('unsplash.com') ? (
-                <img
-                  src={content.floatingCard2.avatarUrl}
-                  alt="HR Avatar"
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-[#F48C06] shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-xs border-2 border-[#F48C06] shrink-0 shadow-2xs">
-                  <span>{content.floatingCard2.roleTag || 'HR'}</span>
-                </div>
-              )}
+              {(() => {
+                const safeAvatarUrl = sanitizeSafeUrl(content.floatingCard2.avatarUrl, {
+                  allowDataImage: true,
+                });
+                return safeAvatarUrl && !safeAvatarUrl.includes('unsplash.com') ? (
+                  <img
+                    src={safeAvatarUrl}
+                    alt="HR Avatar"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-[#F48C06] shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-xs border-2 border-[#F48C06] shrink-0 shadow-2xs">
+                    <span>{content.floatingCard2.roleTag || 'HR'}</span>
+                  </div>
+                );
+              })()}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <p className="text-xs sm:text-sm text-[#2F327D] font-bold leading-tight truncate">
@@ -476,24 +482,24 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           <div className="w-full lg:w-1/2 relative max-w-lg mx-auto">
             <div className="absolute top-0 left-0 w-full h-full bg-[#F48C06]/10 rounded-[40px] transform rotate-3 scale-105 -z-10" />
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <img
-                src={
-                  content.aboutImage1 && !content.aboutImage1.includes('unsplash.com')
-                    ? content.aboutImage1
-                    : defaultHotelLounge
-                }
-                alt="Fasilitas Hotel Ciputra Jakarta"
-                className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-br-sm shadow-md mt-4 sm:mt-6"
-              />
-              <img
-                src={
-                  content.aboutImage2 && !content.aboutImage2.includes('unsplash.com')
-                    ? content.aboutImage2
-                    : defaultHotelSuite
-                }
-                alt="Akomodasi Hotel Ciputra Jakarta"
-                className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-tl-sm shadow-md"
-              />
+              {(() => {
+                const safeAbout1 = sanitizeSafeUrl(content.aboutImage1, { allowDataImage: true });
+                const safeAbout2 = sanitizeSafeUrl(content.aboutImage2, { allowDataImage: true });
+                return (
+                  <>
+                    <img
+                      src={safeAbout1 && !safeAbout1.includes('unsplash.com') ? safeAbout1 : defaultHotelLounge}
+                      alt="Fasilitas Hotel Ciputra Jakarta"
+                      className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-br-sm shadow-md mt-4 sm:mt-6"
+                    />
+                    <img
+                      src={safeAbout2 && !safeAbout2.includes('unsplash.com') ? safeAbout2 : defaultHotelSuite}
+                      alt="Akomodasi Hotel Ciputra Jakarta"
+                      className="w-full h-48 sm:h-64 object-cover rounded-[24px] sm:rounded-[28px] rounded-tl-sm shadow-md"
+                    />
+                  </>
+                );
+              })()}
             </div>
 
             {/* Floating 100% Data Badge */}
@@ -604,11 +610,22 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
                   {/* Photo */}
                   <div className="shrink-0 relative">
-                    <img
-                      src={activeTestimonial.photoUrl}
-                      alt={activeTestimonial.name}
-                      className="w-20 h-20 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md mx-auto"
-                    />
+                    {(() => {
+                      const safeTestimonialPhoto = sanitizeSafeUrl(activeTestimonial.photoUrl, {
+                        allowDataImage: true,
+                      });
+                      return safeTestimonialPhoto ? (
+                        <img
+                          src={safeTestimonialPhoto}
+                          alt={activeTestimonial.name}
+                          className="w-20 h-20 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md mx-auto"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-2xl sm:text-3xl border-4 border-white shadow-md mx-auto">
+                          {(activeTestimonial.name || 'S').charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    })()}
                     <div className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 bg-[#F48C06] rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-2xs">
                       <Quote className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-white" />
                     </div>
@@ -665,15 +682,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             {publishedNews.length > 0 ? (
               publishedNews.map((item) => {
                 const badge = cleanPublicBadge(item.sub_kategori);
+                const safeThumb = sanitizeSafeUrl(item.thumbUrl, { allowDataImage: true });
+                const safeFile = sanitizeSafeUrl(item.fileUrl, { allowDataImage: true });
                 const hasValidPhoto = Boolean(
-                  (item.thumbUrl && !item.thumbUrl.includes('unsplash.com')) ||
-                  (item.fileType?.startsWith('image/') && item.fileUrl && !item.fileUrl.includes('unsplash.com')) ||
-                  (item.fileName?.match(/\.(jpg|jpeg|png|webp|gif)$/i) && item.fileUrl && !item.fileUrl.includes('unsplash.com'))
+                  (safeThumb && !safeThumb.includes('unsplash.com')) ||
+                  (item.fileType?.startsWith('image/') && safeFile && !safeFile.includes('unsplash.com')) ||
+                  (item.fileName?.match(/\.(jpg|jpeg|png|webp|gif)$/i) && safeFile && !safeFile.includes('unsplash.com'))
                 );
-                const photoSrc = (item.thumbUrl && !item.thumbUrl.includes('unsplash.com'))
-                  ? item.thumbUrl
-                  : (item.fileUrl && !item.fileUrl.includes('unsplash.com'))
-                  ? item.fileUrl
+                const photoSrc = (safeThumb && !safeThumb.includes('unsplash.com'))
+                  ? safeThumb
+                  : (safeFile && !safeFile.includes('unsplash.com'))
+                  ? safeFile
                   : '';
 
                 return (
@@ -993,15 +1012,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             {/* Modal Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-6">
               {/* Fit Image Hero Banner: Tampil pas & utuh jika memiliki foto */}
-              {zoomedNewsItem.imgUrl && !zoomedNewsItem.imgUrl.includes('unsplash.com') ? (
-                <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 sm:p-4 w-full shadow-inner min-h-[220px] max-h-[70vh] sm:max-h-[76vh]">
-                  <img
-                    src={zoomedNewsItem.imgUrl}
-                    alt={zoomedNewsItem.title}
-                    className="w-auto h-auto max-w-full max-h-[64vh] sm:max-h-[72vh] object-contain rounded-xl shadow-md transition-all duration-300"
-                  />
-                </div>
-              ) : (
+              {(() => {
+                const safeZoomedImg = sanitizeSafeUrl(zoomedNewsItem.imgUrl, { allowDataImage: true });
+                return safeZoomedImg && !safeZoomedImg.includes('unsplash.com') ? (
+                  <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-2 sm:p-4 w-full shadow-inner min-h-[220px] max-h-[70vh] sm:max-h-[76vh]">
+                    <img
+                      src={safeZoomedImg}
+                      alt={zoomedNewsItem.title}
+                      className="w-auto h-auto max-w-full max-h-[64vh] sm:max-h-[72vh] object-contain rounded-xl shadow-md transition-all duration-300"
+                    />
+                  </div>
+                ) : (
                 <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white p-6 sm:p-8 flex flex-col items-center justify-center text-center shadow-md">
                   <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-3">
                     <Megaphone className="w-7 h-7 text-[#F48C06]" />
@@ -1013,7 +1034,8 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                     {zoomedNewsItem.title}
                   </h3>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Meta & Title */}
               <div className="space-y-2 text-center sm:text-left">

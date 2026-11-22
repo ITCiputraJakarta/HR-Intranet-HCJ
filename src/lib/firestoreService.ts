@@ -15,7 +15,7 @@ import {
   where,
   writeBatch
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from './firebase';
+import { db, auth, isFirebaseConfigured } from './firebase';
 import {
   User,
   UserStatus,
@@ -109,6 +109,58 @@ export async function checkFirebaseConnection(): Promise<{ connected: boolean; m
   };
 }
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid || null,
+      email: auth.currentUser?.email || null,
+      emailVerified: auth.currentUser?.emailVerified ?? null,
+      isAnonymous: auth.currentUser?.isAnonymous ?? null,
+      tenantId: auth.currentUser?.tenantId || null,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error:', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 /**
  * Perform a live diagnostic probe against Cloud Firestore
  */
@@ -129,15 +181,26 @@ export async function testFirestoreConnection(): Promise<FirebaseDiagnosticRepor
   }
 
   try {
-    const testQuery = query(collection(db, USERS_COL), limit(1));
-    const snap = await getDocs(testQuery);
+    if (auth.currentUser) {
+      const testQuery = query(collection(db, USERS_COL), limit(1));
+      const snap = await getDocs(testQuery);
+      notifyFirebaseState('connected', 'Terhubung ke Cloud Firestore');
+      return {
+        success: true,
+        status: 'CONNECTED',
+        title: 'Koneksi Cloud Firestore Berhasil!',
+        message: `Terhubung sukses ke project Firebase (${snap.empty ? 'siap inisialisasi master data' : `${snap.size} sampel profil terverifikasi`}).`,
+        troubleshootingSteps: [],
+      };
+    }
 
+    await getDocFromServer(doc(db, CONFIG_COL, 'app_branding'));
     notifyFirebaseState('connected', 'Terhubung ke Cloud Firestore');
     return {
       success: true,
       status: 'CONNECTED',
       title: 'Koneksi Cloud Firestore Berhasil!',
-      message: `Terhubung sukses ke project Firebase. Koleksi "${USERS_COL}" dapat diakses (${snap.empty ? 'koleksi kosong, siap inisialisasi master data' : `${snap.size} sampel dokumen terverifikasi`}).`,
+      message: 'Terhubung ke server Cloud Firestore untuk konfigurasi portal dan pengumuman publik.',
       troubleshootingSteps: [],
     };
   } catch (error: any) {
@@ -149,19 +212,17 @@ export async function testFirestoreConnection(): Promise<FirebaseDiagnosticRepor
       errorMsg.includes('permission') ||
       errorMsg.includes('Missing or insufficient permissions')
     ) {
-      notifyFirebaseState('permission_denied', 'Aturan keamanan (Rules) memblokir akses.');
+      notifyFirebaseState('permission_denied', 'Aturan keamanan (Rules) membatasi akses sebelum otentikasi.');
       return {
         success: false,
         status: 'PERMISSION_DENIED',
-        title: 'Izin Akses Ditolak (Security Rules)',
-        message: 'Aplikasi berhasil menghubungi project Firebase Anda, namun Security Rules di Firebase Console memblokir akses baca/tulis.',
+        title: 'Izin Akses Membutuhkan Otentikasi Terverifikasi',
+        message: 'Akses koleksi internal dilindungi oleh aturan keamanan Firestore. Masuk menggunakan Google SSO atau akun Super Admin terverifikasi untuk menyinkronkan data penuh.',
         details: errorMsg,
         troubleshootingSteps: [
-          'Buka Firebase Console di https://console.firebase.google.com/project/hr-intranet-31ff4/firestore/rules',
-          'Pilih menu Build > Firestore Database > Tab "Rules".',
-          'Ubah aturan menjadi: allow read, write: if true;',
-          'Klik tombol "Publish" di Firebase Console.',
-          'Kembali ke portal ini dan klik "Uji Koneksi Ulang".'
+          'Pastikan Anda masuk melalui Google SSO atau akun Super Admin yang terverifikasi (it@hotelciputra.com).',
+          'Periksa aturan keamanan di Firebase Console agar hanya akun terverifikasi yang dapat mengakses koleksi internal.',
+          'Setelah masuk, klik "Uji Koneksi Ulang" untuk memverifikasi sinkronisasi.',
         ],
       };
     }
@@ -329,7 +390,7 @@ export async function seedInitialFirestoreData(force: boolean = false): Promise<
     const msg = error?.message || 'Gagal melakukan inisialisasi Firestore.';
     let humanReadable = msg;
     if (error?.code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) {
-      humanReadable = 'Izin akses ditolak: Security Rules di Firebase Console memblokir penulisan. Silakan publish aturan "allow read, write: if true;" di tab Rules Firebase Console.';
+      humanReadable = 'Izin akses ditolak oleh Security Rules Firestore. Masuk dengan akun Google SSO / Super Admin terverifikasi (it@hotelciputra.com) untuk melakukan inisialisasi data master.';
       notifyFirebaseState('permission_denied', humanReadable);
     } else if (error?.code === 'not-found' || msg.includes('does not exist')) {
       humanReadable = 'Database Firestore belum dibuat pada project hr-intranet-31ff4.';
@@ -410,6 +471,11 @@ function handleSubscriptionError(name: string, err: any) {
   console.warn(`${name} subscription notice:`, err?.message || err);
   if (err?.code === 'permission-denied' || String(err).includes('permission')) {
     notifyFirebaseState('permission_denied', 'Aturan keamanan Firebase membatasi akses');
+    try {
+      handleFirestoreError(err, OperationType.LIST, name);
+    } catch {
+      // Logged structured FirestoreErrorInfo for listener telemetry without crashing UI subscriptions
+    }
   } else if (err?.code === 'not-found' || String(err).includes('not found')) {
     notifyFirebaseState('not_found', 'Database Firestore belum dibuat');
   } else if (err?.code === 'unavailable') {
@@ -519,10 +585,15 @@ export async function fetchDocumentFullFile(docItem: IntranetDocument): Promise<
   return hydrateChunkedDocument(docItem);
 }
 
-export function subscribeToDocuments(onUpdate: (docs: IntranetDocument[]) => void): () => void {
+export function subscribeToDocuments(
+  onUpdate: (docs: IntranetDocument[]) => void,
+  publicOnly: boolean = false
+): () => void {
   if (!isFirebaseConfigured()) return () => {};
   try {
-    const q = collection(db, DOCS_COL);
+    const q = publicOnly
+      ? query(collection(db, DOCS_COL), where('isPublic', '==', true))
+      : collection(db, DOCS_COL);
     return onSnapshot(
       q,
       async (snapshot) => {
@@ -918,7 +989,7 @@ export async function firestoreFindUserByEmail(email: string): Promise<User | nu
     try {
       // 1. Try targeted index query first from server to ensure fresh approval status
       try {
-        const q = query(collection(db, USERS_COL), where('email', '==', cleanEmail));
+        const q = query(collection(db, USERS_COL), where('email', '==', cleanEmail), limit(1));
         let qSnap;
         try {
           // Attempt server fetch with a 3.5s timeout so slow networks do not hang indefinitely

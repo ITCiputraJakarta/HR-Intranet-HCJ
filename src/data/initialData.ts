@@ -84,7 +84,7 @@ export const INITIAL_DEPARTMENTS: DepartmentMaster[] = [
 export const DEPARTMENTS = INITIAL_DEPARTMENTS.map((d) => d.name);
 
 export const INITIAL_USERS: User[] = [
-  // Super Admin IT Utama Hotel Ciputra Jakarta
+  // Primary Super Admin profile metadata (no hardcoded credentials)
   {
     id: "usr-it-01",
     nama: "Super Admin IT",
@@ -93,32 +93,7 @@ export const INITIAL_USERS: User[] = [
     departemen: "Engineering",
     role: "admin",
     status: "Approved",
-    password: "password123",
     createdAt: "2026-01-01T08:00:00Z"
-  },
-  // Super Admin Management Hotel Ciputra Jakarta
-  {
-    id: "usr-admin-hcj",
-    nama: "Admin Hotel Ciputra Jakarta",
-    email: "admin@hotelciputra.com",
-    unit: "Hotel Ciputra Jakarta",
-    departemen: "Human Resources (HR)",
-    role: "admin",
-    status: "Approved",
-    password: "admin123",
-    createdAt: "2026-01-01T08:00:00Z"
-  },
-  // Super Admin System Alternatif
-  {
-    id: "usr-001",
-    nama: "Admin System",
-    email: "admin@ciputra.com",
-    unit: "Hotel Ciputra Jakarta",
-    departemen: "Human Resources (HR)",
-    role: "admin",
-    status: "Approved",
-    password: "admin",
-    createdAt: "2026-01-10T08:00:00Z"
   }
 ];
 

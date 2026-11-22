@@ -32,6 +32,7 @@ import {
   openFileFromDataUrl,
   dataUrlToBlob,
 } from '../lib/fileCompressor';
+import { sanitizeSafeUrl, validateAndScanFileUpload } from '../lib/security';
 
 interface DocumentPreviewModalProps {
   document: IntranetDocument | null;
@@ -143,6 +144,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       };
 
       if (replacementFile) {
+        const scan = await validateAndScanFileUpload(replacementFile);
+        if (!scan.valid) {
+          setEditError(scan.error || 'Berkas pengganti ditolak oleh sistem keamanan.');
+          setIsSaving(false);
+          return;
+        }
         const compressed = await processFileForFirestore(replacementFile);
         updated = {
           ...updated,
@@ -190,21 +197,23 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     onClose();
   };
 
+  const safeImageUrl = sanitizeSafeUrl(activeDoc.fileUrl || activeDoc.downloadUrl, {
+    allowDataImage: true,
+    allowBlob: true,
+  });
+
   const isImage = Boolean(
-    doc.fileUrl &&
-      (doc.fileType?.startsWith('image/') ||
-        doc.fileName?.endsWith('.jpg') ||
-        doc.fileName?.endsWith('.png') ||
-        doc.fileName?.endsWith('.jpeg') ||
-        doc.fileName?.endsWith('.webp') ||
-        doc.fileUrl.startsWith('data:image/'))
+    safeImageUrl &&
+      (activeDoc.fileType?.startsWith('image/') ||
+        activeDoc.fileName?.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/) ||
+        safeImageUrl.startsWith('data:image/'))
   );
 
   const isPdf = Boolean(
-    doc.fileUrl &&
-      (doc.fileType === 'application/pdf' ||
-        doc.fileName?.toLowerCase().endsWith('.pdf') ||
-        doc.fileUrl.startsWith('data:application/pdf'))
+    (activeDoc.fileUrl || activeDoc.downloadUrl)?.trim() &&
+      (activeDoc.fileType === 'application/pdf' ||
+        activeDoc.fileName?.toLowerCase().endsWith('.pdf') ||
+        (activeDoc.fileUrl || '').startsWith('data:application/pdf'))
   );
 
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
@@ -217,13 +226,20 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     }
     if (targetUrl.startsWith('data:')) {
       const blob = dataUrlToBlob(targetUrl);
-      if (blob) {
+      if (blob && blob.type === 'application/pdf') {
         const url = URL.createObjectURL(blob);
         setPdfPreviewUrl(url);
         return () => URL.revokeObjectURL(url);
       }
+      setPdfPreviewUrl('');
+      return;
     }
-    setPdfPreviewUrl(targetUrl);
+    const safeUrl = sanitizeSafeUrl(targetUrl, {
+      allowBlob: true,
+      allowDataImage: false,
+      allowDataDocument: false,
+    });
+    setPdfPreviewUrl(safeUrl || '');
   }, [activeDoc.fileUrl, activeDoc.downloadUrl, isPdf]);
 
   return (
@@ -288,16 +304,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
           {/* Preview Canvas (Image / PDF / Document Box) */}
           <div className="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center min-h-[240px] max-h-[72vh] p-2 sm:p-4 shadow-inner">
-            {isImage ? (
+            {isImage && safeImageUrl ? (
               <img
-                src={doc.fileUrl}
-                alt={doc.title}
+                src={safeImageUrl}
+                alt={activeDoc.title}
                 className="w-auto h-auto max-w-full max-h-[66vh] object-contain rounded-xl shadow-md"
               />
             ) : isPdf && pdfPreviewUrl ? (
               <iframe
                 src={pdfPreviewUrl}
-                title={doc.title}
+                title={activeDoc.title}
                 className="w-full h-[380px] border-0 bg-white"
               />
             ) : doc.category === 'Pengumuman' ? (
@@ -480,7 +496,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/png,image/jpeg,image/webp,image/gif"
                     onChange={(e) => setReplacementFile(e.target.files?.[0] || null)}
                     className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                   />

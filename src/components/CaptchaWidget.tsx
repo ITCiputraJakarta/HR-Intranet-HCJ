@@ -21,20 +21,27 @@ const CAPTCHA_LENGTH = 6;
 const CAPTCHA_TTL_MS = 120 * 1000; // Auto-refresh after 2 minutes
 
 function generateSecureCode(length = CAPTCHA_LENGTH): string {
+  const cryptoObj = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    throw new Error('Cryptographically secure random generator is required for Captcha.');
+  }
   const randomValues = new Uint32Array(length);
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(randomValues);
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += CHAR_POOL.charAt(randomValues[i] % CHAR_POOL.length);
-    }
-    return result;
-  }
-  let fallback = '';
+  cryptoObj.getRandomValues(randomValues);
+  let result = '';
   for (let i = 0; i < length; i++) {
-    fallback += CHAR_POOL.charAt(Math.floor(Math.random() * CHAR_POOL.length));
+    result += CHAR_POOL.charAt(randomValues[i] % CHAR_POOL.length);
   }
-  return fallback;
+  return result;
+}
+
+function csprngFloat(): number {
+  const cryptoObj = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    return 0.5;
+  }
+  const arr = new Uint32Array(1);
+  cryptoObj.getRandomValues(arr);
+  return arr[0] / 4294967296;
 }
 
 export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
@@ -88,29 +95,29 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
 
       // 3. Background interference bezier waves
       for (let i = 0; i < 5; i++) {
-        ctx.strokeStyle = `rgba(2, 119, 189, ${0.18 + Math.random() * 0.22})`;
-        ctx.lineWidth = 1.1 + Math.random() * 1.2;
+        ctx.strokeStyle = `rgba(2, 119, 189, ${0.18 + csprngFloat() * 0.22})`;
+        ctx.lineWidth = 1.1 + csprngFloat() * 1.2;
         ctx.beginPath();
-        ctx.moveTo(Math.random() * 25, Math.random() * height);
+        ctx.moveTo(csprngFloat() * 25, csprngFloat() * height);
         ctx.bezierCurveTo(
           width * 0.33,
-          Math.random() * height,
+          csprngFloat() * height,
           width * 0.66,
-          Math.random() * height,
-          width - Math.random() * 15,
-          Math.random() * height
+          csprngFloat() * height,
+          width - csprngFloat() * 15,
+          csprngFloat() * height
         );
         ctx.stroke();
       }
 
       // 4. Security noise dots
       for (let i = 0; i < 42; i++) {
-        ctx.fillStyle = `rgba(0, 72, 114, ${0.18 + Math.random() * 0.28})`;
+        ctx.fillStyle = `rgba(0, 72, 114, ${0.18 + csprngFloat() * 0.28})`;
         ctx.beginPath();
         ctx.arc(
-          Math.random() * width,
-          Math.random() * height,
-          0.7 + Math.random() * 1.3,
+          csprngFloat() * width,
+          csprngFloat() * height,
+          0.7 + csprngFloat() * 1.3,
           0,
           Math.PI * 2
         );
@@ -125,15 +132,15 @@ export const CaptchaWidget = forwardRef<CaptchaWidgetRef, CaptchaWidgetProps>(
       for (let i = 0; i < code.length; i++) {
         const char = code[i];
         ctx.save();
-        const x = (i + 0.85) * charWidth + (Math.random() - 0.5) * 3;
-        const y = height / 2 + Math.sin(i * 1.3 + Math.random()) * 4;
+        const x = (i + 0.85) * charWidth + (csprngFloat() - 0.5) * 3;
+        const y = height / 2 + Math.sin(i * 1.3 + csprngFloat()) * 4;
 
         ctx.translate(x, y);
-        const angle = (Math.random() - 0.5) * 0.48;
+        const angle = (csprngFloat() - 0.5) * 0.48;
         ctx.rotate(angle);
 
-        const fontFam = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
-        const fontSize = 19 + Math.floor(Math.random() * 4);
+        const fontFam = fontFamilies[Math.floor(csprngFloat() * fontFamilies.length)];
+        const fontSize = 19 + Math.floor(csprngFloat() * 4);
         ctx.font = `400 ${fontSize}px ${fontFam}, sans-serif`;
 
         ctx.fillStyle = colors[i % colors.length];

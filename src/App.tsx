@@ -88,8 +88,12 @@ import {
   testFirestoreConnection,
   firestorePullAllCollections,
   firestoreSyncQuotaTelemetry,
+  firestoreGetUserById,
   FirebaseConnectionState
 } from './lib/firestoreService';
+import { auth } from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { setInMemoryApiToken, getInMemoryApiToken, fetchWithApiAuth, clearInMemoryApiToken } from './lib/authSession';
 
 export default function App() {
   const [currentUser, setUserState] = useState<User | null>(() => {
@@ -99,6 +103,7 @@ export default function App() {
     }
     return getCurrentUser();
   });
+  const [isSessionVerified, setIsSessionVerified] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('announcements');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [currentLang, setCurrentLang] = useState<Language>(() => getSavedLanguage());
@@ -177,6 +182,114 @@ export default function App() {
     });
   };
 
+  // Reconcile and verify restored session on boot (never blindly trust tampered localStorage roles)
+  useEffect(() => {
+    let active = true;
+
+    const verifyRestoredSession = async () => {
+      if (!currentUser) {
+        if (active) setIsSessionVerified(false);
+        return;
+      }
+
+      // 1. Verify server Bearer token if held in memory
+      const token = getInMemoryApiToken();
+      if (token) {
+        try {
+          const resp = await fetchWithApiAuth('/api/auth/session');
+          if (resp.ok) {
+            const payload = await resp.json();
+            if (payload?.authenticated && payload?.user && active) {
+              setCurrentUser(payload.user);
+              setUserState(payload.user);
+              setIsSessionVerified(true);
+              return;
+            }
+          } else if (resp.status === 401) {
+            clearInMemoryApiToken();
+          }
+        } catch {
+          // Server unreachable; continue to Firestore/Firebase Auth verification
+        }
+      }
+
+      // 2. Verify authoritative record from Firestore (overwrites any localStorage role spoofing)
+      try {
+        const remote = await firestoreGetUserById(currentUser.id);
+        if (!active) return;
+        if (remote) {
+          if ((remote.status || '').toLowerCase() !== 'approved') {
+            clearAllSessionCache();
+            setCurrentUser(null);
+            setUserState(null);
+            setIsSessionVerified(false);
+            return;
+          }
+          setCurrentUser(remote);
+          setUserState(remote);
+          setIsSessionVerified(true);
+          return;
+        }
+      } catch {
+        // Ignore network transient failure
+      }
+
+      // 3. If Firebase Auth Google session exists without local token, exchange ID token for API token
+      if (auth.currentUser && auth.currentUser.email) {
+        try {
+          const idToken = await auth.currentUser.getIdToken();
+          const resp = await fetch('/api/auth/firebase-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.token && active) {
+              setInMemoryApiToken(data.token);
+              setIsSessionVerified(true);
+              return;
+            }
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      if (active) {
+        setIsSessionVerified(true);
+      }
+    };
+
+    verifyRestoredSession();
+
+    const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser && !getInMemoryApiToken()) {
+        try {
+          const idToken = await fbUser.getIdToken();
+          const resp = await fetch('/api/auth/firebase-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.token && active) {
+              setInMemoryApiToken(data.token);
+            }
+          }
+        } catch {
+          // Non-blocking
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubAuth();
+    };
+  }, [currentUser?.id]);
+
   useEffect(() => {
     // Listen to Firebase connectivity state & branding even on Login screen
     const unsubState = onFirebaseStateChange((state, msg) => {
@@ -185,8 +298,6 @@ export default function App() {
     });
 
     testFirestoreConnection().catch(() => {});
-    seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
-    cleanupPreDeployDummyData().catch((err) => console.warn('Pre-deploy cleanup check:', err));
 
     const initialSyncTimer = setTimeout(() => {
       setIsInitialSyncing(false);
@@ -196,18 +307,14 @@ export default function App() {
       setBranding(b);
     });
 
-    // Real-time Firestore document & announcement sync for all clients (including public portal view)
+    // Unauthenticated visitors only listen to public announcements (isPublic == true) and public master lists
+    const isAuthed = Boolean(currentUser?.id);
     const unsubDocs = subscribeToDocuments((newDocs) => {
       saveDocuments(newDocs);
       const syncedDocs = getDocuments();
       setDocuments(syncedDocs);
       setAnnouncements(syncedDocs.filter((d) => d.category === 'Pengumuman'));
-    });
-
-    const unsubCats = subscribeToCategories((newCats) => {
-      saveCategories(newCats);
-      setCategories(getCategories());
-    });
+    }, !isAuthed);
 
     const unsubDepts = subscribeToDepartments((newDepts) => {
       saveDepartmentMasters(newDepts);
@@ -219,11 +326,9 @@ export default function App() {
       setHotelUnits(getHotelUnits());
     });
 
-    const unsubConfig = subscribeToSystemConfig((newConfig) => {
-      setConfig((prev) => ({ ...prev, ...newConfig }));
-    });
-
-    // Authenticated Session Only: Subscribe to sensitive collections (Users, Access Logs, KPIs, Appraisals)
+    // Authenticated Session Only: Subscribe to internal collections & run admin maintenance only for verified admins
+    let unsubCats = () => {};
+    let unsubConfig = () => {};
     let unsubUsers = () => {};
     let unsubLogs = () => {};
     let unsubKPIs = () => {};
@@ -234,6 +339,20 @@ export default function App() {
     if (currentUser?.id) {
       refreshAllData();
 
+      if (currentUser.role === 'admin') {
+        seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
+        cleanupPreDeployDummyData().catch((err) => console.warn('Pre-deploy cleanup check:', err));
+      }
+
+      unsubCats = subscribeToCategories((newCats) => {
+        saveCategories(newCats);
+        setCategories(getCategories());
+      });
+
+      unsubConfig = subscribeToSystemConfig((newConfig) => {
+        setConfig((prev) => ({ ...prev, ...newConfig }));
+      });
+
       unsubUsers = subscribeToUsers((newUsers) => {
         saveUsers(newUsers);
         const syncedUsers = getUsers();
@@ -241,6 +360,11 @@ export default function App() {
         setUserState((prev) => {
           if (!prev) return null;
           const matched = syncedUsers.find((u) => u.id === prev.id);
+          if (matched && (matched.status || '').toLowerCase() !== 'approved') {
+            clearAllSessionCache();
+            setCurrentUser(null);
+            return null;
+          }
           if (
             matched &&
             (matched.unit !== prev.unit ||
@@ -275,9 +399,11 @@ export default function App() {
         setNotifications(getNotifications());
       });
 
-      unsubApps = subscribeToCareerApplications((apps) => {
-        setCareerApplications(apps);
-      });
+      if (currentUser.role === 'admin') {
+        unsubApps = subscribeToCareerApplications((apps) => {
+          setCareerApplications(apps);
+        });
+      }
     }
 
     return () => {
@@ -298,8 +424,8 @@ export default function App() {
     };
   }, [currentUser?.id]);
 
-  const isSuperAdmin = currentUser?.role === 'admin';
-  const isHod = currentUser?.role === 'hod';
+  const isSuperAdmin = isSessionVerified && currentUser?.role === 'admin';
+  const isHod = isSessionVerified && currentUser?.role === 'hod';
   const isHodOrAdmin = isSuperAdmin || isHod;
   const isL1 = currentUser?.role === 'staff' || currentUser?.role === 'spv' || currentUser?.role === 'manager';
 
@@ -410,9 +536,13 @@ export default function App() {
     handleLogout(true);
   });
 
-  const handleLoginSuccess = (user: User) => {
+  const handleLoginSuccess = (user: User, apiToken?: string | null) => {
+    if (apiToken) {
+      setInMemoryApiToken(apiToken);
+    }
     setCurrentUser(user);
     setUserState(user);
+    setIsSessionVerified(true);
     setIdleTimeoutMessage('');
     recordUserActivity();
     // Always start at announcements on login so staff never sees previous admin tab
@@ -435,9 +565,13 @@ export default function App() {
       });
     }
 
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    auth.signOut().catch(() => {});
+
     // Clear user and timer while keeping system data intact
     clearActivityTimer();
     clearAllSessionCache();
+    setIsSessionVerified(false);
     setCurrentUser(null);
     setUserState(null);
     setActiveTab('announcements');

@@ -2,114 +2,557 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // Global Default-Deny Safety Net (First rule inside databases/documents)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // REUSABLE PRIMITIVE HELPERS
+    // =========================================================================
+
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function hasValidUserFields(data) {
-      return data.keys().hasAll(['nama', 'email', 'role', 'status'])
-        && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 200
-        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
-        && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff', 'Admin', 'Manager', 'Spv', 'HOD', 'Staff']
-        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected', 'approved', 'pending', 'rejected', 'Active', 'active'];
+    function incoming() {
+      return request.resource.data;
     }
 
-    function hasValidDocumentFields(data) {
-      return data.keys().hasAll(['title', 'category'])
-        && data.title is string && data.title.size() > 0
-        && data.category is string;
+    function existing() {
+      return resource.data;
     }
 
-    function hasValidLogFields(data) {
-      return data.keys().hasAll(['timestamp', 'action'])
-        && data.action is string && data.action.size() > 0 && data.action.size() <= 250;
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
-    // Portal user records
+    function isBootstrapAdmin() {
+      return isSignedIn() && request.auth.token.email == 'it@hotelciputra.com';
+    }
+
+    // Only used in single-document get / create / update / delete blocks (NEVER inside allow list)
+    function isAdmin() {
+      return isBootstrapAdmin() || (
+        isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isEmailOwner(recordEmail) {
+      return isSignedIn()
+        && recordEmail is string
+        && recordEmail.size() > 0
+        && recordEmail.size() <= 150
+        && recordEmail == request.auth.token.email;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isOptionalBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function isOptionalNumber(data, key, minVal, maxVal) {
+      return !(key in data) || (data[key] is number && data[key] >= minVal && data[key] <= maxVal);
+    }
+
+    // =========================================================================
+    // ENTITY VALIDATION BLUEPRINTS
+    // =========================================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'nama', 'email', 'role', 'status'])
+        && data.keys().hasOnly([
+          'id', 'nama', 'email', 'unit', 'departemen', 'role',
+          'status', 'password', 'avatar', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 150
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']
+        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected']
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'departemen', 100)
+        && isOptionalString(data, 'password', 256)
+        && isOptionalString(data, 'avatar', 200000)
+        && isOptionalString(data, 'createdAt', 64)
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['uid', 'email', 'role'])
+        && data.keys().hasOnly(['uid', 'email', 'role', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.role == 'admin'
+        && isOptionalString(data, 'createdAt', 64);
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['id', 'title', 'category'])
+        && data.keys().hasOnly([
+          'id', 'title', 'category', 'sub_kategori', 'unit', 'isPublic', 'akses_dept',
+          'keterangan', 'fileUrl', 'previewUrl', 'downloadUrl', 'thumbUrl',
+          'fileName', 'fileType', 'fileSize', 'uploadedBy', 'uploadedByEmail',
+          'uploadedAt', 'updatedAt', 'effectiveDate', 'expiryDate',
+          'attachmentUrl', 'attachmentName', 'attachmentType', 'attachmentSize',
+          'isChunked', 'isChunkedFile', 'isChunkedAttachment', 'chunksCount',
+          'driveFileId', 'driveFolderPath'
+        ])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 300
+        && data.category is string && data.category in ['SOP', 'Form', 'Pengumuman']
+        && isOptionalString(data, 'sub_kategori', 120)
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalBool(data, 'isPublic')
+        && isOptionalString(data, 'akses_dept', 120)
+        && isOptionalString(data, 'keterangan', 5000)
+        && isOptionalString(data, 'fileUrl', 900000)
+        && isOptionalString(data, 'previewUrl', 900000)
+        && isOptionalString(data, 'downloadUrl', 900000)
+        && isOptionalString(data, 'thumbUrl', 900000)
+        && isOptionalString(data, 'fileName', 255)
+        && isOptionalString(data, 'fileType', 120)
+        && isOptionalString(data, 'fileSize', 64)
+        && isOptionalString(data, 'uploadedBy', 150)
+        && isOptionalString(data, 'uploadedByEmail', 150)
+        && isOptionalString(data, 'uploadedAt', 64)
+        && isOptionalString(data, 'updatedAt', 64)
+        && isOptionalString(data, 'effectiveDate', 32)
+        && isOptionalString(data, 'expiryDate', 32)
+        && isOptionalString(data, 'attachmentUrl', 900000)
+        && isOptionalString(data, 'attachmentName', 255)
+        && isOptionalString(data, 'attachmentType', 120)
+        && isOptionalString(data, 'attachmentSize', 64)
+        && isOptionalBool(data, 'isChunked')
+        && isOptionalBool(data, 'isChunkedFile')
+        && isOptionalBool(data, 'isChunkedAttachment')
+        && isOptionalNumber(data, 'chunksCount', 0, 100)
+        && isOptionalString(data, 'driveFileId', 256)
+        && isOptionalString(data, 'driveFolderPath', 500);
+    }
+
+    function isValidDocumentChunk(data) {
+      return data.keys().hasAll(['field', 'index', 'data'])
+        && data.keys().hasOnly(['field', 'index', 'data'])
+        && data.field is string && data.field in ['fileUrl', 'attachmentUrl']
+        && data.index is number && data.index >= 0 && data.index <= 100
+        && data.data is string && data.data.size() > 0 && data.data.size() <= 450000;
+    }
+
+    function isValidAccessLog(data) {
+      return data.keys().hasAll(['id', 'timestamp', 'action'])
+        && data.keys().hasOnly([
+          'id', 'timestamp', 'userName', 'userEmail', 'role', 'unit', 'departemen',
+          'actionCategory', 'action', 'target', 'status', 'details', 'ipAddress', 'userAgent'
+        ])
+        && isValidId(data.id)
+        && data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() <= 64
+        && data.action is string && data.action.size() > 0 && data.action.size() <= 250
+        && isOptionalString(data, 'userName', 150)
+        && isOptionalString(data, 'userEmail', 150)
+        && (!( 'role' in data ) || (data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']))
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'departemen', 100)
+        && (!( 'actionCategory' in data ) || (data.actionCategory is string && data.actionCategory in ['AUTH', 'DOCUMENT', 'USER_MGMT', 'APPRAISAL', 'KPI_CONFIG', 'SYSTEM']))
+        && isOptionalString(data, 'target', 250)
+        && (!( 'status' in data ) || (data.status is string && data.status in ['SUCCESS', 'WARNING', 'FAILED']))
+        && isOptionalString(data, 'details', 2000)
+        && isOptionalString(data, 'ipAddress', 100)
+        && isOptionalString(data, 'userAgent', 500);
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['id', 'nama_kategori'])
+        && data.keys().hasOnly(['id', 'unit', 'departemen', 'nama_kategori'])
+        && isValidId(data.id)
+        && data.nama_kategori is string && data.nama_kategori.size() > 0 && data.nama_kategori.size() <= 120
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'departemen', 100);
+    }
+
+    function isValidDepartment(data) {
+      return data.keys().hasAll(['id', 'name', 'code'])
+        && data.keys().hasOnly(['id', 'unit', 'name', 'code', 'description', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.code is string && data.code.size() > 0 && data.code.size() <= 32
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'description', 500)
+        && isOptionalString(data, 'createdAt', 64)
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    function isValidHotelUnit(data) {
+      return data.keys().hasAll(['id', 'name', 'code'])
+        && data.keys().hasOnly([
+          'id', 'name', 'shortName', 'code', 'description',
+          'announcementPruneDays', 'announcementMaxDays', 'announcementRuleNote', 'sopRuleNote'
+        ])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && data.code is string && data.code.size() > 0 && data.code.size() <= 32
+        && isOptionalString(data, 'shortName', 64)
+        && isOptionalString(data, 'description', 500)
+        && isOptionalNumber(data, 'announcementPruneDays', 1, 365)
+        && isOptionalNumber(data, 'announcementMaxDays', 1, 365)
+        && isOptionalString(data, 'announcementRuleNote', 500)
+        && isOptionalString(data, 'sopRuleNote', 500);
+    }
+
+    function isValidKpiMaster(data) {
+      return data.keys().hasAll(['id', 'departemen', 'pillar', 'objective'])
+        && data.keys().hasOnly([
+          'id', 'unit', 'departemen', 'tahun', 'tipe',
+          'target_role', 'pillar', 'objective', 'weight', 'target', 'status'
+        ])
+        && isValidId(data.id)
+        && data.departemen is string && data.departemen.size() > 0 && data.departemen.size() <= 100
+        && data.pillar is string && data.pillar.size() > 0 && data.pillar.size() <= 200
+        && data.objective is string && data.objective.size() > 0 && data.objective.size() <= 1000
+        && isOptionalString(data, 'unit', 120)
+        && (!( 'tahun' in data ) || (data.tahun is number || (data.tahun is string && data.tahun.size() <= 16)))
+        && (!( 'tipe' in data ) || (data.tipe is string && data.tipe in ['Mid-Year', 'Year-End']))
+        && (!( 'target_role' in data ) || (data.target_role is string && data.target_role in ['admin', 'manager', 'spv', 'hod', 'staff']))
+        && isOptionalNumber(data, 'weight', 0, 100)
+        && isOptionalString(data, 'target', 300)
+        && (!( 'status' in data ) || (data.status is string && data.status in ['Draft', 'Active']));
+    }
+
+    function isValidPerformance(data) {
+      return data.keys().hasAll(['id', 'email', 'nama', 'status'])
+        && data.keys().hasOnly([
+          'id', 'periode', 'tipe', 'email', 'nama', 'unit', 'departemen', 'role', 'status',
+          'kpis', 'kpiTotalScore', 'kpiTranslatedScore', 'behaviourScores', 'avgBehaviour',
+          'complianceScore', 'finalGrandTotal', 'finalGrade', 'starBest', 'starChallenge',
+          'managerFeedback', 'hrRecommendation', 'hrNote', 'reviewedBy', 'reviewedAt',
+          'approvedBy', 'approvedAt', 'isLocked', 'unlockedBy', 'unlockedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.nama is string && data.nama.size() > 0 && data.nama.size() <= 150
+        && data.status is string && data.status in ['Draft', 'Submitted', 'On Review', 'On Check', 'Approved']
+        && (!( 'periode' in data ) || (data.periode is number || (data.periode is string && data.periode.size() <= 16)))
+        && (!( 'tipe' in data ) || (data.tipe is string && data.tipe in ['Mid-Year', 'Year-End']))
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'departemen', 100)
+        && (!( 'role' in data ) || (data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']))
+        && (!( 'kpis' in data ) || (data.kpis is list && data.kpis.size() <= 50 && (data.kpis.size() == 0 || data.kpis[0] is map)))
+        && isOptionalNumber(data, 'kpiTotalScore', 0, 200)
+        && isOptionalNumber(data, 'kpiTranslatedScore', 0, 200)
+        && (!( 'behaviourScores' in data ) || data.behaviourScores is map)
+        && isOptionalNumber(data, 'avgBehaviour', 0, 10)
+        && isOptionalNumber(data, 'complianceScore', 0, 100)
+        && isOptionalNumber(data, 'finalGrandTotal', 0, 200)
+        && (!( 'finalGrade' in data ) || (data.finalGrade is string && data.finalGrade in ['E', 'G', 'M', 'U']))
+        && isOptionalString(data, 'starBest', 2000)
+        && isOptionalString(data, 'starChallenge', 2000)
+        && isOptionalString(data, 'managerFeedback', 2000)
+        && isOptionalString(data, 'hrRecommendation', 2000)
+        && isOptionalString(data, 'hrNote', 2000)
+        && isOptionalString(data, 'reviewedBy', 150)
+        && isOptionalString(data, 'reviewedAt', 64)
+        && isOptionalString(data, 'approvedBy', 150)
+        && isOptionalString(data, 'approvedAt', 64)
+        && isOptionalBool(data, 'isLocked')
+        && isOptionalString(data, 'unlockedBy', 150)
+        && isOptionalString(data, 'unlockedAt', 64)
+        && isOptionalString(data, 'createdAt', 64)
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'title', 'message'])
+        && data.keys().hasOnly([
+          'id', 'title', 'message', 'category', 'unit', 'targetDepartment',
+          'targetRole', 'documentId', 'createdAt', 'read'
+        ])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.message is string && data.message.size() > 0 && data.message.size() <= 1000
+        && isOptionalString(data, 'category', 100)
+        && isOptionalString(data, 'unit', 120)
+        && isOptionalString(data, 'targetDepartment', 120)
+        && isOptionalString(data, 'targetRole', 64)
+        && isOptionalString(data, 'documentId', 128)
+        && isOptionalString(data, 'createdAt', 64)
+        && isOptionalBool(data, 'read');
+    }
+
+    function isValidCareerJob(data) {
+      return data.keys().hasAll(['id', 'title', 'department', 'status'])
+        && data.keys().hasOnly([
+          'id', 'title', 'department', 'experience', 'deadline', 'jobType',
+          'description', 'requirements', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.department is string && data.department.size() > 0 && data.department.size() <= 100
+        && isOptionalString(data, 'experience', 100)
+        && isOptionalString(data, 'deadline', 64)
+        && (!( 'jobType' in data ) || (data.jobType is string && data.jobType in ['Full-time', 'Kontrak', 'Magang', 'Daily Worker']))
+        && isOptionalString(data, 'description', 5000)
+        && (!( 'requirements' in data ) || (data.requirements is list && data.requirements.size() <= 30 && (data.requirements.size() == 0 || (data.requirements[0] is string && data.requirements[0].size() <= 500))))
+        && data.status is string && data.status in ['Open', 'Closed']
+        && isOptionalString(data, 'createdAt', 64)
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    function isValidCareerApplication(data) {
+      return data.keys().hasAll(['id', 'jobId', 'fullName', 'email', 'phone', 'cvFileName', 'cvFileType', 'cvFileSize', 'cvFileData', 'status', 'submittedAt'])
+        && data.keys().hasOnly([
+          'id', 'jobId', 'jobTitle', 'department', 'fullName', 'email', 'phone',
+          'domisili', 'education', 'cvFileName', 'cvFileType', 'cvFileSize',
+          'cvFileData', 'notes', 'status', 'submittedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.jobId)
+        && isOptionalString(data, 'jobTitle', 200)
+        && isOptionalString(data, 'department', 100)
+        && data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 150
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 40
+        && isOptionalString(data, 'domisili', 150)
+        && isOptionalString(data, 'education', 64)
+        && data.cvFileName is string && data.cvFileName.size() > 0 && data.cvFileName.size() <= 255
+        && data.cvFileType == 'application/pdf'
+        && data.cvFileSize is number && data.cvFileSize > 0 && data.cvFileSize <= 1048576
+        && data.cvFileData is string && data.cvFileData.size() > 0 && data.cvFileData.size() <= 1500000
+        && data.cvFileData.matches('^data:application/pdf.*')
+        && isOptionalString(data, 'notes', 2000)
+        && data.status is string && data.status in ['Pending', 'Reviewed', 'Interview', 'Rejected']
+        && data.submittedAt is string && data.submittedAt.size() > 0 && data.submittedAt.size() <= 64;
+    }
+
+    function isValidSystemConfig(data) {
+      return data.keys().size() <= 45
+        && isOptionalString(data, 'id', 128)
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    // =========================================================================
+    // COLLECTION MATCH RULES
+    // =========================================================================
+
+    // Trusted Admin Registry
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isBootstrapAdmin() || (isSignedIn() && request.auth.uid == adminId));
+      allow list: if isBootstrapAdmin();
+      allow create, update: if isValidId(adminId) && isBootstrapAdmin() && isValidAdmin(incoming());
+      allow delete: if isValidId(adminId) && isBootstrapAdmin();
+    }
+
+    // Users (PII Isolated: strict owner-or-admin read, no self-escalation on create/update)
     match /users/{userId} {
-      allow read: if true;
-      allow create, update: if isValidId(userId) && hasValidUserFields(request.resource.data);
-      allow delete: if isValidId(userId);
+      allow get: if isValidId(userId) && (isAdmin() || isEmailOwner(existing().email));
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow create: if isValidId(userId) && isValidUser(incoming()) && (
+        isAdmin() || (
+          isSignedIn()
+          && incoming().email == request.auth.token.email
+          && incoming().role == 'staff'
+          && incoming().status == 'Pending'
+        )
+      );
+      allow update: if isValidId(userId) && isValidUser(incoming()) && (
+        isAdmin() || (
+          isEmailOwner(existing().email)
+          && incoming().email == existing().email
+          && incoming().role == existing().role
+          && incoming().status == existing().status
+          && incoming().diff(existing()).affectedKeys().hasOnly(['nama', 'avatar', 'departemen', 'unit', 'updatedAt'])
+        )
+      );
+      allow delete: if isValidId(userId) && isAdmin();
     }
 
-    // Official intranet documents (SOPs, Forms, Announcements directly stored in Cloud Firestore)
+    // Official Intranet Documents & Master-Gated File Chunks
     match /documents/{docId} {
-      allow read: if true;
-      allow create, update: if isValidId(docId) && hasValidDocumentFields(request.resource.data);
-      allow delete: if isValidId(docId);
+      allow get: if isValidId(docId) && (existing().isPublic == true || isSignedIn());
+      allow list: if (resource.data.isPublic == true) || isBootstrapAdmin() || isSignedIn();
+      allow create: if isValidId(docId) && isSignedIn() && isValidDocument(incoming()) && (
+        isAdmin() || (
+          (!('isPublic' in incoming()) || incoming().isPublic == false)
+          && (!('uploadedByEmail' in incoming()) || incoming().uploadedByEmail == request.auth.token.email)
+        )
+      );
+      allow update: if isValidId(docId) && isSignedIn() && isValidDocument(incoming()) && (
+        isAdmin() || (
+          existing().uploadedByEmail == request.auth.token.email
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'sub_kategori', 'akses_dept', 'keterangan',
+            'fileUrl', 'previewUrl', 'downloadUrl', 'thumbUrl',
+            'fileName', 'fileType', 'fileSize', 'updatedAt',
+            'effectiveDate', 'expiryDate', 'attachmentUrl',
+            'attachmentName', 'attachmentType', 'attachmentSize',
+            'isChunked', 'isChunkedFile', 'isChunkedAttachment', 'chunksCount'
+          ])
+        )
+      );
+      allow delete: if isValidId(docId) && (
+        isAdmin() || (isSignedIn() && existing().uploadedByEmail == request.auth.token.email)
+      );
 
-      // Large file chunks subcollection for seamless Firestore storage without 1MB limit
       match /chunks/{chunkId} {
-        allow read: if true;
-        allow create, update, delete: if isValidId(docId) && isValidId(chunkId);
+        allow get: if isValidId(docId) && isValidId(chunkId) && (
+          get(/databases/$(database)/documents/documents/$(docId)).data.isPublic == true || isSignedIn()
+        );
+        allow list: if isSignedIn();
+        allow create, update: if isValidId(docId)
+          && isValidId(chunkId)
+          && isSignedIn()
+          && isValidDocumentChunk(incoming())
+          && exists(/databases/$(database)/documents/documents/$(docId))
+          && (
+            isAdmin()
+            || get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail == request.auth.token.email
+          );
+        allow delete: if isValidId(docId) && isValidId(chunkId) && (
+          isAdmin()
+          || (
+            isSignedIn()
+            && exists(/databases/$(database)/documents/documents/$(docId))
+            && get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail == request.auth.token.email
+          )
+        );
       }
     }
 
-    // Structured Audit Access Logs
+    // Access Audit Logs (Owner or Admin Read, Authenticated Create, Admin-only Mutation/Deletion)
     match /accessLogs/{logId} {
-      allow read: if true;
-      allow create: if isValidId(logId) && hasValidLogFields(request.resource.data);
-      allow update, delete: if isValidId(logId);
+      allow get: if isValidId(logId) && (isAdmin() || isEmailOwner(existing().userEmail));
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userEmail == request.auth.token.email);
+      allow create: if isValidId(logId) && isSignedIn() && isValidAccessLog(incoming()) && (
+        isAdmin() || (!('userEmail' in incoming()) || incoming().userEmail == request.auth.token.email)
+      );
+      allow update, delete: if isValidId(logId) && isAdmin();
     }
 
-    // Category and subcategory master
+    // Categories Master
     match /categories/{catId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(catId);
+      allow get: if isValidId(catId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(catId) && isAdmin() && isValidCategory(incoming());
+      allow update: if isValidId(catId) && isAdmin() && isValidCategory(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['nama_kategori', 'departemen', 'unit'])
+      );
+      allow delete: if isValidId(catId) && isAdmin();
     }
 
-    // Department master records
+    // Departments Master (Readable for login/registration dropdowns, Admin-only write)
     match /departments/{deptId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(deptId);
+      allow get: if isValidId(deptId);
+      allow list: if true;
+      allow create: if isValidId(deptId) && isAdmin() && isValidDepartment(incoming());
+      allow update: if isValidId(deptId) && isAdmin() && isValidDepartment(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'unit', 'description', 'updatedAt'])
+      );
+      allow delete: if isValidId(deptId) && isAdmin();
     }
 
-    // KPI indicators master
-    match /kpiMaster/{kpiId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(kpiId);
-    }
-
-    // Performance appraisals
-    match /performances/{perfId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(perfId);
-    }
-
-    // In-app push notifications
-    match /notifications/{notifId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(notifId);
-    }
-
-    // Global system configuration
-    match /systemConfig/{configId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(configId);
-    }
-
-    // Hotel Unit Group master records
+    // Hotel Units Master
     match /hotelUnits/{unitId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(unitId);
+      allow get: if isValidId(unitId);
+      allow list: if true;
+      allow create: if isValidId(unitId) && isAdmin() && isValidHotelUnit(incoming());
+      allow update: if isValidId(unitId) && isAdmin() && isValidHotelUnit(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'shortName', 'code', 'description',
+          'announcementPruneDays', 'announcementMaxDays', 'announcementRuleNote', 'sopRuleNote'
+        ])
+      );
+      allow delete: if isValidId(unitId) && isAdmin();
     }
 
-    // Career job postings
+    // KPI Indicators Master
+    match /kpiMaster/{kpiId} {
+      allow get: if isValidId(kpiId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(kpiId) && isAdmin() && isValidKpiMaster(incoming());
+      allow update: if isValidId(kpiId) && isAdmin() && isValidKpiMaster(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'unit', 'departemen', 'tahun', 'tipe', 'target_role',
+          'pillar', 'objective', 'weight', 'target', 'status'
+        ])
+      );
+      allow delete: if isValidId(kpiId) && isAdmin();
+    }
+
+    // Performance Appraisals (PII & Rating Protected, Terminal 'Approved' State Locked)
+    match /performances/{perfId} {
+      allow get: if isValidId(perfId) && (isAdmin() || isEmailOwner(existing().email));
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow create: if isValidId(perfId) && isSignedIn() && isValidPerformance(incoming()) && (
+        isAdmin() || (incoming().email == request.auth.token.email && incoming().status in ['Draft', 'Submitted'])
+      );
+      allow update: if isValidId(perfId) && isSignedIn() && isValidPerformance(incoming()) && (
+        isAdmin() || (
+          isEmailOwner(existing().email)
+          && incoming().email == existing().email
+          && existing().status != 'Approved'
+          && incoming().status in ['Draft', 'Submitted']
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'kpis', 'kpiTotalScore', 'kpiTranslatedScore', 'behaviourScores',
+            'avgBehaviour', 'complianceScore', 'finalGrandTotal', 'finalGrade',
+            'starBest', 'starChallenge', 'status', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isValidId(perfId) && isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notifId} {
+      allow get: if isValidId(notifId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(notifId) && isSignedIn() && isValidNotification(incoming());
+      allow update: if isValidId(notifId) && isSignedIn() && isValidNotification(incoming()) && (
+        isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+      );
+      allow delete: if isValidId(notifId) && isAdmin();
+    }
+
+    // System Configuration (Curated Public UI/CMS Configs vs Internal Configs)
+    match /systemConfig/{configId} {
+      allow get: if isValidId(configId) && (
+        configId in ['app_branding', 'app_branding_gallery', 'home_cms', 'career_cms', 'hotel_units_master']
+        || isSignedIn()
+      );
+      allow list: if isBootstrapAdmin();
+      allow create, update: if isValidId(configId) && isAdmin() && isValidSystemConfig(incoming());
+      allow delete: if isValidId(configId) && isAdmin();
+    }
+
+    // Career Job Postings
     match /career_jobs/{jobId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(jobId);
+      allow get: if isValidId(jobId);
+      allow list: if true;
+      allow create: if isValidId(jobId) && isAdmin() && isValidCareerJob(incoming());
+      allow update: if isValidId(jobId) && isAdmin() && isValidCareerJob(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'department', 'experience', 'deadline', 'jobType',
+          'description', 'requirements', 'status', 'updatedAt'
+        ])
+      );
+      allow delete: if isValidId(jobId) && isAdmin();
     }
 
-    // Career applications
+    // Career Candidate Applications (Write-only public apply with strict PDF + Pending lock; Admin-only read/review)
     match /career_applications/{appId} {
-      allow read: if true;
-      allow create, update, delete: if isValidId(appId);
-    }
-
-    // Default deny for all other collections
-    match /{document=**} {
-      allow read, write: if false;
+      allow get: if isValidId(appId) && isAdmin();
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(appId)
+        && isValidCareerApplication(incoming())
+        && incoming().status == 'Pending'
+        && exists(/databases/$(database)/documents/career_jobs/$(incoming().jobId));
+      allow update: if isValidId(appId) && isAdmin() && isValidCareerApplication(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+      );
+      allow delete: if isValidId(appId) && isAdmin();
     }
   }
 }

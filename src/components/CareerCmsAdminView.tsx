@@ -44,6 +44,8 @@ import {
 } from '../lib/cmsService';
 import { getBackdropProps } from '../lib/modalHelper';
 import { UnifiedLogo } from './common/UnifiedLogo';
+import { sanitizeSafeUrl } from '../lib/security';
+import { dataUrlToBlob, downloadFileFromDataUrl } from '../lib/fileCompressor';
 
 interface CareerCmsAdminViewProps {
   currentUser: User;
@@ -80,6 +82,45 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
   const [applicantSearch, setApplicantSearch] = useState('');
   const [selectedApplicant, setSelectedApplicant] = useState<CareerApplication | null>(null);
   const [previewPdfModal, setPreviewPdfModal] = useState<CareerApplication | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+
+  useEffect(() => {
+    const rawData = previewPdfModal?.cvFileData;
+    if (!rawData) {
+      setPreviewBlobUrl(null);
+      return;
+    }
+    const safeRemote = sanitizeSafeUrl(rawData, {
+      allowDataImage: false,
+      allowDataDocument: false,
+      allowBlob: true,
+      allowRelative: false,
+    });
+    if (safeRemote && !safeRemote.startsWith('data:')) {
+      setPreviewBlobUrl(safeRemote);
+      return;
+    }
+    if (rawData.startsWith('data:application/pdf')) {
+      try {
+        const blob = dataUrlToBlob(rawData);
+        const objectUrl = URL.createObjectURL(blob);
+        setPreviewBlobUrl(objectUrl);
+        return () => {
+          URL.revokeObjectURL(objectUrl);
+        };
+      } catch {
+        setPreviewBlobUrl(null);
+        return;
+      }
+    }
+    setPreviewBlobUrl(null);
+  }, [previewPdfModal]);
 
   useEffect(() => {
     const unsubJobs = subscribeToCareerJobs((j) => setJobs(j));
@@ -99,10 +140,14 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
   };
 
   const handleResetContent = () => {
-    if (window.confirm('Kembalikan teks halaman karir ke pengaturan standar?')) {
-      setCmsContent(DEFAULT_CAREER_CMS);
-      saveCareerCmsContent(DEFAULT_CAREER_CMS);
-    }
+    setPendingConfirm({
+      title: 'Kembalikan Konten Karir?',
+      message: 'Kembalikan teks halaman karir ke pengaturan standar?',
+      onConfirm: () => {
+        setCmsContent(DEFAULT_CAREER_CMS);
+        saveCareerCmsContent(DEFAULT_CAREER_CMS);
+      },
+    });
   };
 
   const handleOpenJobModal = (job?: CareerJobPosting) => {
@@ -157,10 +202,14 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
     setIsJobModalOpen(false);
   };
 
-  const handleDeleteJob = async (jobId: string) => {
-    if (window.confirm('Hapus posisi lowongan kerja ini?')) {
-      await deleteCareerJob(jobId);
-    }
+  const handleDeleteJob = (jobId: string) => {
+    setPendingConfirm({
+      title: 'Hapus Lowongan Kerja?',
+      message: 'Hapus posisi lowongan kerja ini secara permanen?',
+      onConfirm: async () => {
+        await deleteCareerJob(jobId);
+      },
+    });
   };
 
   const handleToggleJobStatus = async (job: CareerJobPosting) => {
@@ -179,25 +228,26 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
     await updateApplicationStatus(appId, status);
   };
 
-  const handleDeleteApp = async (appId: string) => {
-    if (window.confirm('Hapus data lamaran pelamar ini beserta file CV?')) {
-      await deleteCareerApplication(appId);
-      if (selectedApplicant?.id === appId) setSelectedApplicant(null);
-      if (previewPdfModal?.id === appId) setPreviewPdfModal(null);
-    }
+  const handleDeleteApp = (appId: string) => {
+    setPendingConfirm({
+      title: 'Hapus Data Lamaran?',
+      message: 'Hapus data lamaran pelamar ini beserta berkas CV PDF?',
+      onConfirm: async () => {
+        await deleteCareerApplication(appId);
+        if (selectedApplicant?.id === appId) setSelectedApplicant(null);
+        if (previewPdfModal?.id === appId) setPreviewPdfModal(null);
+      },
+    });
   };
 
   const handleDownloadCv = (app: CareerApplication) => {
     if (!app.cvFileData) {
-      alert('File CV tidak ditemukan pada data lamaran ini.');
+      setFeedbackNotice('File CV tidak ditemukan pada data lamaran ini.');
+      setTimeout(() => setFeedbackNotice(null), 4000);
       return;
     }
-    const link = document.createElement('a');
-    link.href = app.cvFileData;
-    link.download = app.cvFileName || `CV_${app.fullName.replace(/\s+/g, '_')}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const targetName = app.cvFileName || `CV_${app.fullName.replace(/\s+/g, '_')}.pdf`;
+    downloadFileFromDataUrl(app.cvFileData, targetName);
   };
 
   // Filter applications
@@ -1026,19 +1076,68 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
 
             {/* PDF Embed viewer */}
             <div className="flex-1 bg-slate-100 relative">
-              {previewPdfModal.cvFileData ? (
+              {previewBlobUrl ? (
                 <iframe
-                  src={previewPdfModal.cvFileData}
+                  src={previewBlobUrl}
                   title={`CV ${previewPdfModal.fullName}`}
                   className="w-full h-full border-0"
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-slate-400">
-                  Data berkas PDF tidak tersedia
+                  Data berkas PDF tidak valid atau tidak tersedia
                 </div>
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog Modal */}
+      {pendingConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          {...getBackdropProps(() => setPendingConfirm(null))}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 text-center"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">{pendingConfirm.title}</h3>
+              <p className="text-xs text-slate-600 mt-1">{pendingConfirm.message}</p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingConfirm(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const fn = pendingConfirm.onConfirm;
+                  setPendingConfirm(null);
+                  await fn();
+                }}
+                className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+              >
+                Ya, Lanjutkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Toast */}
+      {feedbackNotice && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-rose-600 text-white text-xs font-semibold shadow-xl flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{feedbackNotice}</span>
         </div>
       )}
     </div>

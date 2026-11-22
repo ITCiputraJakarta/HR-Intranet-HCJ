@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { SocialMediaItem } from '../../types';
 import { getAppBranding, subscribeToAppBranding } from '../../lib/branding';
+import { sanitizeSafeUrl } from '../../lib/security';
 
 // Modern SVG Icons for platforms not built-in with Lucide or specific styling
 export const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -94,8 +95,14 @@ export const SocialMediaBar: React.FC<SocialMediaBarProps> = ({
     return () => unsub();
   }, [customLinks]);
 
-  // Only render active/enabled links that have valid URLs
-  const activeLinks = links.filter((l) => l.enabled && l.url && l.url.trim().length > 0);
+  // Only render active/enabled links that pass safe scheme validation (http/https only)
+  const activeLinks = links
+    .filter((l) => l.enabled && l.url && l.url.trim().length > 0)
+    .map((l) => ({
+      ...l,
+      safeUrl: sanitizeSafeUrl(l.url, { allowDataImage: false, allowRelative: false }),
+    }))
+    .filter((l): l is SocialMediaItem & { safeUrl: string } => Boolean(l.safeUrl));
 
   if (activeLinks.length === 0) {
     return null;
@@ -107,7 +114,7 @@ export const SocialMediaBar: React.FC<SocialMediaBarProps> = ({
         {activeLinks.map((item) => (
           <a
             key={item.id}
-            href={item.url}
+            href={item.safeUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={item.name}
@@ -127,7 +134,7 @@ export const SocialMediaBar: React.FC<SocialMediaBarProps> = ({
         {activeLinks.map((item) => (
           <a
             key={item.id}
-            href={item.url}
+            href={item.safeUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/80 hover:bg-orange-50 border border-slate-200 hover:border-orange-300 text-slate-700 hover:text-[#F48C06] text-xs transition shadow-2xs"
@@ -146,11 +153,11 @@ export const SocialMediaBar: React.FC<SocialMediaBarProps> = ({
       {activeLinks.map((item) => (
         <a
           key={item.id}
-          href={item.url}
+          href={item.safeUrl}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={item.name}
-          title={`${item.name}: ${item.handle || item.url}`}
+          title={`${item.name}: ${item.handle || item.safeUrl}`}
           className="group relative p-1.5 sm:p-2 rounded-xl bg-white hover:bg-[#FFF3E4] text-[#2F327D] hover:text-[#F48C06] border border-sky-200/80 hover:border-[#F48C06]/40 transition-all duration-200 shadow-2xs hover:shadow-xs flex items-center justify-center cursor-pointer"
         >
           {renderSocialIcon(item.id, 'w-3.5 h-3.5 transition-transform duration-200 group-hover:scale-110')}

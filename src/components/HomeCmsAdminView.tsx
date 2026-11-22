@@ -55,6 +55,7 @@ import {
   AppBranding
 } from '../lib/branding';
 import { compressImageFile } from '../lib/fileCompressor';
+import { sanitizeSafeUrl, validateAndScanFileUpload } from '../lib/security';
 import { getBackdropProps } from '../lib/modalHelper';
 import { UnifiedLogo } from './common/UnifiedLogo';
 import { SocialMediaBar, renderSocialIcon } from './common/SocialMediaBar';
@@ -85,12 +86,13 @@ const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
   const [isUrlMode, setIsUrlMode] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError('');
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (!file.type.startsWith('image/')) {
-        setUploadError('Harap pilih file gambar (JPG, PNG, atau WebP)');
+      e.target.value = '';
+      if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+        setUploadError('Harap pilih file gambar raster (JPG, PNG, atau WebP). SVG tidak diizinkan.');
         return;
       }
       if (file.size > 1.5 * 1024 * 1024) {
@@ -98,16 +100,18 @@ const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          onChange(reader.result);
-        }
-      };
-      reader.onerror = () => {
-        setUploadError('Gagal membaca berkas gambar.');
-      };
-      reader.readAsDataURL(file);
+      const scan = await validateAndScanFileUpload(file, 1.5 * 1024 * 1024);
+      if (!scan.valid) {
+        setUploadError(scan.error || 'Berkas gambar ditolak oleh sistem keamanan.');
+        return;
+      }
+
+      try {
+        const compressed = await compressImageFile(file, 1200, 0.8);
+        onChange(compressed.dataUrl);
+      } catch {
+        setUploadError('Gagal memproses berkas gambar.');
+      }
     }
   };
 
@@ -186,26 +190,30 @@ const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
       )}
 
       {/* Image Preview */}
-      {value && (
-        <div className="flex items-center gap-3 pt-2">
-          <div className={`overflow-hidden border border-slate-200 shadow-2xs bg-white shrink-0 ${previewClasses}`}>
-            <img
-              src={value}
-              alt="Preview"
-              className="w-full h-full object-cover"
-            />
+      {(() => {
+        const safePreviewUrl = sanitizeSafeUrl(value, { allowDataImage: true });
+        if (!safePreviewUrl) return null;
+        return (
+          <div className="flex items-center gap-3 pt-2">
+            <div className={`overflow-hidden border border-slate-200 shadow-2xs bg-white shrink-0 ${previewClasses}`}>
+              <img
+                src={safePreviewUrl}
+                alt="Preview"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-normal border border-emerald-200">
+                <Check className="w-3 h-3 text-emerald-600" />
+                <span>Gambar Siap Tampil</span>
+              </span>
+              <p className="text-[10.5px] text-slate-400 truncate font-mono">
+                {safePreviewUrl.startsWith('data:') ? 'Berkas Base64 Tersimpan' : safePreviewUrl}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-1">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-normal border border-emerald-200">
-              <Check className="w-3 h-3 text-emerald-600" />
-              <span>Gambar Siap Tampil</span>
-            </span>
-            <p className="text-[10.5px] text-slate-400 truncate font-mono">
-              {value.startsWith('data:') ? 'Berkas Base64 Tersimpan' : value}
-            </p>
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
@@ -221,6 +229,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   const [branding, setBranding] = useState<AppBranding>(() => getAppBranding());
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingBg, setIsUploadingBg] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<'reset-social' | 'reset-home' | null>(null);
 
   useEffect(() => {
     const unsub = subscribeToAppBranding((b) => setBranding(b));
@@ -251,13 +260,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   };
 
   const handleResetSocialLinks = () => {
-    if (
-      window.confirm(
-        'Kembalikan seluruh tautan media sosial ke standar resmi Hotel Ciputra Jakarta?'
-      )
-    ) {
-      setSocialLinks(DEFAULT_SOCIAL_LINKS.map((s) => ({ ...s })));
-    }
+    setConfirmModal('reset-social');
   };
 
   // Testimonial modal state
@@ -346,9 +349,15 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
 
   const handleHeroBgChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setIsUploadingBg(true);
     try {
+      const scan = await validateAndScanFileUpload(file, 2 * 1024 * 1024);
+      if (!scan.valid) {
+        console.error(scan.error || 'Berkas hero ditolak oleh sistem keamanan.');
+        return;
+      }
       const compressed = await compressImageFile(file, 1600, 0.85);
       setFormData((prev) => ({ ...prev, heroImageUrl: compressed.dataUrl }));
       setSaveSuccess(true);
@@ -376,16 +385,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   };
 
   const handleResetToDefault = () => {
-    if (
-      window.confirm(
-        'Kembalikan seluruh konten Halaman Beranda ke pengaturan standar Hotel Ciputra Jakarta?'
-      )
-    ) {
-      setFormData(DEFAULT_HOME_CMS);
-      saveHomeCmsContent(DEFAULT_HOME_CMS);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    }
+    setConfirmModal('reset-home');
   };
 
   const handleAddTestimonial = () => {
@@ -603,7 +603,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                           <span>{isUploadingLogo ? 'Mengunggah...' : 'Ganti Logo'}</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/png,image/jpeg,image/webp"
                             onChange={handleLogoChange}
                             disabled={isUploadingLogo}
                             className="hidden"
@@ -623,18 +623,27 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                       <span className="text-[10px] text-slate-400">Visual Beranda</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <img
-                        src={formData.heroImageUrl}
-                        alt="Hero Visual"
-                        className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200"
-                      />
+                      {(() => {
+                        const safeHeroImg = sanitizeSafeUrl(formData.heroImageUrl, { allowDataImage: true });
+                        return safeHeroImg ? (
+                          <img
+                            src={safeHeroImg}
+                            alt="Hero Visual"
+                            className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                            <ImageIcon className="w-5 h-5" />
+                          </div>
+                        );
+                      })()}
                       <div className="flex-1 space-y-1.5">
                         <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer border border-slate-200 transition">
                           <Upload className="w-3.5 h-3.5" />
                           <span>{isUploadingBg ? 'Mengunggah...' : 'Ganti Foto Hero'}</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/png,image/jpeg,image/webp"
                             onChange={handleHeroBgChange}
                             disabled={isUploadingBg}
                             className="hidden"
@@ -1433,11 +1442,20 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                     >
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={t.photoUrl}
-                            alt={t.name}
-                            className="w-11 h-11 rounded-full object-cover border border-slate-200"
-                          />
+                          {(() => {
+                            const safeTestimonialPhoto = sanitizeSafeUrl(t.photoUrl, { allowDataImage: true });
+                            return safeTestimonialPhoto ? (
+                              <img
+                                src={safeTestimonialPhoto}
+                                alt={t.name}
+                                className="w-11 h-11 rounded-full object-cover border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-11 h-11 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs border border-slate-200 shrink-0">
+                                {(t.name || 'S').charAt(0).toUpperCase()}
+                              </div>
+                            );
+                          })()}
                           <div>
                             <p className="font-normal text-[#2F327D] text-xs">{t.name}</p>
                             <p className="text-[11px] text-slate-400">{t.role}</p>
@@ -1734,17 +1752,24 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                                 placeholder={`https://${item.id}.com/...`}
                                 className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#F48C06]"
                               />
-                              {item.url && (
-                                <a
-                                  href={item.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1.5 rounded-lg border border-slate-200 hover:bg-orange-50 text-slate-500 hover:text-[#F48C06] transition shrink-0 cursor-pointer"
-                                  title="Tes buka link"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              )}
+                              {(() => {
+                                const safeSocialUrl = sanitizeSafeUrl(item.url, {
+                                  allowDataImage: false,
+                                  allowRelative: false,
+                                });
+                                if (!safeSocialUrl) return null;
+                                return (
+                                  <a
+                                    href={safeSocialUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-orange-50 text-slate-500 hover:text-[#F48C06] transition shrink-0 cursor-pointer"
+                                    title="Tes buka link"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                );
+                              })()}
                             </div>
                           </div>
 
@@ -1867,6 +1892,57 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
           </div>
         </main>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          {...getBackdropProps(() => setConfirmModal(null))}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 text-center"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Konfirmasi Pengaturan Ulang</h3>
+              <p className="text-xs text-slate-600 mt-1">
+                {confirmModal === 'reset-social'
+                  ? 'Kembalikan seluruh tautan media sosial ke standar resmi Hotel Ciputra Jakarta?'
+                  : 'Kembalikan seluruh konten Halaman Beranda ke pengaturan standar Hotel Ciputra Jakarta?'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal === 'reset-social') {
+                    setSocialLinks(DEFAULT_SOCIAL_LINKS.map((s) => ({ ...s })));
+                  } else {
+                    setFormData(DEFAULT_HOME_CMS);
+                    saveHomeCmsContent(DEFAULT_HOME_CMS);
+                    setSaveSuccess(true);
+                    setTimeout(() => setSaveSuccess(false), 3000);
+                  }
+                  setConfirmModal(null);
+                }}
+                className="px-5 py-2 text-xs font-bold rounded-xl bg-[#F48C06] hover:bg-[#e07f04] text-white cursor-pointer"
+              >
+                Ya, Kembalikan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

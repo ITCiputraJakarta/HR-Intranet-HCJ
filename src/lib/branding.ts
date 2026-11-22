@@ -6,6 +6,7 @@
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import { compressImageFile } from './fileCompressor';
+import { sanitizeSafeUrl } from './security';
 import { SocialMediaItem } from '../types';
 
 export interface GalleryItemCaption {
@@ -96,10 +97,11 @@ export function normalizeSocialLinks(arr: unknown): SocialMediaItem[] {
   return DEFAULT_SOCIAL_LINKS.map((def) => {
     const found = arr.find((item: any) => item && (item.id === def.id || item.name?.toLowerCase() === def.name.toLowerCase()));
     if (found) {
+      const safeUrl = sanitizeSafeUrl(typeof found.url === 'string' ? found.url : '', { allowDataImage: false });
       return {
         id: def.id,
         name: def.name,
-        url: typeof found.url === 'string' && found.url.trim() ? found.url.trim() : def.url,
+        url: safeUrl || def.url,
         enabled: typeof found.enabled === 'boolean' ? found.enabled : def.enabled,
         handle: typeof found.handle === 'string' ? found.handle.trim() : def.handle,
       };
@@ -162,7 +164,9 @@ const BRANDING_GALLERY_DOC_ID = 'app_branding_gallery';
 
 function normalizeGalleryImages(arr: unknown): Array<string | null> {
   if (!Array.isArray(arr)) return [null, null, null, null];
-  return [0, 1, 2, 3].map((i) => (typeof arr[i] === 'string' && arr[i] ? arr[i] : null));
+  return [0, 1, 2, 3].map((i) =>
+    typeof arr[i] === 'string' ? sanitizeSafeUrl(arr[i], { allowDataImage: true }) : null
+  );
 }
 
 function normalizeGalleryCaptions(arr: unknown): GalleryItemCaption[] {
@@ -191,7 +195,9 @@ let currentBranding: AppBranding = (() => {
           appName: parsed.appName || DEFAULT_BRANDING.appName,
           subTitle: parsed.subTitle !== undefined ? parsed.subTitle : DEFAULT_BRANDING.subTitle,
           customLogoUrl:
-            parsed.customLogoUrl !== undefined ? parsed.customLogoUrl : DEFAULT_BRANDING.customLogoUrl,
+            parsed.customLogoUrl !== undefined
+              ? sanitizeSafeUrl(parsed.customLogoUrl, { allowDataImage: true })
+              : DEFAULT_BRANDING.customLogoUrl,
           customBgUrl: null,
           heroBadge:
             parsed.heroBadge && parsed.heroBadge.trim()
@@ -260,14 +266,15 @@ let lastLocalSaveTime = 0;
 function syncFavicon(logoUrl: string | null) {
   if (typeof document === 'undefined') return;
   try {
+    const safeUrl = sanitizeSafeUrl(logoUrl, { allowDataImage: true });
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
-    if (logoUrl) {
+    if (safeUrl) {
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
         document.head.appendChild(link);
       }
-      link.href = logoUrl;
+      link.href = safeUrl;
     }
   } catch {
     // Ignore favicon DOM errors
@@ -283,8 +290,14 @@ function applyIncomingBranding(data: Partial<AppBranding>): AppBranding {
   const updated: AppBranding = {
     appName: data.appName || currentBranding.appName || DEFAULT_BRANDING.appName,
     subTitle: data.subTitle !== undefined ? data.subTitle : currentBranding.subTitle,
-    customLogoUrl: data.customLogoUrl !== undefined ? data.customLogoUrl : currentBranding.customLogoUrl,
-    customBgUrl: data.customBgUrl !== undefined ? data.customBgUrl : currentBranding.customBgUrl,
+    customLogoUrl:
+      data.customLogoUrl !== undefined
+        ? sanitizeSafeUrl(data.customLogoUrl, { allowDataImage: true })
+        : currentBranding.customLogoUrl,
+    customBgUrl:
+      data.customBgUrl !== undefined
+        ? sanitizeSafeUrl(data.customBgUrl, { allowDataImage: true })
+        : currentBranding.customBgUrl,
     heroBadge:
       data.heroBadge !== undefined && data.heroBadge.trim()
         ? data.heroBadge
@@ -441,11 +454,11 @@ export async function saveAppBranding(
         : currentBranding.subTitle || DEFAULT_BRANDING.subTitle,
     customLogoUrl:
       newBranding.customLogoUrl !== undefined
-        ? newBranding.customLogoUrl
+        ? sanitizeSafeUrl(newBranding.customLogoUrl, { allowDataImage: true })
         : currentBranding.customLogoUrl || null,
     customBgUrl:
       newBranding.customBgUrl !== undefined
-        ? newBranding.customBgUrl
+        ? sanitizeSafeUrl(newBranding.customBgUrl, { allowDataImage: true })
         : currentBranding.customBgUrl || null,
     heroBadge:
       newBranding.heroBadge !== undefined
@@ -542,6 +555,7 @@ export async function saveAppBranding(
       galleryTitle: updated.galleryTitle,
       galleryImages: splitGallery ? [null, null, null, null] : updated.galleryImages,
       galleryCaptions: updated.galleryCaptions,
+      socialLinks: updated.socialLinks,
       footerAddress: updated.footerAddress,
       footerContact: updated.footerContact,
       footerCopyright: updated.footerCopyright,

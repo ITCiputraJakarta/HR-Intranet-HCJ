@@ -1,11 +1,15 @@
 /**
  * Security utilities for HR Intranet Portal
- * - Password hashing and verification (Web Crypto SHA-256 with salt)
- * - Input sanitization (Anti-XSS)
- * - File upload validation and binary header (magic bytes) scanning
+ * - Password hashing & verification (PBKDF2-HMAC-SHA256 via Web Crypto + pure-JS SHA-256 fallback)
+ * - Safe URL sanitization (anti-javascript:/data:text/html/svg injection)
+ * - CSV formula injection escaping & safe filename sanitization
+ * - Input sanitization
+ * - File upload validation and fail-closed binary header (magic bytes) + script scanning
  */
 
-// Simple hex encoder
+const PBKDF2_ITERATIONS = 120000;
+const PBKDF2_KEY_BITS = 256;
+
 function bufferToHex(buffer: ArrayBuffer): string {
   const byteArray = new Uint8Array(buffer);
   let hex = '';
@@ -15,9 +19,47 @@ function bufferToHex(buffer: ArrayBuffer): string {
   return hex;
 }
 
+function getCryptoObj(): Crypto | null {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+    return globalThis.crypto;
+  }
+  if (typeof window !== 'undefined' && window.crypto) {
+    return window.crypto;
+  }
+  return null;
+}
+
+/**
+ * Cryptographically secure random bytes (fail closed if CSPRNG unavailable)
+ */
+export function getSecureRandomBytes(length: number): Uint8Array {
+  const cryptoObj = getCryptoObj();
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    throw new Error('Cryptographically secure random generator is unavailable in this environment.');
+  }
+  const bytes = new Uint8Array(length);
+  cryptoObj.getRandomValues(bytes);
+  return bytes;
+}
+
+/**
+ * Constant-time string comparison to reduce timing side-channels on hash checks
+ */
+export function constantTimeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const maxLen = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < maxLen; i++) {
+    const ca = i < a.length ? a.charCodeAt(i) : 0;
+    const cb = i < b.length ? b.charCodeAt(i) : 0;
+    diff |= ca ^ cb;
+  }
+  return diff === 0;
+}
+
 /**
  * Standard RFC/FIPS 180-4 SHA-256 in pure JavaScript
- * Produces identical output to window.crypto.subtle and Node.js crypto in all environments
+ * Produces identical output to crypto.subtle and Node.js crypto in all environments
  */
 export function sha256Pure(str: string): string {
   const K = [
@@ -33,11 +75,12 @@ export function sha256Pure(str: string): string {
   let H = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ];
-  const utf8 = unescape(encodeURIComponent(str));
-  const msgLen = utf8.length;
+  const encoder = new TextEncoder();
+  const utf8Bytes = encoder.encode(str);
+  const msgLen = utf8Bytes.length;
   const words: number[] = [];
   for (let i = 0; i < msgLen; i++) {
-    words[i >> 2] = (words[i >> 2] || 0) | (utf8.charCodeAt(i) << (24 - (i % 4) * 8));
+    words[i >> 2] = (words[i >> 2] || 0) | (utf8Bytes[i] << (24 - (i % 4) * 8));
   }
   words[msgLen >> 2] = (words[msgLen >> 2] || 0) | (0x80 << (24 - (msgLen % 4) * 8));
   const newLen = (((msgLen + 8) >> 6) + 1) << 4;
@@ -81,49 +124,84 @@ export function sha256Pure(str: string): string {
   return H.map((val) => (val >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
+async function derivePbkdf2Hex(
+  plainPassword: string,
+  saltHex: string,
+  iterations: number = PBKDF2_ITERATIONS
+): Promise<string> {
+  const cryptoObj = getCryptoObj();
+  if (cryptoObj && cryptoObj.subtle) {
+    const encoder = new TextEncoder();
+    const keyMaterial = await cryptoObj.subtle.importKey(
+      'raw',
+      encoder.encode(plainPassword),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+    const derivedBits = await cryptoObj.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: encoder.encode(saltHex),
+        iterations,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      PBKDF2_KEY_BITS
+    );
+    return bufferToHex(derivedBits);
+  }
+  // Stretched pure-JS fallback only when Web Crypto subtle is unavailable
+  let acc = sha256Pure(`${saltHex}:${plainPassword}`);
+  const rounds = Math.min(iterations, 5000);
+  for (let i = 1; i < rounds; i++) {
+    acc = sha256Pure(`${acc}:${saltHex}:${i}`);
+  }
+  return acc;
+}
+
+export function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
+  if (typeof password !== 'string') {
+    return { valid: false, error: 'Kata sandi tidak valid.' };
+  }
+  const trimmed = password.trim();
+  if (trimmed.length < 8) {
+    return { valid: false, error: 'Kata sandi wajib minimal 8 karakter.' };
+  }
+  if (trimmed.length > 128) {
+    return { valid: false, error: 'Kata sandi maksimal 128 karakter.' };
+  }
+  if (!/[A-Za-z]/.test(trimmed) || !/\d/.test(trimmed)) {
+    return { valid: false, error: 'Kata sandi wajib mengandung kombinasi huruf dan angka.' };
+  }
+  return { valid: true };
+}
+
+export function needsPasswordUpgrade(storedHash?: string): boolean {
+  if (!storedHash || typeof storedHash !== 'string') return false;
+  return !storedHash.startsWith('PBKDF2:');
+}
+
 /**
- * Hash password with standard SHA-256 and unique salt
+ * Hash password using PBKDF2-HMAC-SHA256 (120,000 iterations) with a CSPRNG 16-byte salt.
  */
 export async function hashPassword(plainPassword: string): Promise<string> {
   if (!plainPassword) return '';
   const trimmed = plainPassword.trim();
   if (!trimmed) return '';
-  
-  // If already hashed with our prefix
-  if (trimmed.startsWith('SHA256:')) {
+
+  if (trimmed.startsWith('PBKDF2:')) {
     return trimmed;
   }
 
-  // Generate 16 bytes salt
-  const saltBytes = new Uint8Array(16);
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(saltBytes);
-  } else {
-    for (let i = 0; i < 16; i++) {
-      saltBytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  const saltHex = bufferToHex(saltBytes.buffer);
-
-  // Attempt window.crypto.subtle, fallback to deterministic pure JS sha256
-  try {
-    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(saltHex + ':' + trimmed);
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-      const hashHex = bufferToHex(hashBuffer);
-      return `SHA256:${saltHex}:${hashHex}`;
-    }
-  } catch (e) {
-    // Fallback to pure JS sha256 if subtle crypto throws in sandboxed iframe
-  }
-
-  const hashHex = sha256Pure(saltHex + ':' + trimmed);
-  return `SHA256:${saltHex}:${hashHex}`;
+  const saltBytes = getSecureRandomBytes(16);
+  const saltHex = bufferToHex(saltBytes.buffer as ArrayBuffer);
+  const hashHex = await derivePbkdf2Hex(trimmed, saltHex, PBKDF2_ITERATIONS);
+  return `PBKDF2:${PBKDF2_ITERATIONS}:${saltHex}:${hashHex}`;
 }
 
 /**
- * Verify password against stored hash with backward compatibility
+ * Verify password strictly against PBKDF2 or legacy SHA256 hashes (no plaintext or weak 32-bit fallback).
  */
 export async function verifyPassword(plainPassword: string, storedHash: string): Promise<boolean> {
   if (!plainPassword || !storedHash) return false;
@@ -131,78 +209,186 @@ export async function verifyPassword(plainPassword: string, storedHash: string):
   const trimmedPlain = plainPassword.trim();
   const trimmedStored = storedHash.trim();
 
-  // If stored in modern SHA256 format
+  // Modern PBKDF2:iterations:saltHex:hashHex format
+  if (trimmedStored.startsWith('PBKDF2:')) {
+    const parts = trimmedStored.split(':');
+    if (parts.length !== 4) return false;
+    const iterations = Number(parts[1]);
+    const saltHex = parts[2];
+    const expectedHash = parts[3];
+    if (!Number.isFinite(iterations) || iterations < 10000 || iterations > 1000000 || !saltHex || !expectedHash) {
+      return false;
+    }
+    try {
+      const actualHash = await derivePbkdf2Hex(trimmedPlain, saltHex, iterations);
+      return constantTimeEqual(actualHash, expectedHash);
+    } catch {
+      return false;
+    }
+  }
+
+  // Legacy SHA256:saltHex:hashHex migration support (verifies cryptographically only)
   if (trimmedStored.startsWith('SHA256:')) {
     const parts = trimmedStored.split(':');
     if (parts.length === 3) {
       const saltHex = parts[1];
       const expectedHash = parts[2];
-
-      // 1. Check with Web Crypto Subtle if available
+      if (!saltHex || !expectedHash || expectedHash.length !== 64) {
+        return false;
+      }
       try {
-        if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+        const cryptoObj = getCryptoObj();
+        if (cryptoObj && cryptoObj.subtle) {
           const encoder = new TextEncoder();
           const data = encoder.encode(saltHex + ':' + trimmedPlain);
-          const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+          const hashBuffer = await cryptoObj.subtle.digest('SHA-256', data);
           const actualHash = bufferToHex(hashBuffer);
-          if (actualHash === expectedHash) return true;
+          if (constantTimeEqual(actualHash, expectedHash)) return true;
         }
-      } catch (e) {
+      } catch {
         // Fallback to pure JS sha256
       }
 
-      // 2. Check with pure JS standard SHA-256
       const pureHash = sha256Pure(saltHex + ':' + trimmedPlain);
-      if (pureHash === expectedHash) return true;
-
-      // 3. Backward compatibility with older non-subtle 32-bit hash
-      let hash = 0;
-      const str = saltHex + ':' + trimmedPlain;
-      for (let i = 0; i < str.length; i++) {
-        hash = (hash << 5) - hash + str.charCodeAt(i);
-        hash |= 0;
-      }
-      if (Math.abs(hash).toString(16) === expectedHash) return true;
+      return constantTimeEqual(pureHash, expectedHash);
     }
   }
 
-  // Backward compatibility with legacy plain text password
-  return trimmedPlain === trimmedStored;
+  // Reject plaintext or unknown hash formats
+  return false;
 }
 
 /**
- * Sanitize string inputs to prevent XSS attacks
+ * Sanitize string inputs to remove active HTML/script markers
  */
 export function sanitizeInput(input: string): string {
   if (!input || typeof input !== 'string') return '';
   return input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/onload\s*=/gi, '')
-    .replace(/onerror\s*=/gi, '')
-    .replace(/onclick\s*=/gi, '')
     .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
     .trim();
+}
+
+export interface SafeUrlOptions {
+  allowDataImage?: boolean;
+  allowDataDocument?: boolean;
+  allowBlob?: boolean;
+  allowRelative?: boolean;
+}
+
+const SAFE_IMAGE_DATA_PREFIX = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
+const SAFE_DOC_DATA_PREFIX =
+  /^data:(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|application\/vnd\.ms-excel|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|text\/plain|text\/csv);base64,[A-Za-z0-9+/=]+$/i;
+
+/**
+ * Validates and sanitizes dynamic URLs for href / src / iframe sinks.
+ * Returns null if empty or unsafe (so callers never render `src=""` or `javascript:`).
+ */
+export function sanitizeSafeUrl(
+  rawUrl?: string | null,
+  options: SafeUrlOptions = {}
+): string | null {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+
+  // Strip control whitespace bypass attempts when inspecting scheme
+  const compact = trimmed.replace(/[\u0000-\u0020]+/g, '');
+  const lower = compact.toLowerCase();
+
+  // Explicitly block dangerous schemes & active HTML/SVG data URLs
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('data:text/html') ||
+    lower.startsWith('data:image/svg') ||
+    lower.startsWith('data:application/javascript') ||
+    lower.startsWith('data:text/javascript')
+  ) {
+    return null;
+  }
+
+  if (lower.startsWith('data:')) {
+    if (options.allowDataImage && SAFE_IMAGE_DATA_PREFIX.test(compact)) {
+      return compact;
+    }
+    if (options.allowDataDocument && SAFE_DOC_DATA_PREFIX.test(compact)) {
+      return compact;
+    }
+    // Also allow safe data:image inside document preview if allowDataDocument is enabled
+    if (options.allowDataDocument && SAFE_IMAGE_DATA_PREFIX.test(compact)) {
+      return compact;
+    }
+    return null;
+  }
+
+  if (lower.startsWith('blob:')) {
+    return options.allowBlob ? trimmed : null;
+  }
+
+  if (options.allowRelative !== false) {
+    if ((trimmed.startsWith('/') && !trimmed.startsWith('//')) || trimmed.startsWith('#')) {
+      return trimmed;
+    }
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Escapes CSV cell values against Spreadsheet Formula Injection (=, +, -, @, \t, \r)
+ * and safely quotes according to RFC 4180.
+ */
+export function escapeCsvCell(value: unknown): string {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (/^[\s]*[=+\-@\t\r]/.test(text)) {
+    text = `'${text}`;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Sanitizes downloaded or uploaded filenames against path traversal and special characters.
+ */
+export function sanitizeFileName(name: string, fallback: string = 'document'): string {
+  if (!name || typeof name !== 'string') return fallback;
+  const base = name.replace(/^.*[\\/]/, '').replace(/\.\./g, '');
+  const clean = base.replace(/[^\w.\-() ]+/g, '_').replace(/^\.+/, '').trim();
+  return clean.slice(0, 120) || fallback;
 }
 
 /**
  * Dangerous file extensions that must NEVER be uploaded
  */
 const FORBIDDEN_EXTENSIONS = new Set([
-  'exe', 'bat', 'cmd', 'sh', 'bash', 'php', 'phtml', 'php3', 'php4', 'php5',
-  'js', 'jsx', 'ts', 'tsx', 'vbs', 'msi', 'scr', 'jar', 'html', 'htm',
-  'dll', 'com', 'cgi', 'pl', 'py', 'rb', 'apk', 'app', 'dmg', 'iso', 'bin'
+  'exe', 'bat', 'cmd', 'sh', 'bash', 'ps1', 'php', 'phtml', 'php3', 'php4', 'php5',
+  'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'vbs', 'msi', 'scr', 'jar', 'html', 'htm',
+  'xhtml', 'svg', 'svgz', 'xml', 'dll', 'com', 'cgi', 'pl', 'py', 'rb', 'apk', 'app',
+  'dmg', 'iso', 'bin'
 ]);
 
 /**
- * Allowed MIME types / extensions for documents and images
+ * Strict allowlist for documents and raster images
  */
 const ALLOWED_EXTENSIONS = new Set([
   'pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'
 ]);
 
 /**
- * Scan file upload: checks extension, file size, and scans binary magic bytes
+ * Scan file upload: checks extension, file size, MIME, magic bytes (fail-closed), and text scripts
  */
 export async function validateAndScanFileUpload(
   file: File,
@@ -212,12 +398,11 @@ export async function validateAndScanFileUpload(
     return { valid: false, error: 'Berkas tidak ditemukan.' };
   }
 
-  // 1. Check file size
   if (file.size > maxSizeBytes) {
-    const maxMb = Math.round(maxSizeBytes / (1024 * 1024));
+    const maxMb = (maxSizeBytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '');
     return {
       valid: false,
-      error: `Ukuran berkas (${(file.size / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimum ${maxMb} MB.`
+      error: `Ukuran berkas (${(file.size / (1024 * 1024)).toFixed(1)} MB) melebihi batas maksimum ${maxMb} MB.`,
     };
   }
 
@@ -225,84 +410,161 @@ export async function validateAndScanFileUpload(
     return { valid: false, error: 'Berkas kosong (0 bytes) tidak diperbolehkan.' };
   }
 
-  // 2. Check extension
+  if (file.type && (file.type.toLowerCase().includes('svg') || file.type.toLowerCase().includes('html'))) {
+    return {
+      valid: false,
+      error: 'Format SVG atau HTML tidak diizinkan demi keamanan portal.',
+    };
+  }
+
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
   if (!ext || FORBIDDEN_EXTENSIONS.has(ext)) {
     return {
       valid: false,
-      error: `Tipe ekstensi .${ext || 'unknown'} diblokir oleh sistem keamanan demi mencegah eksekusi skrip berbahaya.`
+      error: `Tipe ekstensi .${ext || 'unknown'} diblokir oleh sistem keamanan demi mencegah eksekusi skrip berbahaya.`,
     };
   }
 
   if (!ALLOWED_EXTENSIONS.has(ext)) {
     return {
       valid: false,
-      error: `Format berkas .${ext} tidak didukung. Harap unggah PDF, Dokumen Office (DOC/DOCX/XLS/XLSX), CSV, atau Gambar (JPG/PNG/WEBP).`
+      error: `Format berkas .${ext} tidak didukung. Harap unggah PDF, Dokumen Office (DOC/DOCX/XLS/XLSX), CSV, TXT, atau Gambar (JPG/PNG/WEBP/GIF).`,
     };
   }
 
-  // 3. Scan Magic Bytes (inspect file header directly to prevent extension spoofing)
+  // Fail-closed header & content verification
   try {
-    const slice = file.slice(0, 16);
-    const arrayBuffer = await slice.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    const headerBuf = await file.slice(0, 16).arrayBuffer();
+    const bytes = new Uint8Array(headerBuf);
+    if (bytes.length < 3) {
+      return { valid: false, error: 'Berkas terlalu kecil atau tidak memiliki header yang valid.' };
+    }
 
-    // PDF magic bytes: %PDF- (0x25 0x50 0x44 0x46)
-    const isPdfHeader = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    const isPdfHeader =
+      bytes.length >= 4 &&
+      bytes[0] === 0x25 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x44 &&
+      bytes[3] === 0x46; // %PDF
 
-    // PNG magic bytes: 0x89 0x50 0x4E 0x47
-    const isPngHeader = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isPngHeader =
+      bytes.length >= 4 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47;
 
-    // JPEG magic bytes: 0xFF 0xD8 0xFF
     const isJpegHeader = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
 
-    // GIF magic bytes: 'GIF87a' or 'GIF89a' (0x47 0x49 0x46 0x38)
-    const isGifHeader = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38;
+    const isGifHeader =
+      bytes.length >= 6 &&
+      bytes[0] === 0x47 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x38 &&
+      (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+      bytes[5] === 0x61; // GIF87a / GIF89a
 
-    // ZIP / DOCX / XLSX magic bytes: PK\x03\x04 (0x50 0x4B 0x03 0x04)
-    const isZipOfficeHeader = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+    const isWebpHeader =
+      bytes.length >= 12 &&
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50; // RIFF....WEBP
 
-    // Legacy OLE2 DOC/XLS: 0xD0 0xCF 0x11 0xE0
-    const isOle2OfficeHeader = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+    const isZipOfficeHeader =
+      bytes.length >= 4 &&
+      bytes[0] === 0x50 &&
+      bytes[1] === 0x4b &&
+      bytes[2] === 0x03 &&
+      bytes[3] === 0x04;
 
-    // Check header consistency for specific extensions
+    const isOle2OfficeHeader =
+      bytes.length >= 4 &&
+      bytes[0] === 0xd0 &&
+      bytes[1] === 0xcf &&
+      bytes[2] === 0x11 &&
+      bytes[3] === 0xe0;
+
     if (ext === 'pdf' && !isPdfHeader) {
       return {
         valid: false,
-        error: 'Integritas berkas gagal: Berkas berekstensi .pdf tetapi struktur header bukan dokumen PDF yang valid.'
+        error: 'Integritas berkas gagal: Berkas berekstensi .pdf tetapi struktur header bukan dokumen PDF yang valid.',
       };
     }
-
-    if ((ext === 'png') && !isPngHeader) {
+    if (ext === 'png' && !isPngHeader) {
       return {
         valid: false,
-        error: 'Integritas berkas gagal: Berkas berekstensi .png tetapi struktur header bukan gambar PNG yang valid.'
+        error: 'Integritas berkas gagal: Berkas berekstensi .png tetapi struktur header bukan gambar PNG yang valid.',
       };
     }
-
     if ((ext === 'jpg' || ext === 'jpeg') && !isJpegHeader) {
       return {
         valid: false,
-        error: 'Integritas berkas gagal: Berkas berekstensi .jpg/.jpeg tetapi struktur header bukan gambar JPEG yang valid.'
+        error: 'Integritas berkas gagal: Berkas berekstensi .jpg/.jpeg tetapi struktur header bukan gambar JPEG yang valid.',
       };
     }
-
+    if (ext === 'webp' && !isWebpHeader) {
+      return {
+        valid: false,
+        error: 'Integritas berkas gagal: Berkas berekstensi .webp tetapi struktur header bukan gambar WebP yang valid.',
+      };
+    }
+    if (ext === 'gif' && !isGifHeader) {
+      return {
+        valid: false,
+        error: 'Integritas berkas gagal: Berkas berekstensi .gif tetapi struktur header bukan gambar GIF yang valid.',
+      };
+    }
     if ((ext === 'docx' || ext === 'xlsx') && !isZipOfficeHeader && !isOle2OfficeHeader) {
       return {
         valid: false,
-        error: 'Integritas berkas gagal: Berkas dokumen Office tidak memiliki header ZIP/XML yang valid.'
+        error: 'Integritas berkas gagal: Berkas dokumen Office tidak memiliki header ZIP/OOXML yang valid.',
       };
+    }
+    if ((ext === 'doc' || ext === 'xls') && !isOle2OfficeHeader && !isZipOfficeHeader) {
+      return {
+        valid: false,
+        error: 'Integritas berkas gagal: Berkas dokumen Office tidak memiliki header OLE2 yang valid.',
+      };
+    }
+
+    // For plain-text / CSV uploads, verify absence of binary executables or HTML/script payloads
+    if (ext === 'csv' || ext === 'txt') {
+      if (isPdfHeader || isZipOfficeHeader || (bytes[0] === 0x4d && bytes[1] === 0x5a)) {
+        return {
+          valid: false,
+          error: 'Integritas berkas gagal: Isi berkas teks tidak sesuai dengan ekstensinya.',
+        };
+      }
+      const textSample = new TextDecoder('utf-8', { fatal: false }).decode(
+        await file.slice(0, 8192).arrayBuffer()
+      );
+      if (/<script\b|<iframe\b|<svg\b|javascript:|onerror\s*=|onload\s*=/i.test(textSample)) {
+        return {
+          valid: false,
+          error: 'Berkas ditolak karena mengandung tag HTML/skrip aktif yang tidak diperbolehkan.',
+        };
+      }
     }
 
     let detected = ext.toUpperCase();
     if (isPdfHeader) detected = 'PDF Document';
-    if (isPngHeader) detected = 'PNG Image';
-    if (isJpegHeader) detected = 'JPEG Image';
+    else if (isPngHeader) detected = 'PNG Image';
+    else if (isJpegHeader) detected = 'JPEG Image';
+    else if (isWebpHeader) detected = 'WebP Image';
+    else if (isGifHeader) detected = 'GIF Image';
 
     return { valid: true, detectedType: detected };
-  } catch (err) {
-    console.warn('Binary header scan skipped due to browser read error:', err);
-    // If browser cannot slice, fallback to extension check which already passed
-    return { valid: true, detectedType: ext.toUpperCase() };
+  } catch {
+    // Fail closed if browser cannot inspect file bytes
+    return {
+      valid: false,
+      error: 'Gagal memverifikasi integritas biner berkas. Unggahan dibatalkan demi keamanan.',
+    };
   }
 }

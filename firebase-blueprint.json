@@ -2,61 +2,104 @@
   "entities": {
     "user": {
       "title": "User Profile",
-      "description": "User profile with role, department, and account status",
+      "description": "User profile with unit, department, role, status, and optional hashed password",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "nama": { "type": "string", "maxLength": 150 },
-        "email": { "type": "string", "maxLength": 150 },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "unit": { "type": "string", "maxLength": 120 },
         "departemen": { "type": "string", "maxLength": 100 },
         "role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
-        "status": { "type": "string", "enum": ["Approved", "Pending"] },
-        "password": { "type": "string", "maxLength": 200 },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "status": { "type": "string", "enum": ["Approved", "Pending", "Rejected"] },
+        "password": { "type": "string", "maxLength": 256 },
+        "avatar": { "type": "string", "maxLength": 200000 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
       },
       "required": ["id", "nama", "email", "role", "status"]
     },
-    "document": {
-      "title": "Intranet Document",
-      "description": "SOP, Form, and Announcement records",
+    "admin": {
+      "title": "Verified Admin Registry",
+      "description": "Trusted Firebase Auth UID registry for administrative access",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string", "maxLength": 300 },
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "document": {
+      "title": "Intranet Document",
+      "description": "Official SOP, Form, and Announcement records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
         "category": { "type": "string", "enum": ["SOP", "Form", "Pengumuman"] },
-        "sub_kategori": { "type": "string" },
-        "unit": { "type": "string" },
+        "sub_kategori": { "type": "string", "maxLength": 120 },
+        "unit": { "type": "string", "maxLength": 120 },
         "isPublic": { "type": "boolean" },
-        "akses_dept": { "type": "string" },
-        "keterangan": { "type": "string" },
-        "fileUrl": { "type": "string" },
-        "previewUrl": { "type": "string" },
-        "downloadUrl": { "type": "string" },
-        "thumbUrl": { "type": "string" },
-        "fileName": { "type": "string" },
-        "fileType": { "type": "string" },
-        "fileSize": { "type": "string" },
-        "uploadedBy": { "type": "string" },
-        "uploadedByEmail": { "type": "string" },
-        "uploadedAt": { "type": "string", "format": "date-time" }
+        "akses_dept": { "type": "string", "maxLength": 120 },
+        "keterangan": { "type": "string", "maxLength": 5000 },
+        "fileUrl": { "type": "string", "maxLength": 900000 },
+        "previewUrl": { "type": "string", "maxLength": 900000 },
+        "downloadUrl": { "type": "string", "maxLength": 900000 },
+        "thumbUrl": { "type": "string", "maxLength": 900000 },
+        "fileName": { "type": "string", "maxLength": 255 },
+        "fileType": { "type": "string", "maxLength": 120 },
+        "fileSize": { "type": "string", "maxLength": 64 },
+        "uploadedBy": { "type": "string", "maxLength": 150 },
+        "uploadedByEmail": { "type": "string", "maxLength": 150 },
+        "uploadedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "effectiveDate": { "type": "string", "maxLength": 32 },
+        "expiryDate": { "type": "string", "maxLength": 32 },
+        "attachmentUrl": { "type": "string", "maxLength": 900000 },
+        "attachmentName": { "type": "string", "maxLength": 255 },
+        "attachmentType": { "type": "string", "maxLength": 120 },
+        "attachmentSize": { "type": "string", "maxLength": 64 },
+        "isChunked": { "type": "boolean" },
+        "isChunkedFile": { "type": "boolean" },
+        "isChunkedAttachment": { "type": "boolean" },
+        "chunksCount": { "type": "number" },
+        "driveFileId": { "type": "string", "maxLength": 256 },
+        "driveFolderPath": { "type": "string", "maxLength": 500 }
       },
       "required": ["id", "title", "category"]
     },
-    "accessLog": {
-      "title": "Access Log",
-      "description": "Audit trail log",
+    "documentChunk": {
+      "title": "Intranet Document Chunk",
+      "description": "Chunked binary/base64 slice belonging to a parent document",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "userName": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "role": { "type": "string" },
-        "departemen": { "type": "string" },
-        "actionCategory": { "type": "string" },
-        "action": { "type": "string" },
-        "target": { "type": "string" },
-        "status": { "type": "string" }
+        "field": { "type": "string", "enum": ["fileUrl", "attachmentUrl"] },
+        "index": { "type": "number" },
+        "data": { "type": "string", "maxLength": 450000 }
+      },
+      "required": ["field", "index", "data"]
+    },
+    "accessLog": {
+      "title": "Access Log",
+      "description": "Audit trail log for authentication, document access, and admin actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "userName": { "type": "string", "maxLength": 150 },
+        "userEmail": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
+        "unit": { "type": "string", "maxLength": 120 },
+        "departemen": { "type": "string", "maxLength": 100 },
+        "actionCategory": { "type": "string", "enum": ["AUTH", "DOCUMENT", "USER_MGMT", "APPRAISAL", "KPI_CONFIG", "SYSTEM"] },
+        "action": { "type": "string", "minLength": 1, "maxLength": 250 },
+        "target": { "type": "string", "maxLength": 250 },
+        "status": { "type": "string", "enum": ["SUCCESS", "WARNING", "FAILED"] },
+        "details": { "type": "string", "maxLength": 2000 },
+        "ipAddress": { "type": "string", "maxLength": 100 },
+        "userAgent": { "type": "string", "maxLength": 500 }
       },
       "required": ["id", "timestamp", "action"]
     },
@@ -65,9 +108,10 @@
       "description": "Document category per department",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "nama_kategori": { "type": "string" },
-        "departemen": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "unit": { "type": "string", "maxLength": 120 },
+        "nama_kategori": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "departemen": { "type": "string", "maxLength": 100 }
       },
       "required": ["id", "nama_kategori"]
     },
@@ -76,10 +120,13 @@
       "description": "Department code and name",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "unit": { "type": "string" },
-        "name": { "type": "string" },
-        "code": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "unit": { "type": "string", "maxLength": 120 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
       },
       "required": ["id", "name", "code"]
     },
@@ -88,9 +135,15 @@
       "description": "Hotel Unit Group master entity",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "code": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "shortName": { "type": "string", "maxLength": 64 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 500 },
+        "announcementPruneDays": { "type": "number" },
+        "announcementMaxDays": { "type": "number" },
+        "announcementRuleNote": { "type": "string", "maxLength": 500 },
+        "sopRuleNote": { "type": "string", "maxLength": 500 }
       },
       "required": ["id", "name", "code"]
     },
@@ -99,14 +152,17 @@
       "description": "Standardized KPI indicators",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "departemen": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "unit": { "type": "string", "maxLength": 120 },
+        "departemen": { "type": "string", "minLength": 1, "maxLength": 100 },
         "tahun": { "type": "number" },
-        "tipe": { "type": "string" },
-        "pillar": { "type": "string" },
-        "objective": { "type": "string" },
+        "tipe": { "type": "string", "enum": ["Mid-Year", "Year-End"] },
+        "target_role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
+        "pillar": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "objective": { "type": "string", "minLength": 1, "maxLength": 1000 },
         "weight": { "type": "number" },
-        "target": { "type": "string" }
+        "target": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["Draft", "Active"] }
       },
       "required": ["id", "departemen", "pillar", "objective"]
     },
@@ -115,12 +171,37 @@
       "description": "Employee performance evaluation record",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "email": { "type": "string" },
-        "nama": { "type": "string" },
-        "departemen": { "type": "string" },
-        "role": { "type": "string" },
-        "status": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "periode": { "type": "number" },
+        "tipe": { "type": "string", "enum": ["Mid-Year", "Year-End"] },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "nama": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "unit": { "type": "string", "maxLength": 120 },
+        "departemen": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "On Review", "On Check", "Approved"] },
+        "kpis": { "type": "array" },
+        "kpiTotalScore": { "type": "number" },
+        "kpiTranslatedScore": { "type": "number" },
+        "behaviourScores": { "type": "object" },
+        "avgBehaviour": { "type": "number" },
+        "complianceScore": { "type": "number" },
+        "finalGrandTotal": { "type": "number" },
+        "finalGrade": { "type": "string", "enum": ["E", "G", "M", "U"] },
+        "starBest": { "type": "string", "maxLength": 2000 },
+        "starChallenge": { "type": "string", "maxLength": 2000 },
+        "managerFeedback": { "type": "string", "maxLength": 2000 },
+        "hrRecommendation": { "type": "string", "maxLength": 2000 },
+        "hrNote": { "type": "string", "maxLength": 2000 },
+        "reviewedBy": { "type": "string", "maxLength": 150 },
+        "reviewedAt": { "type": "string", "maxLength": 64 },
+        "approvedBy": { "type": "string", "maxLength": 150 },
+        "approvedAt": { "type": "string", "maxLength": 64 },
+        "isLocked": { "type": "boolean" },
+        "unlockedBy": { "type": "string", "maxLength": 150 },
+        "unlockedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
       },
       "required": ["id", "email", "nama", "status"]
     },
@@ -129,25 +210,75 @@
       "description": "System push notification",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "message": { "type": "string" },
-        "createdAt": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 100 },
+        "unit": { "type": "string", "maxLength": 120 },
+        "targetDepartment": { "type": "string", "maxLength": 120 },
+        "targetRole": { "type": "string", "maxLength": 64 },
+        "documentId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
         "read": { "type": "boolean" }
       },
       "required": ["id", "title", "message"]
     },
     "systemConfig": {
       "title": "System Configuration",
-      "description": "Branding, custom logo, and system parameters",
+      "description": "Branding, CMS content, units master, storage config, and quota telemetry",
       "type": "object",
       "properties": {
-        "appName": { "type": "string" },
-        "subTitle": { "type": "string" },
-        "customLogoUrl": { "type": "string" },
-        "creatorSignature": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "id": { "type": "string", "maxLength": 128 },
+        "appName": { "type": "string", "maxLength": 150 },
+        "subTitle": { "type": "string", "maxLength": 200 },
+        "customLogoUrl": { "type": "string", "maxLength": 500000 },
+        "customBgUrl": { "type": "string", "maxLength": 500000 },
+        "creatorSignature": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       }
+    },
+    "careerJob": {
+      "title": "Career Job Posting",
+      "description": "Hotel Ciputra Jakarta public and internal career vacancy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "department": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "experience": { "type": "string", "maxLength": 100 },
+        "deadline": { "type": "string", "maxLength": 64 },
+        "jobType": { "type": "string", "enum": ["Full-time", "Kontrak", "Magang", "Daily Worker"] },
+        "description": { "type": "string", "maxLength": 5000 },
+        "requirements": { "type": "array" },
+        "status": { "type": "string", "enum": ["Open", "Closed"] },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "title", "department", "status"]
+    },
+    "careerApplication": {
+      "title": "Career Candidate Application",
+      "description": "Applicant personal data and 1MB PDF CV submission",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "jobId": { "type": "string", "maxLength": 128 },
+        "jobTitle": { "type": "string", "maxLength": 200 },
+        "department": { "type": "string", "maxLength": 100 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "phone": { "type": "string", "minLength": 5, "maxLength": 40 },
+        "domisili": { "type": "string", "maxLength": 150 },
+        "education": { "type": "string", "maxLength": 64 },
+        "cvFileName": { "type": "string", "maxLength": 255 },
+        "cvFileType": { "type": "string", "enum": ["application/pdf"] },
+        "cvFileSize": { "type": "number" },
+        "cvFileData": { "type": "string", "maxLength": 1500000 },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["Pending", "Reviewed", "Interview", "Rejected"] },
+        "submittedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "jobId", "fullName", "email", "cvFileType", "cvFileData", "status"]
     }
   },
   "firestore": {
@@ -155,9 +286,17 @@
       "schema": "user",
       "description": "User profiles and credentials"
     },
+    "/admins/{adminId}": {
+      "schema": "admin",
+      "description": "Trusted admin role mapping keyed by Firebase Auth UID"
+    },
     "/documents/{documentId}": {
       "schema": "document",
       "description": "Official SOPs, Forms, and Announcements"
+    },
+    "/documents/{documentId}/chunks/{chunkId}": {
+      "schema": "documentChunk",
+      "description": "Chunked payload slices linked to parent document"
     },
     "/accessLogs/{logId}": {
       "schema": "accessLog",
@@ -170,6 +309,10 @@
     "/departments/{deptId}": {
       "schema": "department",
       "description": "Department master records"
+    },
+    "/hotelUnits/{unitId}": {
+      "schema": "hotelUnit",
+      "description": "Hotel Unit Group master records"
     },
     "/kpiMaster/{kpiId}": {
       "schema": "kpiMaster",
@@ -185,11 +328,15 @@
     },
     "/systemConfig/{configId}": {
       "schema": "systemConfig",
-      "description": "Global branding and system config"
+      "description": "Global branding, CMS, unit config, storage config, and quota telemetry"
     },
-    "/hotelUnits/{unitId}": {
-      "schema": "hotelUnit",
-      "description": "Hotel Unit Group master records"
+    "/career_jobs/{jobId}": {
+      "schema": "careerJob",
+      "description": "Open and closed job postings"
+    },
+    "/career_applications/{appId}": {
+      "schema": "careerApplication",
+      "description": "Confidential candidate job applications and PDF resumes"
     }
   }
 }

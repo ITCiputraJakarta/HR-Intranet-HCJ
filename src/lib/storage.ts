@@ -53,6 +53,20 @@ import {
   isFirestoreIdDeleted,
   markFirestoreIdDeleted,
 } from './firestoreService';
+import { clearInMemoryApiToken } from './authSession';
+
+function stripUserPassword(user: User): User {
+  if (!user || typeof user !== 'object') return user;
+  const { password: _omit, ...rest } = user as User & { password?: string };
+  return rest as User;
+}
+
+function generateSecureClientId(prefix: string): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return `${prefix}-${globalThis.crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}`;
+}
 
 const STORAGE_KEYS = {
   USERS: 'ciputra_intra_users_v1',
@@ -443,16 +457,18 @@ export function getUsers(): User[] {
 export function saveUsers(users: User[]): void {
   const clean = (users || []).filter((u) => !isFirestoreIdDeleted(u.id));
   memoryUsers = clean;
-  setStored(STORAGE_KEYS.USERS, clean);
+  // Security: Never persist user password hashes into localStorage
+  setStored(STORAGE_KEYS.USERS, clean.map(stripUserPassword));
 }
 
 export function getCurrentUser(): User | null {
-  return getStored<User | null>(STORAGE_KEYS.CURRENT_USER, null);
+  const stored = getStored<User | null>(STORAGE_KEYS.CURRENT_USER, null);
+  return stored ? stripUserPassword(stored) : null;
 }
 
 export function setCurrentUser(user: User | null): void {
   if (user) {
-    setStored(STORAGE_KEYS.CURRENT_USER, user);
+    setStored(STORAGE_KEYS.CURRENT_USER, stripUserPassword(user));
   } else {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
   }
@@ -460,10 +476,11 @@ export function setCurrentUser(user: User | null): void {
 
 /**
  * Hapus sesi pengguna saat logout tanpa menghapus identitas branding portal atau konfigurasi sistem.
- * Memastikan sesi benar-benar bersih tanpa jejak data role sebelumnya.
+ * Memastikan sesi benar-benar bersih tanpa jejak data role atau token sebelumnya.
  */
 export function clearAllSessionCache(): void {
   try {
+    clearInMemoryApiToken();
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
       localStorage.removeItem('ciputra_intra_last_active_v1');
@@ -988,7 +1005,7 @@ export function addAccessLog(params: {
 }): AccessLog {
   const logs = getAccessLogs();
   const newLog: AccessLog = {
-    id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    id: generateSecureClientId('log'),
     timestamp: new Date().toISOString(),
     userName: params.user?.nama || 'Tamu / Sistem',
     userEmail: params.user?.email || 'unauthenticated@ciputra.com',
@@ -999,7 +1016,7 @@ export function addAccessLog(params: {
     target: params.target,
     status: params.status,
     details: params.details || '',
-    ipAddress: params.ipAddress || '192.168.1.' + (Math.floor(Math.random() * 80) + 10),
+    ipAddress: params.ipAddress || 'Client Session',
     userAgent: params.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 60) : 'Browser'),
   };
 
@@ -1715,7 +1732,7 @@ export function sendPushNotification(params: {
 }): void {
   const notifs = getNotifications();
   const newNotif: PushNotification = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    id: generateSecureClientId('notif'),
     title: params.title,
     message: params.message,
     category: params.category,

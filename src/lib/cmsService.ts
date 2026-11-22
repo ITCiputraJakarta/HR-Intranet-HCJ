@@ -7,6 +7,7 @@
 import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
 import { sanitizeForFirestore, isFirestoreIdDeleted, markFirestoreIdDeleted } from './firestoreService';
+import { sanitizeSafeUrl, sanitizeInput, sanitizeFileName, validateAndScanFileUpload } from './security';
 import {
   HomeCmsContent,
   CareerCmsContent,
@@ -297,9 +298,9 @@ export function validatePdfCv(file: File): { valid: boolean; error?: string } {
     return { valid: false, error: 'Silakan pilih berkas CV/Resume Anda.' };
   }
 
-  // Must be PDF format
+  const lowerName = (file.name || '').toLowerCase();
   const isPdf =
-    file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    lowerName.endsWith('.pdf') && (!file.type || file.type === 'application/pdf');
   if (!isPdf) {
     return {
       valid: false,
@@ -307,7 +308,13 @@ export function validatePdfCv(file: File): { valid: boolean; error?: string } {
     };
   }
 
-  // Must not exceed 1MB (1,048,576 bytes)
+  if (file.size === 0) {
+    return {
+      valid: false,
+      error: 'Berkas PDF kosong (0 bytes) tidak valid.',
+    };
+  }
+
   if (file.size > MAX_PDF_BYTES) {
     const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
     return {
@@ -317,6 +324,45 @@ export function validatePdfCv(file: File): { valid: boolean; error?: string } {
   }
 
   return { valid: true };
+}
+
+export async function validatePdfCvSecure(file: File): Promise<{ valid: boolean; error?: string }> {
+  const basic = validatePdfCv(file);
+  if (!basic.valid) return basic;
+  const scan = await validateAndScanFileUpload(file, MAX_PDF_BYTES);
+  if (!scan.valid) {
+    return {
+      valid: false,
+      error: scan.error || 'Header PDF tidak valid atau berkas mengandung konten tidak aman.',
+    };
+  }
+  return { valid: true };
+}
+
+export function sanitizeHomeCms(content: HomeCmsContent): HomeCmsContent {
+  return {
+    ...content,
+    heroImageUrl: sanitizeSafeUrl(content.heroImageUrl, { allowDataImage: true }) || '',
+    floatingCard2: {
+      ...content.floatingCard2,
+      avatarUrl: sanitizeSafeUrl(content.floatingCard2?.avatarUrl, { allowDataImage: true }) || '',
+    },
+    aboutImage1: sanitizeSafeUrl(content.aboutImage1, { allowDataImage: true }) || '',
+    aboutImage2: sanitizeSafeUrl(content.aboutImage2, { allowDataImage: true }) || '',
+    testimonials: Array.isArray(content.testimonials)
+      ? content.testimonials.map((t) => ({
+          ...t,
+          photoUrl: sanitizeSafeUrl(t.photoUrl, { allowDataImage: true }) || '',
+        }))
+      : [],
+  };
+}
+
+export function sanitizeCareerCms(content: CareerCmsContent): CareerCmsContent {
+  return {
+    ...content,
+    heroBgUrl: sanitizeSafeUrl(content.heroBgUrl, { allowDataImage: true }) || '',
+  };
 }
 
 export function readFileAsBase64(file: File): Promise<string> {
@@ -336,7 +382,7 @@ export function getHomeCmsContent(): HomeCmsContent {
   try {
     const local = localStorage.getItem(HOME_CMS_STORAGE_KEY);
     if (local) {
-      return { ...DEFAULT_HOME_CMS, ...JSON.parse(local) };
+      return sanitizeHomeCms({ ...DEFAULT_HOME_CMS, ...JSON.parse(local) });
     }
   } catch (e) {
     console.warn('Error reading local Home CMS:', e);
@@ -345,7 +391,7 @@ export function getHomeCmsContent(): HomeCmsContent {
 }
 
 export async function saveHomeCmsContent(content: HomeCmsContent): Promise<void> {
-  const updated = { ...content, updatedAt: new Date().toISOString() };
+  const updated = sanitizeHomeCms({ ...content, updatedAt: new Date().toISOString() });
   try {
     localStorage.setItem(HOME_CMS_STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {
@@ -377,7 +423,7 @@ export function subscribeToHomeCms(callback: (content: HomeCmsContent) => void):
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as HomeCmsContent;
-          const merged = { ...DEFAULT_HOME_CMS, ...data };
+          const merged = sanitizeHomeCms({ ...DEFAULT_HOME_CMS, ...data });
           try {
             localStorage.setItem(HOME_CMS_STORAGE_KEY, JSON.stringify(merged));
           } catch {}
@@ -402,7 +448,7 @@ export function getCareerCmsContent(): CareerCmsContent {
   try {
     const local = localStorage.getItem(CAREER_CMS_STORAGE_KEY);
     if (local) {
-      return { ...DEFAULT_CAREER_CMS, ...JSON.parse(local) };
+      return sanitizeCareerCms({ ...DEFAULT_CAREER_CMS, ...JSON.parse(local) });
     }
   } catch (e) {
     console.warn('Error reading local Career CMS:', e);
@@ -411,7 +457,7 @@ export function getCareerCmsContent(): CareerCmsContent {
 }
 
 export async function saveCareerCmsContent(content: CareerCmsContent): Promise<void> {
-  const updated = { ...content, updatedAt: new Date().toISOString() };
+  const updated = sanitizeCareerCms({ ...content, updatedAt: new Date().toISOString() });
   try {
     localStorage.setItem(CAREER_CMS_STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {
@@ -442,7 +488,7 @@ export function subscribeToCareerCms(callback: (content: CareerCmsContent) => vo
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as CareerCmsContent;
-          const merged = { ...DEFAULT_CAREER_CMS, ...data };
+          const merged = sanitizeCareerCms({ ...DEFAULT_CAREER_CMS, ...data });
           try {
             localStorage.setItem(CAREER_CMS_STORAGE_KEY, JSON.stringify(merged));
           } catch {}
@@ -605,9 +651,41 @@ export async function saveCareerApplications(
 export async function submitCareerApplication(
   app: CareerApplication
 ): Promise<void> {
-  const current = getCareerApplications();
-  const updated = [app, ...current];
-  await saveCareerApplications(updated);
+  const safeCvData = sanitizeSafeUrl(app.cvFileData, { allowDataDocument: true });
+  if (!safeCvData) {
+    throw new Error('Berkas CV tidak valid atau mengandung format yang tidak aman.');
+  }
+
+  const sanitizedApp: CareerApplication = {
+    ...app,
+    fullName: sanitizeInput(app.fullName),
+    email: sanitizeInput(app.email).toLowerCase(),
+    phone: sanitizeInput(app.phone),
+    domisili: sanitizeInput(app.domisili),
+    education: sanitizeInput(app.education),
+    cvFileName: sanitizeFileName(app.cvFileName, 'cv.pdf'),
+    cvFileType: 'application/pdf',
+    cvFileData: safeCvData,
+    notes: app.notes ? sanitizeInput(app.notes) : undefined,
+    status: 'Pending',
+  };
+
+  // Keep a single local record only if localStorage already tracks submissions
+  try {
+    const current = getCareerApplications();
+    localStorage.setItem(
+      CAREER_APPLICATIONS_STORAGE_KEY,
+      JSON.stringify([sanitizedApp, ...current])
+    );
+  } catch {
+    // ignore storage errors
+  }
+
+  // Write ONLY this single new document to Firestore (never enumerate or overwrite existing PII docs)
+  if (isFirebaseConfigured()) {
+    const ref = doc(db, 'career_applications', sanitizedApp.id);
+    await setDoc(ref, sanitizeForFirestore(sanitizedApp));
+  }
 }
 
 export async function updateApplicationStatus(
@@ -616,7 +694,12 @@ export async function updateApplicationStatus(
 ): Promise<void> {
   const current = getCareerApplications();
   const updated = current.map((a) => (a.id === appId ? { ...a, status } : a));
-  await saveCareerApplications(updated);
+  try {
+    localStorage.setItem(CAREER_APPLICATIONS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+  if (isFirebaseConfigured()) {
+    await setDoc(doc(db, 'career_applications', appId), { status }, { merge: true });
+  }
 }
 
 export async function deleteCareerApplication(appId: string): Promise<void> {

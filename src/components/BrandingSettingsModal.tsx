@@ -30,6 +30,7 @@ import {
   GalleryItemCaption,
 } from '../lib/branding';
 import { addAccessLog } from '../lib/storage';
+import { sanitizeSafeUrl } from '../lib/security';
 import { UnifiedLogo } from './common/UnifiedLogo';
 
 import defaultHeroBright from '../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
@@ -170,8 +171,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setFeedback({ type: 'error', text: 'Berkas logo harus berupa gambar.' });
+    if (!file.type.startsWith('image/') || file.type.includes('svg')) {
+      setFeedback({ type: 'error', text: 'Berkas logo harus berupa gambar PNG, JPG, atau WebP (SVG diblokir demi keamanan).' });
       return;
     }
 
@@ -219,8 +220,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   const handleBgFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setFeedback({ type: 'error', text: 'Foto latar harus berupa gambar.' });
+    if (!file.type.startsWith('image/') || file.type.includes('svg')) {
+      setFeedback({ type: 'error', text: 'Foto latar harus berupa gambar PNG, JPG, atau WebP.' });
       return;
     }
 
@@ -296,8 +297,8 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setFeedback({ type: 'error', text: 'Foto galeri harus berupa gambar.' });
+    if (!file.type.startsWith('image/') || file.type.includes('svg')) {
+      setFeedback({ type: 'error', text: 'Foto galeri harus berupa gambar PNG, JPG, atau WebP.' });
       return;
     }
 
@@ -527,7 +528,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
                         type="file"
                         ref={logoInputRef}
                         onChange={handleLogoFileChange}
-                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        accept="image/png,image/jpeg,image/webp"
                         className="hidden"
                       />
                       <button
@@ -577,7 +578,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
 
                   <div className="relative w-full h-24 rounded-xl overflow-hidden border border-slate-200 bg-white">
                     <img
-                      src={branding.customBgUrl || defaultHeroBright}
+                      src={sanitizeSafeUrl(branding.customBgUrl, { allowDataImage: true }) || defaultHeroBright}
                       alt="Hero Preview"
                       className="w-full h-full object-cover object-center"
                     />
@@ -727,7 +728,7 @@ export const BrandingSettingsModal: React.FC<BrandingSettingsModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((idx) => {
-                  const customImg = branding.galleryImages?.[idx];
+                  const customImg = sanitizeSafeUrl(branding.galleryImages?.[idx], { allowDataImage: true });
                   const activeImg = customImg || DEFAULT_GALLERY[idx];
                   const isBusy = uploadingGalleryIdx === idx;
                   const cap = galleryCaptions[idx] || DEFAULT_GALLERY_CAPTIONS[idx];

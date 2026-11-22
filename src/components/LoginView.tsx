@@ -47,9 +47,16 @@ import {
   subscribeToHotelUnits,
   firestoreFindUserByEmail,
   firestoreSaveUser,
-  firestoreFetchUsers,
 } from '../lib/firestoreService';
-import { verifyPassword, hashPassword, sanitizeInput } from '../lib/security';
+import {
+  verifyPassword,
+  hashPassword,
+  sanitizeInput,
+  needsPasswordUpgrade,
+  validatePasswordStrength,
+} from '../lib/security';
+import { auth } from '../lib/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 const AUTH_LOCKOUT_STORAGE_KEY = 'hcj_auth_security_lockout_v1';
 const MAX_FAILED_ATTEMPTS = 5;
@@ -101,7 +108,7 @@ function saveLockoutState(state: AuthLockoutState): void {
 }
 
 interface LoginViewProps {
-  onLoginSuccess: (user: User) => void;
+  onLoginSuccess: (user: User, apiToken?: string | null) => void;
   currentLang?: Language;
   onLanguageChange?: (lang: Language) => void;
   sessionMessage?: string;
@@ -127,14 +134,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
 
-  // Register form state
+  // First-Run Super Admin Bootstrap & Google SSO states
+  const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [showBootstrapForm, setShowBootstrapForm] = useState(false);
+  const [bootstrapName, setBootstrapName] = useState('Super Admin IT');
+  const [bootstrapPassword, setBootstrapPassword] = useState('');
+  const [bootstrapConfirm, setBootstrapConfirm] = useState('');
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Register form state (role strictly locked to 'staff' & 'Pending' on public self-registration)
   const [hotelUnits, setHotelUnits] = useState(() => getHotelUnits());
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regUnit, setRegUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
+  const [regUnit] = useState(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
   const [regDept, setRegDept] = useState(departments[0] || 'Front Office');
-  const [regRole, setRegRole] = useState<UserRole>('staff');
+  const regRole: UserRole = 'staff';
 
   // Anti-bot Honeypot & Brute-Force Lockout states
   const [honeypotTrap, setHoneypotTrap] = useState('');
@@ -182,18 +198,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
       setHotelUnits(getHotelUnits());
     });
 
-    // Proactively pull latest user states from Firestore on mount so any newly approved accounts from admin are immediately synced
-    firestoreFetchUsers().then((remoteUsers) => {
-      if (remoteUsers && remoteUsers.length > 0) {
-        const local = getUsers();
-        const mergedMap = new Map<string, User>();
-        local.forEach((u) => mergedMap.set(u.email.toLowerCase(), u));
-        remoteUsers.forEach((ru) => mergedMap.set(ru.email.toLowerCase(), ru));
-        saveUsers(Array.from(mergedMap.values()));
-      }
-    }).catch((err) => {
-      console.warn('Initial users sync notice:', err);
-    });
+    // Check whether First-Run Super Admin Setup is required (no pre-login user collection dump)
+    fetch('/api/auth/bootstrap-status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.bootstrapRequired === true) {
+          setBootstrapRequired(true);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       unsubBranding();
@@ -290,22 +303,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoggingIn(true);
 
     try {
-      // 1. Always prioritize live data from Cloud Firestore to get the freshest approval status & updated password
+      let apiToken: string | null = null;
+      let serverUser: User | null = null;
+
+      // 0. Check backend scrypt + HMAC Bearer session auth first
+      try {
+        const apiResp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        });
+        if (apiResp.ok) {
+          const apiData = await apiResp.json();
+          if (apiData?.token && apiData?.user) {
+            apiToken = apiData.token;
+            serverUser = apiData.user as User;
+          }
+        }
+      } catch {
+        // Server unavailable or user exists in Firestore registry; fall through to targeted Firestore verification
+      }
+
+      // 1. Targeted lookup by email in Cloud Firestore (never loads bulk user list pre-login)
       let matchedUser: User | null = null;
       try {
         const remoteUser = await firestoreFindUserByEmail(cleanEmail);
         if (remoteUser) {
-          // If remote user has no password, but local cache has the registered password, keep it intact
-          const localMatch = getUsers().find(
-            (u) => u.email.toLowerCase() === cleanEmail || u.id === remoteUser.id
-          );
-          if (!remoteUser.password && localMatch?.password) {
-            remoteUser.password = localMatch.password;
-            firestoreSaveUser(remoteUser).catch(() => {});
-          }
-
           matchedUser = remoteUser;
-          // Synchronize remote record to local cache so approval status & credentials match
           const currentLocal = getUsers().filter(
             (u) => u.id !== remoteUser.id && u.email.toLowerCase() !== cleanEmail
           );
@@ -315,7 +339,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         console.warn('Firestore live user lookup notice:', remoteErr);
       }
 
-      // 2. Fallback to local cache if offline or Firestore query returned null
+      if (!matchedUser && serverUser) {
+        matchedUser = serverUser;
+      }
+
       if (!matchedUser) {
         const localUsers = getUsers();
         matchedUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail) || null;
@@ -333,10 +360,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      // Check account approval status safely (case-insensitive)
+      // Check account approval status safely
       let statusNormalized = (matchedUser.status || '').trim().toLowerCase();
 
-      // If status says pending, make an immediate fresh server check to confirm whether admin has just approved
       if (statusNormalized === 'pending') {
         try {
           const freshRemote = await firestoreFindUserByEmail(cleanEmail);
@@ -375,41 +401,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      // Password verification
-      let passwordToVerify = matchedUser.password;
-      if (!passwordToVerify) {
-        // Fallback: check local storage if password was saved locally
-        const localMatch = getUsers().find((u) => u.email.toLowerCase() === cleanEmail);
-        if (localMatch?.password) {
-          passwordToVerify = localMatch.password;
-          matchedUser.password = localMatch.password;
-          firestoreSaveUser(matchedUser).catch(() => {});
-        }
-      }
-
-      if (!passwordToVerify) {
-        setIsLoggingIn(false);
-        loginCaptchaRef.current?.reset();
-        setErrorMessage(
-          'Data kata sandi akun belum lengkap. Silakan hubungi Super Admin untuk mereset kata sandi.'
-        );
-        return;
-      }
-
-      let isPasswordValid = await verifyPassword(cleanPassword, passwordToVerify);
-
-      // Secondary fallback check against local cached credentials
+      // Verify credentials via server session OR PBKDF2/SHA256 hash
+      let isPasswordValid = Boolean(apiToken && serverUser);
       if (!isPasswordValid) {
-        const localUsers = getUsers();
-        const localUser = localUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-        if (localUser?.password && localUser.password !== passwordToVerify) {
-          const isLocalValid = await verifyPassword(cleanPassword, localUser.password);
-          if (isLocalValid) {
-            isPasswordValid = true;
-            matchedUser.password = localUser.password;
-            firestoreSaveUser(matchedUser).catch(() => {});
+        if (!matchedUser.password) {
+          setIsLoggingIn(false);
+          loginCaptchaRef.current?.reset();
+          if (cleanEmail === 'it@hotelciputra.com' && bootstrapRequired) {
+            setShowBootstrapForm(true);
+            setErrorMessage(
+              'Sandi awal Super Admin IT belum dikonfigurasi. Silakan tetapkan sandi awal melalui formulir Pengaturan Awal Super Admin di bawah ini.'
+            );
+          } else {
+            setErrorMessage(
+              'Kredensial akun belum memiliki kata sandi aktif. Gunakan Pengaturan Awal Super Admin, Masuk dengan Google SSO, atau hubungi IT Administrator.'
+            );
           }
+          return;
         }
+        isPasswordValid = await verifyPassword(cleanPassword, matchedUser.password);
       }
 
       if (!isPasswordValid) {
@@ -424,34 +434,29 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return;
       }
 
-      // Upgrade legacy password to SHA-256 salted hash transparently
-      if (typeof matchedUser.password === 'string' && !matchedUser.password.startsWith('SHA256:')) {
+      // Upgrade legacy SHA-256 hashes transparently to PBKDF2-SHA256 on successful login
+      if (matchedUser.password && needsPasswordUpgrade(matchedUser.password)) {
         try {
           const newHashed = await hashPassword(cleanPassword);
+          const upgraded = { ...matchedUser, password: newHashed };
+          matchedUser = upgraded;
           const allUsers = getUsers();
-          const idx = allUsers.findIndex((u) => u.id === matchedUser.id);
+          const idx = allUsers.findIndex((u) => u.id === upgraded.id);
           if (idx !== -1) {
-            allUsers[idx] = { ...matchedUser, password: newHashed };
+            allUsers[idx] = upgraded;
             saveUsers(allUsers);
-            matchedUser.password = newHashed;
-            firestoreSaveUser(allUsers[idx]).catch(() => {});
           }
-        } catch (upgradeErr) {
+          firestoreSaveUser(upgraded).catch(() => {});
+        } catch {
           // Non-blocking hash upgrade
         }
       }
 
-      // Login Successful: Reset security lockouts
-      const resetState: AuthLockoutState = {
-        failedAttempts: 0,
-        lockUntil: 0,
-        lockCount: 0,
-      };
-      saveLockoutState(resetState);
+      // Reset security lockouts
+      saveLockoutState({ failedAttempts: 0, lockUntil: 0, lockCount: 0 });
       setFailedAttempts(0);
       setLockoutRemainingSec(0);
 
-      // Record successful access log safely
       try {
         const userRole = (matchedUser.role || 'staff').toUpperCase();
         const userDept = matchedUser.departemen || 'Umum';
@@ -469,7 +474,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       setIsLoggingIn(false);
-      onLoginSuccess(matchedUser);
+      setPassword('');
+      onLoginSuccess(matchedUser, apiToken);
     } catch (err: any) {
       console.error('Login process error:', err);
       setIsLoggingIn(false);
@@ -478,6 +484,129 @@ export const LoginView: React.FC<LoginViewProps> = ({
         'Terjadi kesalahan saat memproses login: ' +
           (err?.message || 'Silakan coba beberapa saat lagi.')
       );
+    }
+  };
+
+  const handleBootstrapAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const pwCheck = validatePasswordStrength(bootstrapPassword);
+    if (!pwCheck.valid) {
+      setErrorMessage(pwCheck.error || 'Kata sandi wajib minimal 8 karakter dengan huruf dan angka.');
+      return;
+    }
+    if (bootstrapPassword !== bootstrapConfirm) {
+      setErrorMessage('Konfirmasi kata sandi tidak cocok.');
+      return;
+    }
+
+    setIsBootstrapping(true);
+    try {
+      const resp = await fetch('/api/auth/bootstrap-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'it@hotelciputra.com',
+          nama: sanitizeInput(bootstrapName.trim()) || 'Super Admin IT',
+          password: bootstrapPassword,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data?.token || !data?.user) {
+        setErrorMessage(data?.error || 'Gagal mengonfigurasi Super Admin awal.');
+        setIsBootstrapping(false);
+        return;
+      }
+
+      const pbkdf2Hash = await hashPassword(bootstrapPassword);
+      const adminUser: User = {
+        ...(data.user as User),
+        password: pbkdf2Hash,
+      };
+      const remaining = getUsers().filter((u) => u.email.toLowerCase() !== 'it@hotelciputra.com');
+      saveUsers([...remaining, adminUser]);
+      await firestoreSaveUser(adminUser).catch(() => {});
+
+      setBootstrapRequired(false);
+      setShowBootstrapForm(false);
+      setBootstrapPassword('');
+      setBootstrapConfirm('');
+      setIsBootstrapping(false);
+      onLoginSuccess(adminUser, data.token);
+    } catch (err: any) {
+      setIsBootstrapping(false);
+      setErrorMessage('Gagal menghubungi server bootstrap: ' + (err?.message || 'Unknown error'));
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsGoogleLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const cred = await signInWithPopup(auth, provider);
+      const idToken = await cred.user.getIdToken();
+
+      const resp = await fetch('/api/auth/firebase-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      const apiData = await resp.json();
+      if (!resp.ok || !apiData?.token || !apiData?.user) {
+        setErrorMessage(apiData?.error || 'Verifikasi Google SSO gagal.');
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      const cleanEmail = (apiData.user.email || '').toLowerCase();
+      const existingRemote = await firestoreFindUserByEmail(cleanEmail).catch(() => null);
+      if (existingRemote) {
+        if ((existingRemote.status || '').toLowerCase() !== 'approved') {
+          setIsGoogleLoading(false);
+          setErrorMessage('Akun Google Anda masih menunggu persetujuan Super Admin.');
+          return;
+        }
+        onLoginSuccess(existingRemote, apiData.token);
+      } else if (cleanEmail === 'it@hotelciputra.com') {
+        const adminProfile: User = {
+          id: existingRemote?.id || apiData.user.id || 'usr-it-01',
+          nama: apiData.user.nama || 'Super Admin IT',
+          email: cleanEmail,
+          unit: 'Hotel Ciputra Jakarta',
+          departemen: 'Engineering',
+          role: 'admin',
+          status: 'Approved',
+          createdAt: new Date().toISOString(),
+        };
+        await firestoreSaveUser(adminProfile).catch(() => {});
+        onLoginSuccess(adminProfile, apiData.token);
+      } else {
+        const newPendingStaff: User = {
+          id: `usr-${Date.now()}`,
+          nama: sanitizeInput(apiData.user.nama || cleanEmail.split('@')[0]),
+          email: cleanEmail,
+          unit: 'Hotel Ciputra Jakarta',
+          departemen: 'Front Office',
+          role: 'staff',
+          status: 'Pending',
+          createdAt: new Date().toISOString(),
+        };
+        await registerUser(newPendingStaff);
+        setSuccessMessage(
+          'Akun Google berhasil didaftarkan sebagai Staff (Pending). Silakan hubungi Super Admin untuk persetujuan.'
+        );
+      }
+      setIsGoogleLoading(false);
+    } catch (err: any) {
+      setIsGoogleLoading(false);
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        setErrorMessage('Login Google dibatalkan atau gagal: ' + (err?.message || 'Coba lagi.'));
+      }
     }
   };
 
@@ -510,19 +639,42 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
-    if (!isStrongPassword(regPassword)) {
-      setErrorMessage('Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.');
+    const pwCheck = validatePasswordStrength(regPassword);
+    if (!pwCheck.valid) {
+      setErrorMessage(pwCheck.error || 'Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.');
       return;
     }
 
+    const existingRemote = await firestoreFindUserByEmail(cleanEmail).catch(() => null);
     const currentUsers = getUsers();
-    if (currentUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+    if (existingRemote || currentUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
       setErrorMessage('Alamat email ini sudah terdaftar. Silakan gunakan tab Masuk Sistem.');
       return;
     }
 
-    const hashedPassword = await hashPassword(regPassword);
     const sanitizedName = sanitizeInput(cleanName);
+
+    // Register on server registry first (server hardcodes role='staff', status='Pending')
+    try {
+      const regResp = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: sanitizedName,
+          email: cleanEmail,
+          departemen: regDept,
+          password: regPassword,
+        }),
+      });
+      if (!regResp.ok && regResp.status === 409) {
+        setErrorMessage('Alamat email ini sudah terdaftar di sistem.');
+        return;
+      }
+    } catch {
+      // Offline/fallback continues to Firestore
+    }
+
+    const hashedPassword = await hashPassword(regPassword);
 
     const newUser: User = {
       id: `usr-${Date.now()}`,
@@ -530,7 +682,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       nama: sanitizedName,
       unit: regUnit,
       departemen: regDept,
-      role: regRole,
+      role: 'staff', // Strictly enforced lowest-privilege role on public self-registration
       password: hashedPassword,
       status: 'Pending',
       createdAt: new Date().toISOString(),
@@ -544,15 +696,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
       action: 'Registrasi Akun Baru',
       target: cleanEmail,
       status: 'SUCCESS',
-      details: `Pendaftaran mandiri: ${cleanName} (${regRole.toUpperCase()} - ${regDept} - ${regUnit}). Menunggu verifikasi admin.`,
+      details: `Pendaftaran mandiri: ${sanitizedName} (STAFF - ${regDept} - ${regUnit}). Menunggu verifikasi admin.`,
     });
 
     setSuccessMessage(
-      'Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan Super Admin. Anda dapat mencoba login setelah diverifikasi.'
+      'Pendaftaran berhasil! Akun Staff Anda sedang menunggu persetujuan Super Admin. Anda dapat mencoba login setelah diverifikasi.'
     );
     setIsRegister(false);
     setEmail(cleanEmail);
-    setPassword(regPassword);
+    setPassword('');
+    setRegPassword('');
   };
 
   return (
@@ -871,12 +1024,80 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   ) : isLoggingIn ? (
                     <span>Memverifikasi Kredensial...</span>
                   ) : (
-                    <>
-                      <span>{t('loginSubmitBtn', currentLang)}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <>
+                    <span>{t('loginSubmitBtn', currentLang)}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              {/* Google SSO Option */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-normal text-[#2F327D] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <ShieldCheck className="w-4 h-4 text-[#005a8d]" />
+                  <span>{isGoogleLoading ? 'Menghubungkan Google...' : 'Masuk dengan Google (SSO)'}</span>
                 </button>
+              </div>
+
+              {/* Inline First-Run Super Admin Setup Panel */}
+              {bootstrapRequired && (
+                <div className="mt-3 p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#2F327D] font-semibold">
+                      <Shield className="w-3.5 h-3.5 text-[#F48C06]" />
+                      <span>Aktivasi Awal Super Admin IT</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBootstrapForm((v) => !v)}
+                      className="text-[11px] text-[#F48C06] hover:underline cursor-pointer"
+                    >
+                      {showBootstrapForm ? 'Tutup' : 'Atur Sandi Awal'}
+                    </button>
+                  </div>
+                  {showBootstrapForm && (
+                    <div className="space-y-2 pt-1 border-t border-indigo-200/60">
+                      <p className="text-[10.5px] text-slate-600 leading-snug">
+                        Tetapkan kata sandi pertama untuk <strong>it@hotelciputra.com</strong> sebelum sistem digunakan.
+                      </p>
+                      <input
+                        type="text"
+                        value={bootstrapName}
+                        onChange={(e) => setBootstrapName(e.target.value.slice(0, 80))}
+                        placeholder="Nama Super Admin"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
+                      />
+                      <input
+                        type="password"
+                        value={bootstrapPassword}
+                        onChange={(e) => setBootstrapPassword(e.target.value)}
+                        placeholder="Kata sandi awal (min. 8 huruf & angka)"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
+                      />
+                      <input
+                        type="password"
+                        value={bootstrapConfirm}
+                        onChange={(e) => setBootstrapConfirm(e.target.value)}
+                        placeholder="Ulangi kata sandi awal"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
+                      />
+                      <button
+                        type="button"
+                        disabled={isBootstrapping}
+                        onClick={handleBootstrapAdmin}
+                        className="w-full py-2 rounded-lg bg-[#2F327D] hover:bg-[#232561] text-white text-xs transition cursor-pointer disabled:opacity-60"
+                      >
+                        {isBootstrapping ? 'Menyimpan...' : 'Aktifkan Super Admin'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               </form>
             ) : (
               /* REGISTER FORM */
@@ -939,19 +1160,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-normal text-slate-700 mb-0.5">
-                      {t('roleLabel', currentLang)} *
+                      {t('roleLabel', currentLang)}
                     </label>
-                    <select
-                      id="reg-input-role"
-                      value={regRole === 'admin' ? 'staff' : regRole}
-                      onChange={(e) => setRegRole(e.target.value as UserRole)}
-                      className="block w-full px-2 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#F48C06]"
-                    >
-                      <option value="staff">{t('roleStaffDesc', currentLang)}</option>
-                      <option value="spv">{t('roleSpvDesc', currentLang)}</option>
-                      <option value="manager">{t('roleManagerDesc', currentLang)}</option>
-                      <option value="hod">{t('roleHodDesc', currentLang)}</option>
-                    </select>
+                    <div className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-600 font-normal">
+                      Staff (Pendaftar Baru)
+                    </div>
                   </div>
                 </div>
 

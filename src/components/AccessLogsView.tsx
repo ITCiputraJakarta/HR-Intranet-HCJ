@@ -27,6 +27,7 @@ import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
 import { getBackdropProps } from '../lib/modalHelper';
+import { escapeCsvCell } from '../lib/security';
 
 interface AccessLogsViewProps {
   logs: AccessLog[];
@@ -120,7 +121,7 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
   const failedCount = safeLogs.filter((l) => l.status === 'FAILED').length;
   const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
 
-  // Export to CSV for Google Spreadsheet
+  // Export to CSV with Spreadsheet Formula Injection protection
   const handleExportCSV = () => {
     const headers = [
       'ID Log',
@@ -138,36 +139,36 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
       'User Agent',
     ];
 
-    const rows = filtered.map((l) => [
-      l.id,
-      l.timestamp,
-      `"${l.userName.replace(/"/g, '""')}"`,
-      l.userEmail,
-      l.role,
-      `"${l.departemen.replace(/"/g, '""')}"`,
-      l.actionCategory,
-      `"${l.action.replace(/"/g, '""')}"`,
-      `"${l.target.replace(/"/g, '""')}"`,
-      l.status,
-      `"${(l.details || '').replace(/"/g, '""')}"`,
-      l.ipAddress || '-',
-      `"${(l.userAgent || '-').replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `Log_Akses_Intranet_Ciputra_${new Date().toISOString().slice(0, 10)}.csv`
+    const rows = filtered.map((l) =>
+      [
+        l.id,
+        l.timestamp,
+        l.userName,
+        l.userEmail,
+        l.role,
+        l.departemen,
+        l.actionCategory,
+        l.action,
+        l.target,
+        l.status,
+        l.details || '',
+        l.ipAddress || '-',
+        l.userAgent || '-',
+      ]
+        .map((cell) => escapeCsvCell(cell))
+        .join(',')
     );
+
+    const csvContent = '\uFEFF' + [headers.map((h) => escapeCsvCell(h)).join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Log_Akses_Intranet_Ciputra_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleClearLogs = () => {

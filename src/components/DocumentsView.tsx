@@ -322,13 +322,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         }
       }
 
-      let fileUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
-      let previewUrl = fileUrl;
-      let downloadUrl = fileUrl;
+      let fileUrl = '';
+      let previewUrl = '';
+      let downloadUrl = '';
       let thumbUrl = '';
-      let fileName = `${category}-${upTitle.trim().replace(/\s+/g, '_')}.pdf`;
-      let fileType = 'application/pdf';
-      let fileSize = '45 KB';
+      let fileName = '';
+      let fileType = 'text/plain';
+      let fileSize = 'Tanpa Lampiran';
 
       if (fileInput) {
         const compressed = await processFileForFirestore(fileInput);
@@ -1102,7 +1102,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/png,image/jpeg,image/webp,image/gif"
                     onChange={(e) => setEditFileInput(e.target.files?.[0] || null)}
                     className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                   />
@@ -1271,7 +1271,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </label>
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,image/png,image/jpeg,image/webp,image/gif"
                   onChange={(e) => setFileInput(e.target.files?.[0] || null)}
                   className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 bg-white"
                 />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Hotel } from 'lucide-react';
 import { getAppBranding, subscribeToAppBranding } from '../../lib/branding';
+import { sanitizeSafeUrl } from '../../lib/security';
 
 export interface UnifiedLogoProps {
   customLogoUrl?: string | null;
@@ -65,14 +66,15 @@ export const UnifiedLogo: React.FC<UnifiedLogoProps> = ({
   }, [customLogoUrl]);
 
   const cfg = sizeConfig[size] || sizeConfig.md;
+  const safeLogoUrl = sanitizeSafeUrl(logoUrl, { allowDataImage: true });
 
-  if (logoUrl) {
+  if (safeLogoUrl) {
     return (
       <div
         className={`relative overflow-hidden bg-white flex items-center justify-center shadow-md shadow-[#F48C06]/15 border border-orange-100/80 group-hover:scale-105 transition-transform duration-300 shrink-0 ${cfg.container} ${className}`}
       >
         <img
-          src={logoUrl}
+          src={safeLogoUrl}
           alt={alt}
           className={`w-full h-full object-contain p-0.5 select-none ${imageClassName}`}
           loading="eager"

@@ -8,7 +8,7 @@ import {
   doc,
   getDocFromServer,
 } from 'firebase/firestore';
-import { getAuth, signInAnonymously, Auth } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 
 export interface FirebaseAppConfig {
   apiKey: string;
@@ -75,12 +75,9 @@ export const db: Firestore = createFirestoreInstance();
 // Initialize Firebase Authentication
 export const auth: Auth = getAuth(app);
 
-// Validate connection to Firestore on boot & attempt silent anonymous auth if rules require request.auth != null
+// Validate connection to Firestore on boot without creating anonymous auth sessions
 async function testConnection() {
   try {
-    if (!auth.currentUser) {
-      await signInAnonymously(auth).catch(() => {});
-    }
     await getDocFromServer(doc(db, 'systemConfig', 'app_branding'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {

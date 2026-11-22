@@ -35,7 +35,7 @@ import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
 import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
-import { hashPassword, sanitizeInput } from '../lib/security';
+import { hashPassword, sanitizeInput, validatePasswordStrength } from '../lib/security';
 import { getBackdropProps } from '../lib/modalHelper';
 
 interface UserManagementViewProps {
@@ -88,7 +88,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [newUnit] = useState('Hotel Ciputra Jakarta');
   const [newDept, setNewDept] = useState('Front Office');
   const [newRole, setNewRole] = useState<UserRole>('staff');
-  const [newPassword, setNewPassword] = useState('password123');
+  const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [newStatus, setNewStatus] = useState<UserStatus>('Approved');
   const [formError, setFormError] = useState('');
@@ -167,6 +167,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
+    const pwCheck = validatePasswordStrength(newPassword.trim());
+    if (!pwCheck.valid) {
+      setFormError(pwCheck.error || 'Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.');
+      return;
+    }
+
     const all = getUsers();
     const cleanEmail = newEmail.trim().toLowerCase();
     if (all.some((u) => u.email.toLowerCase() === cleanEmail)) {
@@ -193,7 +199,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setShowAddModal(false);
     setNewName('');
     setNewEmail('');
-    setNewPassword('password123');
+    setNewPassword('');
     setShowNewPassword(false);
     setFormError('');
     onRefresh();
@@ -217,6 +223,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     if (!editName.trim() || !editEmail.trim()) {
       setEditFormError('Nama lengkap dan email tidak boleh kosong.');
       return;
+    }
+
+    if (editPassword.trim()) {
+      const pwCheck = validatePasswordStrength(editPassword.trim());
+      if (!pwCheck.valid) {
+        setEditFormError(pwCheck.error || 'Kata sandi baru wajib minimal 8 karakter dengan kombinasi huruf dan angka.');
+        return;
+      }
     }
 
     const hashedPassword = editPassword.trim()
@@ -740,17 +754,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         <div className="flex items-center gap-2 font-mono">
                           <span className="text-slate-700 font-semibold text-xs">
                             {isPwRevealed ? (
-                              user.password?.startsWith('SHA256:') ? (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  title="Kata sandi diamankan dengan enkripsi SHA-256 dan salt unik. Anda dapat mengubahnya kapan saja melalui tombol Edit."
-                                >
-                                  <Shield className="w-2.5 h-2.5 text-emerald-600" />
-                                  <span>Terenkripsi SHA-256</span>
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                title="Kata sandi diamankan dengan hash satu arah yang kuat. Gunakan tombol Edit untuk mengatur ulang sandi."
+                              >
+                                <Shield className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>
+                                  {user.password?.startsWith('PBKDF2:')
+                                    ? 'Terenkripsi PBKDF2'
+                                    : user.password?.startsWith('SHA256:')
+                                    ? 'Terenkripsi SHA-256'
+                                    : 'Terenkripsi Aman'}
                                 </span>
-                              ) : (
-                                user.password || '••••'
-                              )
+                              </span>
                             ) : (
                               '••••••••'
                             )}
@@ -759,7 +775,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             type="button"
                             onClick={() => togglePasswordVisibility(user.id)}
                             className="p-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                            title={isPwRevealed ? 'Sembunyikan' : 'Lihat Status Kata Sandi'}
+                            title={isPwRevealed ? 'Sembunyikan Status Enkripsi' : 'Lihat Status Enkripsi Kata Sandi'}
                           >
                             {isPwRevealed ? (
                               <EyeOff className="w-3.5 h-3.5" />
@@ -1036,8 +1052,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       required
+                      minLength={8}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Min. 8 huruf & angka"
                       className="w-full pl-3 pr-8 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                     />
                     <button

@@ -43,6 +43,7 @@ import {
   saveHotelUnits,
   saveKPIMaster,
 } from '../lib/storage';
+import { escapeCsvCell } from '../lib/security';
 import {
   seedInitialFirestoreData,
   testFirestoreConnection,
@@ -570,7 +571,7 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
       const ageDays = Math.max(0, Math.floor((now - createdTime) / (1000 * 60 * 60 * 24)));
       return [
         d.id,
-        `"${(d.title || '').replace(/"/g, '""')}"`,
+        d.title || '',
         d.category,
         d.akses_dept || 'All Departments',
         d.unit || 'HCJ',
@@ -578,11 +579,13 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
         d.updatedAt || d.uploadedAt || '-',
         `${ageDays} Hari`,
         d.fileSize || '-',
-        `"${(d.uploadedBy || (d as any).author || '').replace(/"/g, '""')}"`,
-      ].join(',');
+        d.uploadedBy || (d as any).author || '',
+      ]
+        .map((cell) => escapeCsvCell(cell))
+        .join(',');
     });
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const csvContent = '\uFEFF' + [headers.map((h) => escapeCsvCell(h)).join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -612,14 +615,16 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     const rows = quotaMetrics.collections.map((c) =>
       [
         c.path,
-        `"${c.label}"`,
+        c.label,
         c.count,
         `${c.kb} KB`,
         `${formatPct(c.sharePercent, 2)}%`,
         `${formatPct(c.quotaPercent, 3)}%`,
-      ].join(',')
+      ]
+        .map((cell) => escapeCsvCell(cell))
+        .join(',')
     );
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const csvContent = '\uFEFF' + [headers.map((h) => escapeCsvCell(h)).join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

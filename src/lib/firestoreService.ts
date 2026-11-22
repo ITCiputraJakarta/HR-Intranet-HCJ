@@ -483,9 +483,15 @@ function handleSubscriptionError(name: string, err: any) {
   }
 }
 
-export function subscribeToUsers(onUpdate: (users: User[]) => void): () => void {
+export function subscribeToUsers(
+  onUpdate: (users: User[]) => void,
+  scopedEmail?: string
+): () => void {
   try {
-    const q = collection(db, USERS_COL);
+    const cleanEmail = scopedEmail ? scopedEmail.trim().toLowerCase() : '';
+    const q = cleanEmail
+      ? query(collection(db, USERS_COL), where('email', '==', cleanEmail))
+      : collection(db, USERS_COL);
     return onSnapshot(
       q,
       (snapshot) => {
@@ -655,9 +661,15 @@ export function subscribeToDocuments(
 
 const THREE_MONTHS_RETENTION_MS = 90 * 24 * 60 * 60 * 1000; // 90 hari (3 bulan)
 
-export function subscribeToAccessLogs(onUpdate: (logs: AccessLog[]) => void): () => void {
+export function subscribeToAccessLogs(
+  onUpdate: (logs: AccessLog[]) => void,
+  scopedEmail?: string
+): () => void {
   try {
-    const q = query(collection(db, LOGS_COL), limit(500));
+    const cleanEmail = scopedEmail ? scopedEmail.trim().toLowerCase() : '';
+    const q = cleanEmail
+      ? query(collection(db, LOGS_COL), where('userEmail', '==', cleanEmail), limit(500))
+      : query(collection(db, LOGS_COL), limit(500));
     return onSnapshot(
       q,
       (snapshot) => {
@@ -666,10 +678,10 @@ export function subscribeToAccessLogs(onUpdate: (logs: AccessLog[]) => void): ()
         snapshot.forEach((d) => {
           const log = { ...(d.data() as AccessLog), id: (d.data() as AccessLog).id || d.id };
           const logTime = new Date(log.timestamp).getTime();
-          if (!isNaN(logTime) && now - logTime > THREE_MONTHS_RETENTION_MS) {
-            // Auto-delete logs older than 3 months from Firestore so storage never fills up
+          if (!cleanEmail && !isNaN(logTime) && now - logTime > THREE_MONTHS_RETENTION_MS) {
+            // Admin-only: Auto-delete logs older than 3 months from Firestore so storage never fills up
             deleteDoc(doc(db, LOGS_COL, d.id)).catch(() => {});
-          } else if (!isFirestoreIdDeleted(log.id)) {
+          } else if (!isFirestoreIdDeleted(log.id) && (isNaN(logTime) || now - logTime <= THREE_MONTHS_RETENTION_MS)) {
             items.push(log);
           }
         });
@@ -769,9 +781,15 @@ export function subscribeToKPIs(onUpdate: (kpis: KPIMasterItem[]) => void): () =
   }
 }
 
-export function subscribeToPerformances(onUpdate: (perfs: PerformanceAppraisal[]) => void): () => void {
+export function subscribeToPerformances(
+  onUpdate: (perfs: PerformanceAppraisal[]) => void,
+  scopedEmail?: string
+): () => void {
   try {
-    const q = collection(db, PERFS_COL);
+    const cleanEmail = scopedEmail ? scopedEmail.trim().toLowerCase() : '';
+    const q = cleanEmail
+      ? query(collection(db, PERFS_COL), where('email', '==', cleanEmail))
+      : collection(db, PERFS_COL);
     return onSnapshot(
       q,
       (snapshot) => {

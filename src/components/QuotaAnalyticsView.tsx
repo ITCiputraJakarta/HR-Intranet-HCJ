@@ -488,8 +488,10 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
     [currentUser?.nama, onRefresh, quotaMetrics]
   );
 
-  // Subscribe to real-time Quota Telemetry in Firestore + Auto-Sync on open & every 60 seconds while Super Admin is active
+  // Subscribe to real-time Quota Telemetry in Firestore + Auto-Sync on open strictly for Super Admin
   useEffect(() => {
+    if (!isSuperAdmin) return;
+
     const unsubTelemetry = subscribeToQuotaTelemetry((telemetry) => {
       if (telemetry) {
         setCloudTelemetry(telemetry);
@@ -513,13 +515,13 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
       }
     });
 
-    // Run immediate live sync when opened
+    // Run immediate live sync when opened by verified Super Admin
     runUnifiedCloudSync(true);
 
     return () => {
       unsubTelemetry();
     };
-  }, []);
+  }, [isSuperAdmin]);
 
   // 1-Minute Auto-Update Interval & Countdown Timer while Super Admin is active
   useEffect(() => {

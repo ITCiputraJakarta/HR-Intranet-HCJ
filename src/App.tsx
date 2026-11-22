@@ -145,12 +145,14 @@ export default function App() {
   const [previewCareerModal, setPreviewCareerModal] = useState<boolean>(false);
 
   // Load all data from storage
-  const refreshAllData = () => {
-    try {
-      pruneExpiredAnnouncements(7, currentUser || undefined);
-      pruneExpiredAccessLogs();
-    } catch (e) {
-      console.warn('Pruning check:', e);
+  const refreshAllData = (allowAdminPrune: boolean = false) => {
+    if (allowAdminPrune) {
+      try {
+        pruneExpiredAnnouncements(7, currentUser || undefined);
+        pruneExpiredAccessLogs();
+      } catch (e) {
+        console.warn('Pruning check:', e);
+      }
     }
     const latestUsers = getUsers();
     setDocuments(getDocuments());
@@ -192,83 +194,81 @@ export default function App() {
         return;
       }
 
-      // 1. Verify server Bearer token if held in memory
-      const token = getInMemoryApiToken();
-      if (token) {
-        try {
-          const resp = await fetchWithApiAuth('/api/auth/session');
-          if (resp.ok) {
-            const payload = await resp.json();
-            if (payload?.authenticated && payload?.user && active) {
-              setCurrentUser(payload.user);
-              setUserState(payload.user);
-              setIsSessionVerified(true);
-              return;
-            }
-          } else if (resp.status === 401) {
-            clearInMemoryApiToken();
-          }
-        } catch {
-          // Server unreachable; continue to Firestore/Firebase Auth verification
-        }
-      }
-
-      // 2. Verify authoritative record from Firestore (overwrites any localStorage role spoofing)
+      // 1. Verify server session via in-memory Bearer token OR HttpOnly signed session cookie
       try {
-        const remote = await firestoreGetUserById(currentUser.id);
-        if (!active) return;
-        if (remote) {
-          if ((remote.status || '').toLowerCase() !== 'approved') {
-            clearAllSessionCache();
-            setCurrentUser(null);
-            setUserState(null);
-            setIsSessionVerified(false);
+        const resp = await fetchWithApiAuth('/api/auth/session');
+        if (resp.ok) {
+          const payload = await resp.json();
+          if (payload?.authenticated && payload?.user && active) {
+            setCurrentUser(payload.user);
+            setUserState(payload.user);
+            setIsSessionVerified(true);
             return;
           }
-          setCurrentUser(remote);
-          setUserState(remote);
-          setIsSessionVerified(true);
-          return;
+        } else if (resp.status === 401) {
+          clearInMemoryApiToken();
         }
       } catch {
-        // Ignore network transient failure
+        // Server unreachable; continue to Firebase Auth verification
       }
 
-      // 3. If Firebase Auth Google session exists without local token, exchange ID token for API token
-      if (auth.currentUser && auth.currentUser.email) {
+      // 2. If Firebase Auth Google session exists with verified email, exchange ID token and check Firestore profile
+      if (auth.currentUser && auth.currentUser.email && auth.currentUser.emailVerified) {
         try {
           const idToken = await auth.currentUser.getIdToken();
           const resp = await fetch('/api/auth/firebase-session', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken }),
           });
           if (resp.ok) {
             const data = await resp.json();
-            if (data?.token && active) {
+            if (data?.token && data?.user && active) {
               setInMemoryApiToken(data.token);
+              const remote = await firestoreGetUserById(currentUser.id).catch(() => null);
+              if (!active) return;
+              if (remote) {
+                if ((remote.status || '').toLowerCase() !== 'approved') {
+                  clearAllSessionCache();
+                  setCurrentUser(null);
+                  setUserState(null);
+                  setIsSessionVerified(false);
+                  return;
+                }
+                setCurrentUser(remote);
+                setUserState(remote);
+              } else {
+                setCurrentUser(data.user);
+                setUserState(data.user);
+              }
               setIsSessionVerified(true);
               return;
             }
           }
         } catch {
-          // Non-blocking
+          // Fall through to fail-closed reset
         }
       }
 
+      // 3. Fail closed: never grant verified UI state from unauthenticated localStorage
       if (active) {
-        setIsSessionVerified(true);
+        clearAllSessionCache();
+        setCurrentUser(null);
+        setUserState(null);
+        setIsSessionVerified(false);
       }
     };
 
     verifyRestoredSession();
 
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser && !getInMemoryApiToken()) {
+      if (fbUser && fbUser.emailVerified && !getInMemoryApiToken()) {
         try {
           const idToken = await fbUser.getIdToken();
           const resp = await fetch('/api/auth/firebase-session', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idToken }),
           });
@@ -326,7 +326,7 @@ export default function App() {
       setHotelUnits(getHotelUnits());
     });
 
-    // Authenticated Session Only: Subscribe to internal collections & run admin maintenance only for verified admins
+    // Verified Session Only: Subscribe to internal collections with scoped queries for non-admins
     let unsubCats = () => {};
     let unsubConfig = () => {};
     let unsubUsers = () => {};
@@ -336,10 +336,13 @@ export default function App() {
     let unsubNotifs = () => {};
     let unsubApps = () => {};
 
-    if (currentUser?.id) {
-      refreshAllData();
+    const isVerifiedAdmin = isSessionVerified && currentUser?.role === 'admin';
+    const scopedEmail = isVerifiedAdmin ? undefined : currentUser?.email;
 
-      if (currentUser.role === 'admin') {
+    if (currentUser?.id && isSessionVerified) {
+      refreshAllData(isVerifiedAdmin);
+
+      if (isVerifiedAdmin) {
         seedInitialFirestoreData(false).catch((err) => console.warn('Firestore seed check:', err));
         cleanupPreDeployDummyData().catch((err) => console.warn('Pre-deploy cleanup check:', err));
       }
@@ -377,12 +380,12 @@ export default function App() {
           }
           return prev;
         });
-      });
+      }, scopedEmail);
 
       unsubLogs = subscribeToAccessLogs((newLogs) => {
         saveAccessLogs(newLogs);
         setLogs(getAccessLogs());
-      });
+      }, scopedEmail);
 
       unsubKPIs = subscribeToKPIs((newKPIs) => {
         saveKPIMaster(newKPIs);
@@ -392,14 +395,14 @@ export default function App() {
       unsubPerfs = subscribeToPerformances((newPerfs) => {
         savePerformances(newPerfs);
         setPerformances(getPerformances());
-      });
+      }, scopedEmail);
 
       unsubNotifs = subscribeToNotifications((newNotifs) => {
         saveNotifications(newNotifs);
         setNotifications(getNotifications());
       });
 
-      if (currentUser.role === 'admin') {
+      if (isVerifiedAdmin) {
         unsubApps = subscribeToCareerApplications((apps) => {
           setCareerApplications(apps);
         });
@@ -422,12 +425,16 @@ export default function App() {
       unsubNotifs();
       unsubApps();
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, isSessionVerified]);
 
   const isSuperAdmin = isSessionVerified && currentUser?.role === 'admin';
   const isHod = isSessionVerified && currentUser?.role === 'hod';
   const isHodOrAdmin = isSuperAdmin || isHod;
-  const isL1 = currentUser?.role === 'staff' || currentUser?.role === 'spv' || currentUser?.role === 'manager';
+  const isL1 =
+    !isSessionVerified ||
+    currentUser?.role === 'staff' ||
+    currentUser?.role === 'spv' ||
+    currentUser?.role === 'manager';
 
   // Automatic update on open & every 1 minute (60s) while Super Admin is active
   useEffect(() => {
@@ -498,16 +505,12 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, [isSuperAdmin, currentUser?.id]);
 
-  // Strict role guard: redirect to announcements if user does not have permission to view current tab
+  // Strict role guard: redirect to announcements if user does not have verified permission to view current tab
   useEffect(() => {
     if (!currentUser) return;
-    const role = currentUser.role || 'staff';
-    const isLevel1 = role === 'staff' || role === 'spv' || role === 'manager';
-    const isHead = role === 'hod';
-    const isAdmin = role === 'admin';
 
-    if (isLevel1) {
-      // Level 1: Staff, SPV, and Manager have view-only/self-service access to archives, files, and their own KPI evaluation
+    if (!isSessionVerified || isL1) {
+      // Unverified or Level 1: view-only/self-service access to archives, files, and own KPI evaluation
       if (
         activeTab !== 'announcements' &&
         activeTab !== 'sop' &&
@@ -517,19 +520,22 @@ export default function App() {
       ) {
         setActiveTab('announcements');
       }
-    } else if (isHead) {
+    } else if (isHod) {
       // Level 2: Head of Department (HOD) can manage KPI Master & view departments/categories
       if (
         activeTab === 'users' ||
         activeTab === 'logs' ||
         activeTab === 'access-logs' ||
         activeTab === 'spreadsheet' ||
-        activeTab === 'firestore-sync'
+        activeTab === 'firestore-sync' ||
+        activeTab === 'quota-analytics' ||
+        activeTab === 'home-cms' ||
+        activeTab === 'career-cms'
       ) {
         setActiveTab('announcements');
       }
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser, isSessionVerified, isL1, isHod, activeTab]);
 
   // 1-minute idle auto-logout handler
   useIdleTimeout(!!currentUser, () => {
@@ -548,7 +554,7 @@ export default function App() {
     // Always start at announcements on login so staff never sees previous admin tab
     setActiveTab('announcements');
     setIsMobileMenuOpen(false);
-    refreshAllData();
+    refreshAllData(user.role === 'admin');
   };
 
   const handleLogout = (isIdleTimeout: boolean = false) => {
@@ -565,7 +571,7 @@ export default function App() {
       });
     }
 
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
     auth.signOut().catch(() => {});
 
     // Clear user and timer while keeping system data intact
@@ -588,8 +594,9 @@ export default function App() {
     // Reset volatile states
     setDocuments(getDocuments());
     setAnnouncements(getAnnouncements());
-    setUsers(getUsers());
+    setUsers([]);
     setLogs([]);
+    setPerformances([]);
     setNotifications([]);
   };
 
@@ -600,7 +607,7 @@ export default function App() {
 
   const handleNavigate = (tab: string, category?: string) => {
     if (tab === 'spreadsheet' || tab === 'firestore-sync') {
-      setShowFirestoreModal(true);
+      if (isSuperAdmin) setShowFirestoreModal(true);
       return;
     }
     if (tab === 'documents') {
@@ -618,9 +625,9 @@ export default function App() {
       return;
     }
     if (tab === 'profile') {
-      if (currentUser?.role === 'admin') {
+      if (isSuperAdmin) {
         setActiveTab('users');
-      } else if (currentUser?.role === 'manager' || currentUser?.role === 'hod') {
+      } else if (isHod || currentUser?.role === 'manager') {
         setActiveTab('performance');
       } else {
         setActiveTab('announcements');
@@ -733,9 +740,9 @@ export default function App() {
         currentLang={currentLang}
         onLanguageChange={handleLanguageChange}
         onClearNotifications={handleClearNotifications}
-        onOpenBranding={() => setShowBrandingModal(true)}
-        onOpenConfig={() => setShowFirestoreModal(true)}
-        onOpenFirestoreModal={() => setShowFirestoreModal(true)}
+        onOpenBranding={() => isSuperAdmin && setShowBrandingModal(true)}
+        onOpenConfig={() => isSuperAdmin && setShowFirestoreModal(true)}
+        onOpenFirestoreModal={() => isSuperAdmin && setShowFirestoreModal(true)}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -891,7 +898,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'quota-analytics' && (
+          {activeTab === 'quota-analytics' && isSuperAdmin && (
             <QuotaAnalyticsView
               currentUser={currentUser}
               documents={documents}
@@ -904,7 +911,7 @@ export default function App() {
               hotelUnits={hotelUnits}
               firebaseState={firebaseState}
               currentLang={currentLang}
-              onRefresh={refreshAllData}
+              onRefresh={() => refreshAllData(isSuperAdmin)}
             />
           )}
 
@@ -943,21 +950,25 @@ export default function App() {
       )}
 
       {/* Cloud Firestore Status & Sync Modal (Super Admin only) */}
-      <FirestoreSyncModal
-        isOpen={showFirestoreModal}
-        onClose={() => setShowFirestoreModal(false)}
-        currentUser={currentUser}
-        onRefreshAll={refreshAllData}
-      />
+      {isSuperAdmin && (
+        <FirestoreSyncModal
+          isOpen={showFirestoreModal}
+          onClose={() => setShowFirestoreModal(false)}
+          currentUser={currentUser}
+          onRefreshAll={() => refreshAllData(true)}
+        />
+      )}
 
       {/* Branding & Logo Settings Modal (Super Admin only) */}
-      <BrandingSettingsModal
-        isOpen={showBrandingModal}
-        onClose={() => setShowBrandingModal(false)}
-        currentUser={currentUser}
-        currentLang={currentLang}
-        onBrandingSaved={refreshAllData}
-      />
+      {isSuperAdmin && (
+        <BrandingSettingsModal
+          isOpen={showBrandingModal}
+          onClose={() => setShowBrandingModal(false)}
+          currentUser={currentUser}
+          currentLang={currentLang}
+          onBrandingSaved={() => refreshAllData(true)}
+        />
+      )}
 
       {/* Super Admin Preview Home Modal */}
       {previewHomeModal && (

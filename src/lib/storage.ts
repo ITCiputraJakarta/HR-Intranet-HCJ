@@ -61,7 +61,7 @@ function stripUserPassword(user: User): User {
   return rest as User;
 }
 
-function generateSecureClientId(prefix: string): string {
+export function generateSecureClientId(prefix: string): string {
   if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
     return `${prefix}-${globalThis.crypto.randomUUID()}`;
   }
@@ -243,7 +243,7 @@ export function addHotelUnit(
   }
 
   const newUnit: HotelUnitMaster = {
-    id: `unit-${Date.now()}`,
+    id: generateSecureClientId('unit'),
     name: trimmedName,
     shortName: trimmedCode,
     code: trimmedCode,
@@ -481,8 +481,15 @@ export function setCurrentUser(user: User | null): void {
 export function clearAllSessionCache(): void {
   try {
     clearInMemoryApiToken();
+    clearMemoryCache();
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem(STORAGE_KEYS.USERS);
+      localStorage.removeItem(STORAGE_KEYS.ACCESS_LOGS);
+      localStorage.removeItem(STORAGE_KEYS.PERFORMANCES);
+      localStorage.removeItem(STORAGE_KEYS.DOCUMENTS);
+      localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
+      localStorage.removeItem('hcj_career_applications_v1');
       localStorage.removeItem('ciputra_intra_last_active_v1');
       sessionStorage.clear();
     }
@@ -1039,7 +1046,7 @@ export function deleteAccessLog(logId: string): void {
 export function clearAccessLogs(actor: User): void {
   const resetLogs: AccessLog[] = [
     {
-      id: `log-${Date.now()}`,
+      id: generateSecureClientId('log'),
       timestamp: new Date().toISOString(),
       userName: actor.nama,
       userEmail: actor.email,
@@ -1155,7 +1162,7 @@ export function addDepartment(
   }
 
   const newDept: DepartmentMaster = {
-    id: `dept-${Date.now()}`,
+    id: generateSecureClientId('dept'),
     unit: targetUnit,
     name: trimmedName,
     code: trimmedCode,

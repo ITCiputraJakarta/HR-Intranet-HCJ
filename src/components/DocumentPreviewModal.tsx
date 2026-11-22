@@ -44,7 +44,16 @@ interface DocumentPreviewModalProps {
   onNavigateToLogin?: () => void;
 }
 
-export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
+export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
+  if (!props.document) return null;
+  return <DocumentPreviewModalContent {...props} document={props.document} />;
+};
+
+interface DocumentPreviewModalContentProps extends Omit<DocumentPreviewModalProps, 'document'> {
+  document: IntranetDocument;
+}
+
+const DocumentPreviewModalContent: React.FC<DocumentPreviewModalContentProps> = ({
   document: doc,
   currentUser,
   onClose,
@@ -53,8 +62,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   onRefresh,
   onNavigateToLogin,
 }) => {
-  if (!doc) return null;
-
   const departments = getDepartments();
   const [activeDoc, setActiveDoc] = useState<IntranetDocument>(doc);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
@@ -68,6 +75,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [editError, setEditError] = useState('');
 
   useEffect(() => {
+    let active = true;
     setActiveDoc(doc);
     setEditTitle(doc.title);
     setEditDept(doc.akses_dept);
@@ -76,12 +84,18 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       setIsLoadingFile(true);
       fetchDocumentFullFile(doc)
         .then((hydrated) => {
+          if (!active) return;
           setActiveDoc(hydrated);
           if (onUpdate) onUpdate(hydrated);
         })
         .catch((e) => console.warn('Chunk load error:', e))
-        .finally(() => setIsLoadingFile(false));
+        .finally(() => {
+          if (active) setIsLoadingFile(false);
+        });
     }
+    return () => {
+      active = false;
+    };
   }, [doc.id]);
 
   const canManage =
@@ -89,7 +103,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     (currentUser.role === 'admin' ||
       currentUser.role === 'hod' ||
       currentUser.role === 'manager');
-  const folderPath = `${doc.category} / ${doc.akses_dept} / ${doc.fileName}`;
+  const folderPath = `${activeDoc.category} / ${activeDoc.akses_dept} / ${activeDoc.fileName}`;
 
   const handleDownload = async () => {
     let target = activeDoc;
@@ -121,8 +135,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   };
 
   const handleDownloadAttachment = () => {
-    if (!doc.attachmentUrl) return;
-    downloadFileFromDataUrl(doc.attachmentUrl, doc.attachmentName || 'Lampiran');
+    if (!activeDoc.attachmentUrl) return;
+    downloadFileFromDataUrl(activeDoc.attachmentUrl, activeDoc.attachmentName || 'Lampiran');
   };
 
   const handleSaveEdit = async () => {
@@ -136,7 +150,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
     try {
       let updated: IntranetDocument = {
-        ...doc,
+        ...activeDoc,
         title: editTitle.trim(),
         akses_dept: editDept,
         keterangan: editKeterangan.trim(),
@@ -166,6 +180,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       if (!currentUser) return;
       // Save to local storage & Firestore
       await updateDocument(updated, currentUser);
+      setActiveDoc(updated);
 
       if (typeof onUpdate === 'function') {
         onUpdate(updated);
@@ -186,9 +201,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
   const handleConfirmDelete = async () => {
     if (!currentUser) return;
-    await deleteDocument(doc.id, currentUser);
+    await deleteDocument(activeDoc.id, currentUser);
     if (typeof onDelete === 'function') {
-      onDelete(doc.id);
+      onDelete(activeDoc.id);
     }
     if (typeof onRefresh === 'function') {
       onRefresh();
@@ -294,7 +309,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <span className="text-slate-500 font-sans">Penyimpanan Cloud:</span>
                 <span className="font-bold truncate text-indigo-800">{folderPath}</span>
               </div>
-              {doc.updatedAt && (
+              {activeDoc.updatedAt && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-sans font-bold shrink-0">
                   Diedit
                 </span>
@@ -316,16 +331,16 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 title={activeDoc.title}
                 className="w-full h-[380px] border-0 bg-white"
               />
-            ) : doc.category === 'Pengumuman' ? (
+            ) : activeDoc.category === 'Pengumuman' ? (
               <div className="p-8 text-center space-y-3 w-full bg-slate-200 flex flex-col items-center justify-center">
                 <div className="w-16 h-16 rounded-2xl bg-slate-300 text-slate-600 flex items-center justify-center shadow-xs">
-                  {doc.attachmentName ? <FileText className="w-8 h-8" /> : <Megaphone className="w-8 h-8" />}
+                  {activeDoc.attachmentName ? <FileText className="w-8 h-8" /> : <Megaphone className="w-8 h-8" />}
                 </div>
                 <div>
                   <p className="font-bold text-slate-700 text-sm">Pengumuman Tanpa Gambar Sampul</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {doc.attachmentName
-                      ? `Tersedia berkas lampiran: ${doc.attachmentName}`
+                    {activeDoc.attachmentName
+                      ? `Tersedia berkas lampiran: ${activeDoc.attachmentName}`
                       : 'Tampilan netral abu-abu tanpa foto'}
                   </p>
                 </div>
@@ -336,12 +351,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   <FileText className="w-8 h-8" />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-800 text-sm">{doc.fileName}</p>
+                  <p className="font-bold text-slate-800 text-sm">{activeDoc.fileName}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Format: {doc.fileType || 'Dokumen PDF / Berkas Digital'} • {doc.fileSize || '1.5 MB'}
+                    Format: {activeDoc.fileType || 'Dokumen PDF / Berkas Digital'} • {activeDoc.fileSize || '1.5 MB'}
                   </p>
                 </div>
-                {doc.fileUrl && (
+                {(activeDoc.fileUrl || activeDoc.downloadUrl) && (
                   <button
                     type="button"
                     onClick={handleOpenExternal}
@@ -356,7 +371,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           {/* Lampiran Dokumen Tambahan */}
-          {doc.attachmentUrl && (
+          {activeDoc.attachmentUrl && (
             <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-3 truncate">
                 <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -367,10 +382,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     Dokumen Lampiran Tambahan
                   </span>
                   <p className="text-xs font-bold text-slate-900 truncate">
-                    {doc.attachmentName || 'Dokumen Lampiran'}
+                    {activeDoc.attachmentName || 'Dokumen Lampiran'}
                   </p>
                   <span className="text-[10px] text-slate-500 font-mono">
-                    {doc.attachmentType || 'Dokumen'} {doc.attachmentSize ? `• ${doc.attachmentSize}` : ''}
+                    {activeDoc.attachmentType || 'Dokumen'} {activeDoc.attachmentSize ? `• ${activeDoc.attachmentSize}` : ''}
                   </span>
                 </div>
               </div>
@@ -393,10 +408,10 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   <span className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
                     Distribusi
                   </span>
-                  {doc.akses_dept.toLowerCase().includes('all') ? (
+                  {activeDoc.akses_dept.toLowerCase().includes('all') ? (
                     <span className="text-xs font-semibold text-slate-700">Seluruh Karyawan</span>
                   ) : (
-                    <DepartmentBadge department={doc.akses_dept} size="xs" />
+                    <DepartmentBadge department={activeDoc.akses_dept} size="xs" />
                   )}
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
@@ -404,7 +419,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     Kategori
                   </span>
                   <span className="font-bold text-slate-800 mt-0.5 block truncate">
-                    {doc.sub_kategori || doc.category}
+                    {activeDoc.sub_kategori || activeDoc.category}
                   </span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
@@ -412,7 +427,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     Pengunggah
                   </span>
                   <span className="font-bold text-slate-800 mt-0.5 block truncate">
-                    {doc.uploadedBy}
+                    {activeDoc.uploadedBy}
                   </span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
@@ -420,7 +435,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     Tanggal Terbit
                   </span>
                   <span className="font-bold text-slate-800 mt-0.5 block truncate">
-                    {new Date(doc.uploadedAt).toLocaleDateString('id-ID', {
+                    {new Date(activeDoc.uploadedAt).toLocaleDateString('id-ID', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -429,13 +444,13 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </div>
               </div>
 
-              {doc.keterangan && (
+              {activeDoc.keterangan && (
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                     Keterangan & Catatan Berkas:
                   </h4>
                   <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {doc.keterangan}
+                    {activeDoc.keterangan}
                   </p>
                 </div>
               )}
@@ -491,7 +506,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold text-amber-950">
                   <span>Ganti Berkas / Upload File Baru (Opsional)</span>
-                  <span className="text-[10px] text-amber-800 font-mono">File saat ini: {doc.fileName}</span>
+                  <span className="text-[10px] text-amber-800 font-mono">File saat ini: {activeDoc.fileName}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -601,7 +616,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
-            {doc.fileUrl && (
+            {(activeDoc.fileUrl || activeDoc.downloadUrl) && (
               <button
                 type="button"
                 onClick={handleOpenExternal}
@@ -642,7 +657,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </div>
               </div>
               <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                Dokumen <strong>"{doc.title}"</strong> ({doc.category}) akan dihapus dari Firebase Firestore.
+                Dokumen <strong>"{activeDoc.title}"</strong> ({activeDoc.category}) akan dihapus dari Firebase Firestore.
               </p>
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button

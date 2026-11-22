@@ -31,6 +31,7 @@ import {
   saveDepartmentMasters,
   getHotelUnits,
   saveHotelUnits,
+  generateSecureClientId,
 } from '../lib/storage';
 import { Language, t } from '../lib/i18n';
 import { CaptchaWidget, CaptchaWidgetRef } from './CaptchaWidget';
@@ -310,6 +311,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       try {
         const apiResp = await fetch('/api/auth/login', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
         });
@@ -506,6 +508,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     try {
       const resp = await fetch('/api/auth/bootstrap-admin', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: 'it@hotelciputra.com',
@@ -553,6 +556,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       const resp = await fetch('/api/auth/firebase-session', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
@@ -587,7 +591,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         onLoginSuccess(adminProfile, apiData.token);
       } else {
         const newPendingStaff: User = {
-          id: `usr-${Date.now()}`,
+          id: generateSecureClientId('usr'),
           nama: sanitizeInput(apiData.user.nama || cleanEmail.split('@')[0]),
           email: cleanEmail,
           unit: 'Hotel Ciputra Jakarta',
@@ -677,7 +681,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const hashedPassword = await hashPassword(regPassword);
 
     const newUser: User = {
-      id: `usr-${Date.now()}`,
+      id: generateSecureClientId('usr'),
       email: cleanEmail,
       nama: sanitizedName,
       unit: regUnit,

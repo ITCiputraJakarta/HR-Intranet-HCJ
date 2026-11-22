@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { PerformanceAppraisal } from '../types';
 import { DepartmentBadge } from '../lib/departmentColors';
+import { getRoleWeights } from '../lib/storage';
 
 interface AppraisalPrintModalProps {
   appraisal: PerformanceAppraisal;
@@ -25,6 +26,7 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
   const [zoom, setZoom] = useState<'fit' | '85%' | '100%'>('fit');
   const [sigMode, setSigMode] = useState<'wet' | 'digital'>('wet');
   const [showTips, setShowTips] = useState(true);
+  const roleWeights = getRoleWeights(appraisal.role);
 
   const handlePrint = () => {
     window.print();
@@ -293,34 +295,34 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
             <div className="grid grid-cols-4 gap-1.5 text-center divide-x divide-slate-300">
               {/* Pillar 1: KPI */}
               <div className="px-1">
-                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">1. KPI (Bobot 50%)</span>
+                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">1. KPI (Bobot {roleWeights.kpiPercent}%)</span>
                 <span className="text-xs font-black text-slate-900 block leading-tight">
                   {appraisal.kpiTranslatedScore.toFixed(2)} / 5.0
                 </span>
                 <span className="text-[8.5px] text-slate-600 font-medium block">
-                  Capaian {appraisal.kpiTotalScore}% &rarr; Bobot: <strong>{(appraisal.kpiTranslatedScore * 0.5).toFixed(2)}</strong>
+                  Capaian {appraisal.kpiTotalScore}% &rarr; Bobot: <strong>{(appraisal.kpiTranslatedScore * roleWeights.kpiWeight).toFixed(2)}</strong>
                 </span>
               </div>
 
               {/* Pillar 2: Sikap Kerja */}
               <div className="px-1">
-                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">2. Sikap Kerja (45%)</span>
+                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">2. Sikap Kerja ({roleWeights.behPercent}%)</span>
                 <span className="text-xs font-black text-slate-900 block leading-tight">
                   {appraisal.avgBehaviour.toFixed(2)} / 5.0
                 </span>
                 <span className="text-[8.5px] text-slate-600 font-medium block">
-                  Rata-rata 7 aspek &rarr; Bobot: <strong>{(appraisal.avgBehaviour * 0.45).toFixed(2)}</strong>
+                  Rata-rata 7 aspek &rarr; Bobot: <strong>{(appraisal.avgBehaviour * roleWeights.behWeight).toFixed(2)}</strong>
                 </span>
               </div>
 
               {/* Pillar 3: Disiplin */}
               <div className="px-1">
-                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">3. Disiplin (5%)</span>
+                <span className="text-[8.5px] font-bold text-slate-500 uppercase block">3. Disiplin ({roleWeights.compPercent}%)</span>
                 <span className="text-xs font-black text-slate-900 block leading-tight">
                   {appraisal.complianceScore.toFixed(1)} / 5.0
                 </span>
                 <span className="text-[8.5px] text-slate-600 font-medium block">
-                  Sanksi &rarr; Bobot: <strong>{(appraisal.complianceScore * 0.05).toFixed(2)}</strong>
+                  Sanksi &rarr; Bobot: <strong>{(appraisal.complianceScore * roleWeights.compWeight).toFixed(2)}</strong>
                 </span>
               </div>
 
@@ -337,11 +339,11 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
             </div>
           </div>
 
-          {/* 4. BAGIAN 1: TABEL INDIKATOR KPI (BOBOT 50%) */}
+          {/* 4. BAGIAN 1: TABEL INDIKATOR KPI */}
           <div className="mb-2">
             <div className="flex items-center justify-between pb-0.5 mb-1 border-b border-slate-400">
               <span className="font-extrabold text-[9.5px] uppercase tracking-wide text-slate-900">
-                BAGIAN I: KEY PERFORMANCE INDICATORS (BOBOT 50%)
+                BAGIAN I: KEY PERFORMANCE INDICATORS (BOBOT {roleWeights.kpiPercent}%)
               </span>
               <span className="text-[8.5px] font-bold text-slate-600">
                 Total Capaian: {appraisal.kpiTotalScore}% | Konversi Skala: {appraisal.kpiTranslatedScore}/5.0
@@ -413,7 +415,7 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
             <div className="border border-slate-300 rounded p-1.5 bg-white">
               <div className="flex items-center justify-between pb-0.5 mb-1 border-b border-slate-200">
                 <span className="font-extrabold text-[9px] uppercase text-slate-900">
-                  BAGIAN II: PERILAKU & SIKAP (45%)
+                  BAGIAN II: PERILAKU & SIKAP ({roleWeights.behPercent}%)
                 </span>
                 <span className="font-black text-slate-800">
                   Rata-rata: {appraisal.avgBehaviour.toFixed(2)} / 5.0
@@ -440,7 +442,7 @@ export const AppraisalPrintModal: React.FC<AppraisalPrintModalProps> = ({
               <div>
                 <div className="flex items-center justify-between pb-0.5 mb-1 border-b border-slate-200">
                   <span className="font-extrabold text-[9px] uppercase text-slate-900">
-                    BAGIAN III: KEDISIPLINAN (5%)
+                    BAGIAN III: KEDISIPLINAN ({roleWeights.compPercent}%)
                   </span>
                   <span className="font-black text-slate-800">
                     Skor: {appraisal.complianceScore.toFixed(1)} / 5.0

@@ -37,6 +37,7 @@ import {
   getDepartments,
   getHotelUnits,
   getHotelUnitRule,
+  generateSecureClientId,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { processFileForFirestore, formatBytes, downloadFileFromDataUrl } from '../lib/fileCompressor';
@@ -342,7 +343,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       }
 
       const newDoc: IntranetDocument = {
-        id: `doc-${Date.now()}`,
+        id: generateSecureClientId('doc'),
         title: sanitizeInput(upTitle.trim()),
         category: category,
         sub_kategori: upSubcat || availableSubcats[0] || 'Umum',

@@ -33,5 +33,9 @@ export async function fetchWithApiAuth(
   if (inMemoryApiToken && !mergedHeaders.has('Authorization')) {
     mergedHeaders.set('Authorization', `Bearer ${inMemoryApiToken}`);
   }
-  return fetch(input, { ...init, headers: mergedHeaders });
+  return fetch(input, {
+    credentials: 'include',
+    ...init,
+    headers: mergedHeaders,
+  });
 }

@@ -41,6 +41,8 @@ import {
   submitPerformanceForReview,
   approvePerformanceItem,
   unlockPerformanceItem,
+  getRoleWeights,
+  generateSecureClientId,
 } from '../lib/storage';
 import { AppraisalPrintModal } from './AppraisalPrintModal';
 import { getBackdropProps } from '../lib/modalHelper';
@@ -295,7 +297,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
           ];
 
     const newForm: PerformanceAppraisal = {
-      id: `perf-${Date.now()}`,
+      id: generateSecureClientId('perf'),
       periode: 2026,
       tipe: 'Mid-Year',
       email: currentUser.email,
@@ -357,9 +359,10 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     const bAvg = bValues.reduce((a, b) => a + b, 0) / (bValues.length || 7);
     form.avgBehaviour = Number(bAvg.toFixed(2));
 
-    const wKpi = trans * 0.5;
-    const wBeh = bAvg * 0.45;
-    const wComp = form.complianceScore * 0.05;
+    const weights = getRoleWeights(form.role);
+    const wKpi = trans * weights.kpiWeight;
+    const wBeh = bAvg * weights.behWeight;
+    const wComp = form.complianceScore * weights.compWeight;
     const grand = Number((wKpi + wBeh + wComp).toFixed(2));
     form.finalGrandTotal = grand;
 
@@ -494,6 +497,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
     // Manager can evaluate (achieved_yn, behaviour scores, feedback, hr recommendation)
     // only if the form is NOT locked and the user is Manager of that dept or Super Admin
     const canScore = !isLocked && (isSuperAdmin || (!isOwner && (isManager || currentUser.role === 'spv')));
+    const activeWeights = getRoleWeights(activeForm.role);
 
     return (
       <div className="space-y-6 max-w-5xl mx-auto pb-12 print:p-0 print:m-0">
@@ -707,7 +711,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                 1
               </span>
               <h3 className="font-bold text-slate-900 text-sm">
-                Key Performance Indicators (Bobot 50%)
+                Key Performance Indicators (Bobot {activeWeights.kpiPercent}%)
               </h3>
             </div>
 
@@ -796,7 +800,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                   2
                 </span>
                 <h3 className="font-bold text-slate-900 text-sm">
-                  Core Behaviour & Leadership (Bobot 45%)
+                  Core Behaviour & Leadership (Bobot {activeWeights.behPercent}%)
                 </h3>
               </div>
               <span className="px-3 py-1 rounded-full bg-sky-50 text-sky-800 text-xs font-bold border border-sky-200">
@@ -846,24 +850,24 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
                 Total Perhitungan Nilai Kinerja Akhir
               </span>
               <span className="text-xs text-indigo-200">
-                Formula: (50% KPI) + (45% Sikap) + (5% Disiplin)
+                Formula: ({activeWeights.kpiPercent}% KPI) + ({activeWeights.behPercent}% Sikap) + ({activeWeights.compPercent}% Disiplin)
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-xs">
-                <span className="text-[10px] text-slate-300 uppercase block">Capaian KPI</span>
+                <span className="text-[10px] text-slate-300 uppercase block">Capaian KPI ({activeWeights.kpiPercent}%)</span>
                 <span className="text-lg font-black text-indigo-300">{activeForm.kpiTotalScore}%</span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
                   ({activeForm.kpiTranslatedScore}/5 skala)
                 </span>
               </div>
               <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-xs">
-                <span className="text-[10px] text-slate-300 uppercase block">Rata Sikap (45%)</span>
+                <span className="text-[10px] text-slate-300 uppercase block">Rata Sikap ({activeWeights.behPercent}%)</span>
                 <span className="text-lg font-black text-sky-300">{activeForm.avgBehaviour.toFixed(2)}</span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">dari 5.00</span>
               </div>
               <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-xs">
-                <span className="text-[10px] text-slate-300 uppercase block">Disiplin (5%)</span>
+                <span className="text-[10px] text-slate-300 uppercase block">Disiplin ({activeWeights.compPercent}%)</span>
                 <span className="text-lg font-black text-emerald-300">
                   {activeForm.complianceScore.toFixed(1)}
                 </span>

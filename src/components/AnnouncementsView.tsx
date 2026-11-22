@@ -43,6 +43,7 @@ import {
   getDriveStorageConfig,
   getHotelUnits,
   getHotelUnitRule,
+  generateSecureClientId,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { processFileForFirestore, formatBytes, downloadFileFromDataUrl } from '../lib/fileCompressor';
@@ -219,8 +220,9 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
   // Delete Confirm State
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<IntranetDocument | null>(null);
 
-  // Automatically prune announcements older than 7 days (1 week) on view load
+  // Automatically prune announcements older than 7 days (1 week) on view load (Super Admin only)
   useEffect(() => {
+    if (currentUser?.role !== 'admin') return;
     const pruneDays = driveConfig.autoPruneAnnouncementsDays || 7;
     const result = pruneExpiredAnnouncements(pruneDays, currentUser);
     if (result.deletedCount > 0) {
@@ -229,7 +231,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       );
       onRefresh();
     }
-  }, []);
+  }, [currentUser?.role]);
 
   // Department & Visibility Filtering Logic
   let filteredAnnouncements = (documents || []).filter((d) => d.category === 'Pengumuman');
@@ -584,7 +586,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
       }
 
       const newDoc: IntranetDocument = {
-        id: `doc-${Date.now()}`,
+        id: generateSecureClientId('doc'),
         title: sanitizeInput(upTitle.trim()),
         category: 'Pengumuman',
         sub_kategori: upSubcat || 'Umum',

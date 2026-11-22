@@ -38,6 +38,7 @@ const FIREBASE_PROJECT_ID = "hr-intranet-31ff4";
 const FIREBASE_JWK_URL =
   "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 hours
+const SESSION_COOKIE_NAME = "hcj_session";
 const PRIMARY_ADMIN_EMAIL = "it@hotelciputra.com";
 
 // Ephemeral fallback secret when SESSION_SECRET env var is unset (never hardcoded literal)
@@ -48,6 +49,54 @@ function getSessionSecret(): string {
     return envSecret;
   }
   return EPHEMERAL_FALLBACK_SECRET;
+}
+
+function parseCookies(cookieHeader?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!cookieHeader || typeof cookieHeader !== "string") return out;
+  for (const part of cookieHeader.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = part.slice(0, eqIdx).trim();
+    const val = part.slice(eqIdx + 1).trim();
+    if (!key) continue;
+    try {
+      out[key] = decodeURIComponent(val);
+    } catch {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+function isHttpsRequest(req: express.Request): boolean {
+  if (req.secure) return true;
+  const proto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
+  return proto.split(",")[0]?.trim() === "https";
+}
+
+function setSessionCookie(req: express.Request, res: express.Response, token: string): void {
+  const isHttps = isHttpsRequest(req);
+  const attrs = [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "HttpOnly",
+    "Path=/",
+    `Max-Age=${SESSION_TTL_SECONDS}`,
+    isHttps ? "SameSite=None; Secure" : "SameSite=Lax",
+  ];
+  res.setHeader("Set-Cookie", attrs.join("; "));
+}
+
+function clearSessionCookie(req: express.Request, res: express.Response): void {
+  const isHttps = isHttpsRequest(req);
+  const attrs = [
+    `${SESSION_COOKIE_NAME}=`,
+    "HttpOnly",
+    "Path=/",
+    "Max-Age=0",
+    isHttps ? "SameSite=None; Secure" : "SameSite=Lax",
+  ];
+  res.setHeader("Set-Cookie", attrs.join("; "));
 }
 
 export function hashPasswordScrypt(password: string): string {
@@ -322,13 +371,18 @@ export function createApiApp() {
     return genAIClient;
   }
 
-  // Middleware: Require valid HMAC Bearer Session Token
+  // Middleware: Require valid HMAC Session Token via Authorization Bearer header or HttpOnly session cookie
   function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization || "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Autentikasi Bearer token diperlukan." });
+    const bearerToken = authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length).trim()
+      : "";
+    const cookieToken = parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME] || "";
+    const token = bearerToken || cookieToken;
+
+    if (!token) {
+      return res.status(401).json({ error: "Autentikasi sesi diperlukan." });
     }
-    const token = authHeader.slice("Bearer ".length).trim();
     const claims = verifySessionToken(token);
     if (!claims) {
       return res.status(401).json({ error: "Sesi token tidak valid atau sudah kedaluwarsa." });
@@ -412,6 +466,7 @@ export function createApiApp() {
       authProvider: "bootstrap",
     });
 
+    setSessionCookie(req, res, token);
     return res.status(201).json({
       token,
       user: sanitizeUser(adminRecord),
@@ -446,6 +501,7 @@ export function createApiApp() {
       authProvider: "password",
     });
 
+    setSessionCookie(req, res, token);
     return res.json({
       token,
       user: sanitizeUser(user),
@@ -533,6 +589,7 @@ export function createApiApp() {
     };
 
     const token = signSessionToken(userClaims);
+    setSessionCookie(req, res, token);
     return res.json({
       token,
       user: {
@@ -547,7 +604,7 @@ export function createApiApp() {
     });
   });
 
-  // Verify active Bearer session
+  // Verify active Bearer or Cookie session
   apiRouter.get("/auth/session", softAuthRateLimiter, requireAuth, (req, res) => {
     const claims = (req as express.Request & { userClaims: SessionClaims }).userClaims;
     return res.json({
@@ -564,8 +621,9 @@ export function createApiApp() {
     });
   });
 
-  // Logout (client discards in-memory token)
-  apiRouter.post("/auth/logout", softAuthRateLimiter, (_req, res) => {
+  // Logout (discards HttpOnly cookie and tells client to clear memory token)
+  apiRouter.post("/auth/logout", softAuthRateLimiter, (req, res) => {
+    clearSessionCookie(req, res);
     return res.json({ success: true });
   });
 

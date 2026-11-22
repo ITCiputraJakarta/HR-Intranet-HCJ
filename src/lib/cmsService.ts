@@ -670,18 +670,7 @@ export async function submitCareerApplication(
     status: 'Pending',
   };
 
-  // Keep a single local record only if localStorage already tracks submissions
-  try {
-    const current = getCareerApplications();
-    localStorage.setItem(
-      CAREER_APPLICATIONS_STORAGE_KEY,
-      JSON.stringify([sanitizedApp, ...current])
-    );
-  } catch {
-    // ignore storage errors
-  }
-
-  // Write ONLY this single new document to Firestore (never enumerate or overwrite existing PII docs)
+  // Write ONLY this single new document to Firestore (never cache candidate PII lists in public browser storage)
   if (isFirebaseConfigured()) {
     const ref = doc(db, 'career_applications', sanitizedApp.id);
     await setDoc(ref, sanitizeForFirestore(sanitizedApp));

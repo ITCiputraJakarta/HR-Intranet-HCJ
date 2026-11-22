@@ -60,6 +60,14 @@ service cloud.firestore {
       return !(key in data) || (data[key] is number && data[key] >= minVal && data[key] <= maxVal);
     }
 
+    function isSafeMediaString(data, key, maxLen) {
+      return !(key in data) || (
+        data[key] is string
+        && data[key].size() <= maxLen
+        && !data[key].matches('^\\s*(?i:(javascript|vbscript):|data:(text/html|image/svg)).*')
+      );
+    }
+
     // =========================================================================
     // ENTITY VALIDATION BLUEPRINTS
     // =========================================================================
@@ -78,7 +86,7 @@ service cloud.firestore {
         && isOptionalString(data, 'unit', 120)
         && isOptionalString(data, 'departemen', 100)
         && isOptionalString(data, 'password', 256)
-        && isOptionalString(data, 'avatar', 200000)
+        && isSafeMediaString(data, 'avatar', 200000)
         && isOptionalString(data, 'createdAt', 64)
         && isOptionalString(data, 'updatedAt', 64);
     }
@@ -111,10 +119,10 @@ service cloud.firestore {
         && isOptionalBool(data, 'isPublic')
         && isOptionalString(data, 'akses_dept', 120)
         && isOptionalString(data, 'keterangan', 5000)
-        && isOptionalString(data, 'fileUrl', 900000)
-        && isOptionalString(data, 'previewUrl', 900000)
-        && isOptionalString(data, 'downloadUrl', 900000)
-        && isOptionalString(data, 'thumbUrl', 900000)
+        && isSafeMediaString(data, 'fileUrl', 900000)
+        && isSafeMediaString(data, 'previewUrl', 900000)
+        && isSafeMediaString(data, 'downloadUrl', 900000)
+        && isSafeMediaString(data, 'thumbUrl', 900000)
         && isOptionalString(data, 'fileName', 255)
         && isOptionalString(data, 'fileType', 120)
         && isOptionalString(data, 'fileSize', 64)
@@ -124,7 +132,7 @@ service cloud.firestore {
         && isOptionalString(data, 'updatedAt', 64)
         && isOptionalString(data, 'effectiveDate', 32)
         && isOptionalString(data, 'expiryDate', 32)
-        && isOptionalString(data, 'attachmentUrl', 900000)
+        && isSafeMediaString(data, 'attachmentUrl', 900000)
         && isOptionalString(data, 'attachmentName', 255)
         && isOptionalString(data, 'attachmentType', 120)
         && isOptionalString(data, 'attachmentSize', 64)
@@ -141,7 +149,8 @@ service cloud.firestore {
         && data.keys().hasOnly(['field', 'index', 'data'])
         && data.field is string && data.field in ['fileUrl', 'attachmentUrl']
         && data.index is number && data.index >= 0 && data.index <= 100
-        && data.data is string && data.data.size() > 0 && data.data.size() <= 450000;
+        && data.data is string && data.data.size() > 0 && data.data.size() <= 450000
+        && !data.data.matches('^\\s*(?i:(javascript|vbscript):|data:(text/html|image/svg)).*');
     }
 
     function isValidAccessLog(data) {

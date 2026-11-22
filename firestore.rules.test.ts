@@ -82,11 +82,16 @@ function evaluateDirtyDozen(payload: {
     }
 
     case 'documents': {
+      const data = payload.data || {};
       if (payload.subCollection === 'chunks') {
         if (!payload.parentExists) return 'PERMISSION_DENIED';
         return isSignedIn(payload.auth) ? 'ALLOWED' : 'PERMISSION_DENIED';
       }
       if (payload.operation === 'create') {
+        const fileUrl = typeof data.fileUrl === 'string' ? data.fileUrl : '';
+        if (/^\s*(javascript:|vbscript:|data:text\/html|data:image\/svg)/i.test(fileUrl)) {
+          return 'PERMISSION_DENIED';
+        }
         return isSignedIn(payload.auth) ? 'ALLOWED' : 'PERMISSION_DENIED';
       }
       return 'PERMISSION_DENIED';
@@ -272,6 +277,13 @@ export function runFirestoreRulesSpecTests(): void {
       docId: 'drive_storage_config',
       operation: 'get',
       auth: null,
+    }),
+    evaluateDirtyDozen({
+      collection: 'documents',
+      docId: 'doc-unsafe-url',
+      operation: 'create',
+      auth: attackerAuth,
+      data: { id: 'doc-unsafe-url', title: 'Bad Link', category: 'SOP', fileUrl: 'javascript:void(0)' },
     }),
   ];
 

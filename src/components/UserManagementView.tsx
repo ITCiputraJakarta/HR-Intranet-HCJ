@@ -30,6 +30,7 @@ import {
   deleteUser,
   getDepartments,
   getHotelUnits,
+  generateSecureClientId,
 } from '../lib/storage';
 import { DepartmentBadge } from '../lib/departmentColors';
 import { TablePagination } from './TablePagination';
@@ -52,6 +53,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onRefresh,
 }) => {
   const departments = getDepartments();
+  const hotelUnits = getHotelUnits();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('All');
   const [filterRole, setFilterRole] = useState('All');
@@ -67,7 +69,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editUnit] = useState('Hotel Ciputra Jakarta');
+  const [editUnit, setEditUnit] = useState('Hotel Ciputra Jakarta');
   const [editDept, setEditDept] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('staff');
   const [editStatus, setEditStatus] = useState<UserStatus>('Approved');
@@ -85,7 +87,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   // New user form state
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newUnit] = useState('Hotel Ciputra Jakarta');
+  const [newUnit, setNewUnit] = useState('Hotel Ciputra Jakarta');
   const [newDept, setNewDept] = useState('Front Office');
   const [newRole, setNewRole] = useState<UserRole>('staff');
   const [newPassword, setNewPassword] = useState('');
@@ -183,7 +185,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     const hashedPassword = await hashPassword(newPassword.trim());
 
     const newUser: User = {
-      id: `usr-${Date.now()}`,
+      id: generateSecureClientId('usr'),
       nama: sanitizeInput(newName.trim()),
       email: cleanEmail,
       unit: newUnit,
@@ -199,6 +201,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setShowAddModal(false);
     setNewName('');
     setNewEmail('');
+    setNewUnit(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
     setNewPassword('');
     setShowNewPassword(false);
     setFormError('');
@@ -209,6 +212,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setUserToEdit(user);
     setEditName(user.nama);
     setEditEmail(user.email);
+    setEditUnit(user.unit || 'Hotel Ciputra Jakarta');
     setEditDept(user.departemen);
     setEditRole(user.role);
     setEditStatus(user.status);
@@ -1007,6 +1011,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Unit Hotel *
+                </label>
+                <select
+                  value={newUnit}
+                  onChange={(e) => setNewUnit(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                >
+                  {hotelUnits.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1171,6 +1192,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   placeholder="user@ciputra.com"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-slate-50"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Unit Hotel *
+                </label>
+                <select
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                >
+                  {hotelUnits.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name} ({u.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

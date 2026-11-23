@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Hotel,
   Lock,
@@ -778,7 +779,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <section className="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12 py-8 sm:py-12 flex items-center justify-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
           {/* LEFT: Clean Executive Portal Presentation in Beranda Theme */}
-          <div className="lg:col-span-7 xl:col-span-7 space-y-4 sm:space-y-6 text-center lg:text-left">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="lg:col-span-7 xl:col-span-7 space-y-4 sm:space-y-6 text-center lg:text-left"
+          >
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal shadow-2xs mx-auto lg:mx-0">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Portal Resmi Karyawan & Manajemen Hotel Ciputra Jakarta</span>
@@ -795,7 +801,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* Pillars in Beranda Theme */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-1 max-w-xl mx-auto lg:mx-0 text-left">
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.14 }}
+                whileHover={{ y: -3 }}
+                className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-orange-100 shadow-2xs space-y-1.5 hover:shadow-md transition-shadow"
+              >
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-orange-50 text-[#F48C06] flex items-center justify-center">
                   <FileText className="w-4 h-4" />
                 </div>
@@ -803,9 +815,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <p className="text-[11px] text-[#696984] leading-snug">
                   Panduan operasional baku per departemen terstruktur rapi.
                 </p>
-              </div>
+              </motion.div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-indigo-100 shadow-2xs space-y-1.5 hover:shadow-md transition">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.22 }}
+                whileHover={{ y: -3 }}
+                className="p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-indigo-100 shadow-2xs space-y-1.5 hover:shadow-md transition-shadow"
+              >
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 text-[#2F327D] flex items-center justify-center">
                   <Award className="w-4 h-4" />
                 </div>
@@ -813,7 +831,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <p className="text-[11px] text-[#696984] leading-snug">
                   Penilaian transparan, target tahunan, dan evaluasi berkala.
                 </p>
-              </div>
+              </motion.div>
             </div>
 
             {/* Career Callout */}
@@ -833,10 +851,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
 
           {/* RIGHT: Login / Register Form Card */}
-          <div className="lg:col-span-5 xl:col-span-5 w-full max-w-[480px] mx-auto bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-xl border border-orange-100 p-4 sm:p-7 text-slate-800">
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: 'easeOut' }}
+            className="lg:col-span-5 xl:col-span-5 w-full max-w-[480px] mx-auto bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-xl border border-orange-100 p-4 sm:p-7 text-slate-800"
+          >
             {/* Tab Toggle: Masuk vs Daftar */}
             <div className="flex rounded-2xl bg-[#FFF3E4]/70 p-1 mb-4 text-xs font-normal border border-orange-200/60 shadow-inner">
               <button
@@ -927,9 +950,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             )}
 
-            {!isRegister ? (
-              /* LOGIN FORM */
-              <form onSubmit={handleLogin} className="space-y-3.5">
+            <AnimatePresence mode="wait">
+              {!isRegister ? (
+                /* LOGIN FORM */
+                <motion.form
+                  key="login-form"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  onSubmit={handleLogin}
+                  className="space-y-3.5"
+                >
                 <div className="hidden" aria-hidden="true">
                   <input
                     type="text"
@@ -1060,10 +1092,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </button>
               </div>
 
-              </form>
+              </motion.form>
             ) : (
               /* REGISTER FORM */
-              <form onSubmit={handleRegister} className="space-y-3">
+              <motion.form
+                key="register-form"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                onSubmit={handleRegister}
+                className="space-y-3"
+              >
                 <div className="hidden" aria-hidden="true">
                   <input
                     type="text"
@@ -1194,14 +1234,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <span>{t('registerSubmitBtn', currentLang)}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-              </form>
+              </motion.form>
             )}
+            </AnimatePresence>
 
             <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10.5px] text-slate-500 font-normal">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>{t('authSecurityNotice', currentLang)}</span>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 

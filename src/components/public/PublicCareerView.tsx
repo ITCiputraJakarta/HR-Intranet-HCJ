@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Hotel,
   Briefcase,
@@ -43,7 +46,10 @@ import { sanitizeSafeUrl, sha256Pure } from '../../lib/security';
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { useLenis } from '../common/MotionLenisProvider';
 import { CaptchaWidget, CaptchaWidgetRef } from '../CaptchaWidget';
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface CareerChallengeState {
   challengeToken: string;
@@ -155,12 +161,133 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
   const [trapWebsite, setTrapWebsite] = useState('');
   const [trapCompanyPhone, setTrapCompanyPhone] = useState('');
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { lenis } = useLenis();
+
   useEffect(() => {
     const unsubCms = subscribeToCareerCms((c) => setCmsContent(c));
     const unsubJobs = subscribeToCareerJobs((j) => setJobs(j));
     return () => {
       unsubCms();
       unsubJobs();
+    };
+  }, []);
+
+  const handleScrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+    e.preventDefault();
+    const target = containerRef.current?.querySelector(sectionId) as HTMLElement | null;
+    if (!target) return;
+    const modalScroller = containerRef.current?.closest('.overflow-y-auto');
+    if (modalScroller) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (lenis) {
+      lenis.scrollTo(target, { offset: -72, duration: 0.9 });
+    } else {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    const modalScroller = root.closest('.overflow-y-auto') as HTMLElement | null;
+    const scrollerTarget = modalScroller || undefined;
+
+    const ctx = gsap.context(() => {
+      const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      heroTl
+        .from('[data-gsap="career-badge"]', {
+          y: 14,
+          opacity: 0,
+          duration: 0.45,
+          clearProps: 'transform,opacity',
+        })
+        .from(
+          '[data-gsap="career-title"]',
+          {
+            y: 22,
+            opacity: 0,
+            duration: 0.6,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.28'
+        )
+        .from(
+          '[data-gsap="career-subtitle"]',
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.5,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.35'
+        )
+        .from(
+          '[data-gsap="career-cta"]',
+          {
+            y: 14,
+            opacity: 0,
+            duration: 0.45,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.3'
+        );
+
+      gsap.from('[data-gsap="career-culture-left"]', {
+        x: -24,
+        opacity: 0,
+        duration: 0.65,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#culture',
+          scroller: scrollerTarget,
+          start: 'top 85%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="career-benefit-card"]', {
+        y: 24,
+        opacity: 0,
+        duration: 0.55,
+        stagger: 0.1,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#culture',
+          scroller: scrollerTarget,
+          start: 'top 80%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="career-openings-header"]', {
+        y: 20,
+        opacity: 0,
+        duration: 0.55,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#openings',
+          scroller: scrollerTarget,
+          start: 'top 85%',
+          once: true,
+        },
+      });
+    }, root);
+
+    const refreshId = window.setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 150);
+
+    return () => {
+      window.clearTimeout(refreshId);
+      ctx.revert();
     };
   }, []);
 
@@ -450,7 +577,10 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans antialiased text-[#696984] selection:bg-[#F48C06] selection:text-white flex flex-col justify-between">
+    <div
+      ref={containerRef}
+      className="min-h-screen bg-slate-50 font-sans antialiased text-[#696984] selection:bg-[#F48C06] selection:text-white flex flex-col justify-between"
+    >
       {/* 1. STICKY TOPBAR HEADER */}
       <header className="bg-white/95 backdrop-blur-md shadow-xs sticky top-0 z-40 border-b border-orange-200/60">
         {/* Top Gold Accent Line matching Beranda */}
@@ -486,12 +616,14 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
             </span>
             <a
               href="#culture"
+              onClick={(e) => handleScrollToSection(e, '#culture')}
               className="text-[#696984] hover:text-[#F48C06] font-normal transition"
             >
               Budaya & Manfaat
             </a>
             <a
               href="#openings"
+              onClick={(e) => handleScrollToSection(e, '#openings')}
               className="text-[#696984] hover:text-[#F48C06] font-normal transition"
             >
               Daftar Posisi ({activeJobs.length})
@@ -537,22 +669,35 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
         </div>
 
         <div className="relative z-10 max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#F48C06] text-xs font-normal mb-5">
+          <div
+            data-gsap="career-badge"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#F48C06] text-xs font-normal mb-5"
+          >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Peluang Pengembangan Karir Profesional</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight mb-5 leading-tight">
+          <h1
+            data-gsap="career-title"
+            className="text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight mb-5 leading-tight"
+          >
             {cmsContent.heroTitle}
           </h1>
 
-          <p className="text-sm sm:text-base md:text-lg text-slate-200/90 mb-8 sm:mb-10 max-w-2xl mx-auto font-normal leading-relaxed">
+          <p
+            data-gsap="career-subtitle"
+            className="text-sm sm:text-base md:text-lg text-slate-200/90 mb-8 sm:mb-10 max-w-2xl mx-auto font-normal leading-relaxed"
+          >
             {cmsContent.heroSubtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <div
+            data-gsap="career-cta"
+            className="flex flex-col sm:flex-row justify-center gap-4"
+          >
             <a
               href="#openings"
+              onClick={(e) => handleScrollToSection(e, '#openings')}
               className="bg-[#F48C06] hover:bg-[#e07f04] text-white font-normal py-3 px-8 rounded-full transition duration-300 shadow-lg shadow-[#F48C06]/30 text-sm sm:text-base flex items-center justify-center gap-2"
             >
               <span>Lihat Lowongan Terbuka ({activeJobs.length})</span>
@@ -560,6 +705,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
             </a>
             <a
               href="#culture"
+              onClick={(e) => handleScrollToSection(e, '#culture')}
               className="bg-transparent border border-white/40 hover:bg-white hover:text-[#2F327D] text-white font-normal py-3 px-8 rounded-full transition duration-300 text-sm sm:text-base flex items-center justify-center"
             >
               Budaya & Manfaat Kami
@@ -573,7 +719,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-12">
           <div className="flex flex-col lg:flex-row gap-12 lg:gap-16 items-start">
             {/* Left Title */}
-            <div className="lg:w-1/3">
+            <div data-gsap="career-culture-left" className="lg:w-1/3">
               <span className="text-xs font-normal text-[#F48C06] uppercase tracking-wider block mb-2">
                 {cmsContent.benefitsTag}
               </span>
@@ -609,6 +755,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
                 return (
                   <div
                     key={benefit.id || idx}
+                    data-gsap="career-benefit-card"
                     className="p-6 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col hover:shadow-md transition-all duration-300"
                   >
                     <div
@@ -635,7 +782,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       {/* 4. LOWONGAN TERSEDIA (JOB OPENINGS ACCORDION) */}
       <section className="py-20 sm:py-24 bg-slate-50/70 border-t border-slate-200/80" id="openings">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 sm:mb-16">
+          <div data-gsap="career-openings-header" className="text-center mb-12 sm:mb-16">
             <span className="text-xs font-normal text-[#F48C06] uppercase tracking-wider block mb-2">
               {cmsContent.openingsTag}
             </span>
@@ -746,56 +893,66 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
                     </button>
 
                     {/* Accordion Content */}
-                    {isOpen && (
-                      <div className="border-t border-slate-100 bg-slate-50/40 p-4 sm:p-6 space-y-3.5">
-                        {deptJobs.map((job) => (
-                          <div
-                            key={job.id}
-                            onClick={() => handleOpenModal(job)}
-                            className="bg-white rounded-xl shadow-2xs border border-slate-200/90 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between hover:border-[#F48C06] hover:shadow-md transition-all cursor-pointer group gap-4"
-                          >
-                            <div className="md:w-5/12">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-normal">
-                                  {job.jobType || 'Full-time'}
-                                </span>
-                              </div>
-                              <h4 className="text-base sm:text-lg font-normal text-[#2F327D] group-hover:text-[#F48C06] transition-colors">
-                                {job.title}
-                              </h4>
-                              <p className="text-xs text-[#696984] mt-1 line-clamp-1 font-normal">
-                                {job.description}
-                              </p>
-                            </div>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="border-t border-slate-100 bg-slate-50/40 p-4 sm:p-6 space-y-3.5">
+                            {deptJobs.map((job) => (
+                              <div
+                                key={job.id}
+                                onClick={() => handleOpenModal(job)}
+                                className="bg-white rounded-xl shadow-2xs border border-slate-200/90 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between hover:border-[#F48C06] hover:shadow-md transition-all cursor-pointer group gap-4"
+                              >
+                                <div className="md:w-5/12">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-normal">
+                                      {job.jobType || 'Full-time'}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-base sm:text-lg font-normal text-[#2F327D] group-hover:text-[#F48C06] transition-colors">
+                                    {job.title}
+                                  </h4>
+                                  <p className="text-xs text-[#696984] mt-1 line-clamp-1 font-normal">
+                                    {job.description}
+                                  </p>
+                                </div>
 
-                            <div className="flex flex-row justify-between w-full md:w-7/12 items-center text-xs">
-                              <div className="text-left w-1/3">
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-normal">
-                                  Pengalaman
-                                </p>
-                                <p className="font-normal text-[#2F327D]">
-                                  {job.experience}
-                                </p>
+                                <div className="flex flex-row justify-between w-full md:w-7/12 items-center text-xs">
+                                  <div className="text-left w-1/3">
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-normal">
+                                      Pengalaman
+                                    </p>
+                                    <p className="font-normal text-[#2F327D]">
+                                      {job.experience}
+                                    </p>
+                                  </div>
+                                  <div className="text-left w-1/3">
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-normal">
+                                      Batas Waktu
+                                    </p>
+                                    <p className="font-normal text-[#2F327D]">
+                                      {job.deadline}
+                                    </p>
+                                  </div>
+                                  <div className="w-1/3 flex justify-end">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FFF3E4] text-[#F48C06] group-hover:bg-[#F48C06] group-hover:text-white transition-all text-xs font-normal">
+                                      <span>Lamar</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-left w-1/3">
-                                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-normal">
-                                  Batas Waktu
-                                </p>
-                                <p className="font-normal text-[#2F327D]">
-                                  {job.deadline}
-                                </p>
-                              </div>
-                              <div className="w-1/3 flex justify-end">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FFF3E4] text-[#F48C06] group-hover:bg-[#F48C06] group-hover:text-white transition-all text-xs font-normal">
-                                  <span>Lamar</span>
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </span>
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })
@@ -855,39 +1012,49 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
       </footer>
 
       {/* 6. MODAL LAMARAN KERJA (APPLY MODAL WITH 1MB PDF LIMIT) */}
-      {selectedJob && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
-          {...getBackdropProps(() => setSelectedJob(null))}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+      <AnimatePresence>
+        {selectedJob && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            data-lenis-prevent
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+            {...getBackdropProps(() => setSelectedJob(null))}
           >
-            {/* Modal Header */}
-            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-[#FFF3E4]/70 to-white">
-              <div>
-                <span className="text-[11px] font-normal uppercase tracking-wider text-[#F48C06] bg-white px-2.5 py-0.5 rounded-full border border-[#F48C06]/30 inline-block mb-1">
-                  {selectedJob.department}
-                </span>
-                <h3 className="text-xl font-normal text-[#2F327D] leading-tight">
-                  Lamar Posisi: {selectedJob.title}
-                </h3>
-                <p className="text-xs text-[#696984] mt-0.5 font-normal">
-                  Pengalaman: {selectedJob.experience} • Batas: {selectedJob.deadline}
-                </p>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between bg-gradient-to-r from-[#FFF3E4]/70 to-white">
+                <div>
+                  <span className="text-[11px] font-normal uppercase tracking-wider text-[#F48C06] bg-white px-2.5 py-0.5 rounded-full border border-[#F48C06]/30 inline-block mb-1">
+                    {selectedJob.department}
+                  </span>
+                  <h3 className="text-xl font-normal text-[#2F327D] leading-tight">
+                    Lamar Posisi: {selectedJob.title}
+                  </h3>
+                  <p className="text-xs text-[#696984] mt-0.5 font-normal">
+                    Pengalaman: {selectedJob.experience} • Batas: {selectedJob.deadline}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Modal Form Body */}
-            <div className="p-5 sm:p-6 overflow-y-auto flex-1 text-xs">
+              {/* Modal Form Body */}
+              <div data-lenis-prevent className="p-5 sm:p-6 overflow-y-auto flex-1 text-xs">
               {submitSuccess ? (
                 <div className="py-10 text-center space-y-3">
                   <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm animate-bounce">
@@ -1180,9 +1347,10 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
                 </form>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

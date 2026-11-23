@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   User,
   IntranetDocument,
@@ -63,6 +64,7 @@ import { CareerCmsAdminView } from './components/CareerCmsAdminView';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { UnifiedLogo } from './components/common/UnifiedLogo';
 import { SocialMediaBar } from './components/common/SocialMediaBar';
+import { MotionLenisProvider, useLenis } from './components/common/MotionLenisProvider';
 import {
   getCareerApplications,
   subscribeToCareerApplications,
@@ -95,7 +97,8 @@ import { auth } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { setInMemoryApiToken, getInMemoryApiToken, fetchWithApiAuth, clearInMemoryApiToken, safeReadJson } from './lib/authSession';
 
-export default function App() {
+function AppContent() {
+  const { scrollToTop } = useLenis();
   const [currentUser, setUserState] = useState<User | null>(() => {
     if (isSessionExpiredByInactivity()) {
       clearAllSessionCache();
@@ -143,6 +146,10 @@ export default function App() {
   const [careerApplications, setCareerApplications] = useState(() => getCareerApplications());
   const [previewHomeModal, setPreviewHomeModal] = useState<boolean>(false);
   const [previewCareerModal, setPreviewCareerModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    scrollToTop(true);
+  }, [publicPage, currentUser?.id, scrollToTop]);
 
   // Load all data from storage
   const refreshAllData = (allowAdminPrune: boolean = false) => {
@@ -715,17 +722,15 @@ export default function App() {
           announcements={documents}
           onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
         />
-        {previewDoc && (
-          <DocumentPreviewModal
-            document={previewDoc}
-            currentUser={null}
-            onClose={() => setPreviewDoc(null)}
-            onNavigateToLogin={() => {
-              setPreviewDoc(null);
-              setPublicPage('login');
-            }}
-          />
-        )}
+        <DocumentPreviewModal
+          document={previewDoc}
+          currentUser={null}
+          onClose={() => setPreviewDoc(null)}
+          onNavigateToLogin={() => {
+            setPreviewDoc(null);
+            setPublicPage('login');
+          }}
+        />
         <ScrollToTopButton />
       </>
     );
@@ -812,148 +817,156 @@ export default function App() {
 
         {/* Dynamic Main Content Area */}
         <main className="flex-1 min-w-0 w-full pb-8">
-          {activeTab === 'announcements' && (
-            <AnnouncementsView
-              documents={documents}
-              categories={categories}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onOpenPreview={setPreviewDoc}
-              onRefresh={refreshAllData}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: 'easeOut' }}
+            >
+              {activeTab === 'announcements' && (
+                <AnnouncementsView
+                  documents={documents}
+                  categories={categories}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onOpenPreview={setPreviewDoc}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'sop' && (
-            <DocumentsView
-              category="SOP"
-              documents={documents}
-              currentUser={currentUser}
-              categories={categories}
-              currentLang={currentLang}
-              onOpenPreview={setPreviewDoc}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'sop' && (
+                <DocumentsView
+                  category="SOP"
+                  documents={documents}
+                  currentUser={currentUser}
+                  categories={categories}
+                  currentLang={currentLang}
+                  onOpenPreview={setPreviewDoc}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'forms' && (
-            <DocumentsView
-              category="Form"
-              documents={documents}
-              currentUser={currentUser}
-              categories={categories}
-              currentLang={currentLang}
-              onOpenPreview={setPreviewDoc}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'forms' && (
+                <DocumentsView
+                  category="Form"
+                  documents={documents}
+                  currentUser={currentUser}
+                  categories={categories}
+                  currentLang={currentLang}
+                  onOpenPreview={setPreviewDoc}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'performance' && (
-            <PerformanceView
-              performances={performances}
-              kpiMaster={kpiMaster}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'performance' && (
+                <PerformanceView
+                  performances={performances}
+                  kpiMaster={kpiMaster}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'departments' && isHodOrAdmin && (
-            <DepartmentsMasterView
-              currentUser={currentUser}
-              departments={departmentMasters}
-              users={users}
-              documents={documents}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'departments' && isHodOrAdmin && (
+                <DepartmentsMasterView
+                  currentUser={currentUser}
+                  departments={departmentMasters}
+                  users={users}
+                  documents={documents}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'categories' && isHodOrAdmin && (
-            <CategoriesMasterView
-              categories={categories}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'categories' && isHodOrAdmin && (
+                <CategoriesMasterView
+                  categories={categories}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {(activeTab === 'kpi-master' || activeTab === 'kpi') && isHodOrAdmin && (
-            <KPIMasterView
-              kpiMaster={kpiMaster}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {(activeTab === 'kpi-master' || activeTab === 'kpi') && isHodOrAdmin && (
+                <KPIMasterView
+                  kpiMaster={kpiMaster}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'users' && isSuperAdmin && (
-            <UserManagementView
-              users={users}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {activeTab === 'users' && isSuperAdmin && (
+                <UserManagementView
+                  users={users}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {(activeTab === 'logs' || activeTab === 'access-logs') && isSuperAdmin && (
-            <AccessLogsView
-              logs={logs}
-              currentUser={currentUser}
-              currentLang={currentLang}
-              onRefresh={refreshAllData}
-            />
-          )}
+              {(activeTab === 'logs' || activeTab === 'access-logs') && isSuperAdmin && (
+                <AccessLogsView
+                  logs={logs}
+                  currentUser={currentUser}
+                  currentLang={currentLang}
+                  onRefresh={refreshAllData}
+                />
+              )}
 
-          {activeTab === 'quota-analytics' && isSuperAdmin && (
-            <QuotaAnalyticsView
-              currentUser={currentUser}
-              documents={documents}
-              users={users}
-              performances={performances}
-              kpiMaster={kpiMaster}
-              logs={logs}
-              categories={categories}
-              departments={departmentMasters}
-              hotelUnits={hotelUnits}
-              firebaseState={firebaseState}
-              currentLang={currentLang}
-              onRefresh={() => refreshAllData(isSuperAdmin)}
-            />
-          )}
+              {activeTab === 'quota-analytics' && isSuperAdmin && (
+                <QuotaAnalyticsView
+                  currentUser={currentUser}
+                  documents={documents}
+                  users={users}
+                  performances={performances}
+                  kpiMaster={kpiMaster}
+                  logs={logs}
+                  categories={categories}
+                  departments={departmentMasters}
+                  hotelUnits={hotelUnits}
+                  firebaseState={firebaseState}
+                  currentLang={currentLang}
+                  onRefresh={() => refreshAllData(isSuperAdmin)}
+                />
+              )}
 
-          {activeTab === 'home-cms' && isSuperAdmin && (
-            <HomeCmsAdminView
-              currentUser={currentUser}
-              onPreviewPublicHome={() => setPreviewHomeModal(true)}
-            />
-          )}
+              {activeTab === 'home-cms' && isSuperAdmin && (
+                <HomeCmsAdminView
+                  currentUser={currentUser}
+                  onPreviewPublicHome={() => setPreviewHomeModal(true)}
+                />
+              )}
 
-          {activeTab === 'career-cms' && isSuperAdmin && (
-            <CareerCmsAdminView
-              currentUser={currentUser}
-              onPreviewPublicCareer={() => setPreviewCareerModal(true)}
-            />
-          )}
+              {activeTab === 'career-cms' && isSuperAdmin && (
+                <CareerCmsAdminView
+                  currentUser={currentUser}
+                  onPreviewPublicCareer={() => setPreviewCareerModal(true)}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
       {/* Document Quick Preview Modal */}
-      {previewDoc && (
-        <DocumentPreviewModal
-          document={previewDoc}
-          currentUser={currentUser}
-          onClose={() => setPreviewDoc(null)}
-          onUpdate={(updated) => {
-            setPreviewDoc(updated);
-            refreshAllData();
-          }}
-          onDelete={() => {
-            setPreviewDoc(null);
-            refreshAllData();
-          }}
-          onRefresh={refreshAllData}
-        />
-      )}
+      <DocumentPreviewModal
+        document={previewDoc}
+        currentUser={currentUser}
+        onClose={() => setPreviewDoc(null)}
+        onUpdate={(updated) => {
+          setPreviewDoc(updated);
+          refreshAllData();
+        }}
+        onDelete={() => {
+          setPreviewDoc(null);
+          refreshAllData();
+        }}
+        onRefresh={refreshAllData}
+      />
 
       {/* Cloud Firestore Status & Sync Modal (Super Admin only) */}
       {isSuperAdmin && (
@@ -977,64 +990,82 @@ export default function App() {
       )}
 
       {/* Super Admin Preview Home Modal */}
-      {previewHomeModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
-          <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-normal">
-                Pratinjau Halaman Beranda
-              </span>
+      <AnimatePresence>
+        {previewHomeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            data-lenis-prevent
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto"
+          >
+            <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal">
+                  Pratinjau Halaman Beranda
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewHomeModal(false)}
+                className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
+              >
+                ✕ Tutup Pratinjau
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setPreviewHomeModal(false)}
-              className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
-            >
-              ✕ Tutup Pratinjau
-            </button>
-          </div>
-          <div className="flex-1 bg-white">
-            <PublicHomeView
-              onNavigateToLogin={() => setPreviewHomeModal(false)}
-              onNavigateToCareer={() => {
-                setPreviewHomeModal(false);
-                setPreviewCareerModal(true);
-              }}
-              announcements={documents}
-              onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
-            />
-          </div>
-        </div>
-      )}
+            <div className="flex-1 bg-white">
+              <PublicHomeView
+                onNavigateToLogin={() => setPreviewHomeModal(false)}
+                onNavigateToCareer={() => {
+                  setPreviewHomeModal(false);
+                  setPreviewCareerModal(true);
+                }}
+                announcements={documents}
+                onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Super Admin Preview Career Modal */}
-      {previewCareerModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto animate-in fade-in">
-          <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-normal">
-                Pratinjau Portal Karir &amp; Rekrutmen
-              </span>
+      <AnimatePresence>
+        {previewCareerModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            data-lenis-prevent
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col overflow-y-auto"
+          >
+            <div className="sticky top-0 z-50 bg-[#2F327D] text-white px-4 py-2.5 flex items-center justify-between shadow-md">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal">
+                  Pratinjau Portal Karir &amp; Rekrutmen
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewCareerModal(false)}
+                className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
+              >
+                ✕ Tutup Pratinjau
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setPreviewCareerModal(false)}
-              className="px-3 py-1 rounded-lg bg-[#F48C06] text-white text-xs font-normal hover:bg-[#e07f04] cursor-pointer"
-            >
-              ✕ Tutup Pratinjau
-            </button>
-          </div>
-          <div className="flex-1 bg-white">
-            <PublicCareerView
-              onNavigateToHome={() => {
-                setPreviewCareerModal(false);
-                setPreviewHomeModal(true);
-              }}
-              onNavigateToLogin={() => setPreviewCareerModal(false)}
-            />
-          </div>
-        </div>
-      )}
+            <div className="flex-1 bg-white">
+              <PublicCareerView
+                onNavigateToHome={() => {
+                  setPreviewCareerModal(false);
+                  setPreviewHomeModal(true);
+                }}
+                onNavigateToLogin={() => setPreviewCareerModal(false)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Single-Line Soft Modern Footer (After Login) */}
       <footer className="w-full shrink-0 border-t border-sky-200/80 bg-gradient-to-r from-white via-[#f5f9fe] to-[#eaf3fc] py-3 px-3 sm:px-5 lg:px-6 mt-auto relative z-10 shadow-2xs">
@@ -1085,5 +1116,13 @@ export default function App() {
       {/* Modern Floating Bottom-Right Scroll-To-Top Button across all views */}
       <ScrollToTopButton />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <MotionLenisProvider>
+      <AppContent />
+    </MotionLenisProvider>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   X,
   Download,
@@ -45,8 +46,17 @@ interface DocumentPreviewModalProps {
 }
 
 export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
-  if (!props.document) return null;
-  return <DocumentPreviewModalContent {...props} document={props.document} />;
+  return (
+    <AnimatePresence>
+      {props.document && (
+        <DocumentPreviewModalContent
+          key={props.document.id}
+          {...props}
+          document={props.document}
+        />
+      )}
+    </AnimatePresence>
+  );
 };
 
 interface DocumentPreviewModalContentProps extends Omit<DocumentPreviewModalProps, 'document'> {
@@ -258,11 +268,20 @@ const DocumentPreviewModalContent: React.FC<DocumentPreviewModalContentProps> = 
   }, [activeDoc.fileUrl, activeDoc.downloadUrl, isPdf]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      data-lenis-prevent
       {...getBackdropProps(onClose)}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200/80 flex flex-col max-h-[90vh] cursor-default"
       >
@@ -300,7 +319,7 @@ const DocumentPreviewModalContent: React.FC<DocumentPreviewModalContentProps> = 
         )}
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div data-lenis-prevent className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Storage Location Banner - Super Admin Only */}
           {currentUser?.role === 'admin' && (
             <div className="p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 font-mono">
@@ -638,47 +657,58 @@ const DocumentPreviewModalContent: React.FC<DocumentPreviewModalContentProps> = 
         </div>
 
         {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div
-            {...getBackdropProps(() => setShowDeleteConfirm(false))}
-            className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs cursor-pointer"
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl p-5 max-w-sm w-full border border-slate-200 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 cursor-default"
+        <AnimatePresence>
+          {showDeleteConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              data-lenis-prevent
+              {...getBackdropProps(() => setShowDeleteConfirm(false))}
+              className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs cursor-pointer"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                transition={{ duration: 0.16 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl p-5 max-w-sm w-full border border-slate-200 shadow-2xl space-y-4 cursor-default"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Hapus Berkas Ini?</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Tindakan ini tidak dapat dibatalkan.</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Hapus Berkas Ini?</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">Tindakan ini tidak dapat dibatalkan.</p>
+                <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  Dokumen <strong>"{activeDoc.title}"</strong> ({activeDoc.category}) akan dihapus dari Firebase Firestore.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    className="px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors"
+                  >
+                    Ya, Hapus
+                  </button>
                 </div>
-              </div>
-              <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                Dokumen <strong>"{activeDoc.title}"</strong> ({activeDoc.category}) akan dihapus dari Firebase Firestore.
-              </p>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
-                  className="px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors"
-                >
-                  Ya, Hapus
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 };

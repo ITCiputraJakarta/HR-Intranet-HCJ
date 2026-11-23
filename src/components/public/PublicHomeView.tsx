@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Hotel,
   Calendar,
@@ -41,10 +44,13 @@ import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/b
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { useLenis } from '../common/MotionLenisProvider';
 import { sanitizeSafeUrl } from '../../lib/security';
 import defaultHotelLounge from '../../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
 import defaultHotelSuite from '../../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
 import defaultHotelDining from '../../assets/images/gallery_hotel_artisan_wall_1790666750842.jpg';
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface PublicHomeViewProps {
   onNavigateToLogin: () => void;
@@ -114,6 +120,8 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
     attachmentName?: string;
   } | null>(null);
   const [isPhotoMaximized, setIsPhotoMaximized] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const { lenis, scrollToTop } = useLenis();
 
   useEffect(() => {
     const unsub = subscribeToHomeCms((data) => setContent(data));
@@ -134,13 +142,209 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
     .filter((a) => a.category === 'Pengumuman' && Boolean(a.isPublic))
     .slice(0, 3);
 
+  const handleScrollTop = () => {
+    const modalScroller = rootRef.current?.closest('.overflow-y-auto');
+    if (modalScroller) {
+      modalScroller.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      scrollToTop(false);
+    }
+  };
+
+  const handleScrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+    e.preventDefault();
+    const target = rootRef.current?.querySelector(sectionId) as HTMLElement | null;
+    if (!target) return;
+    const modalScroller = rootRef.current?.closest('.overflow-y-auto');
+    if (modalScroller) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (lenis) {
+      lenis.scrollTo(target, { duration: 0.9 });
+    } else {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    const modalScroller = root.closest('.overflow-y-auto') as HTMLElement | null;
+    const scrollerTarget = modalScroller || undefined;
+
+    const ctx = gsap.context(() => {
+      const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      heroTl
+        .from('[data-gsap="hero-badge"]', {
+          y: 16,
+          opacity: 0,
+          duration: 0.5,
+          clearProps: 'transform,opacity',
+        })
+        .from(
+          '[data-gsap="hero-title"]',
+          {
+            y: 24,
+            opacity: 0,
+            duration: 0.65,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.32'
+        )
+        .from(
+          '[data-gsap="hero-subtitle"]',
+          {
+            y: 18,
+            opacity: 0,
+            duration: 0.55,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.4'
+        )
+        .from(
+          '[data-gsap="hero-cta"]',
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.5,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.35'
+        )
+        .from(
+          '[data-gsap="hero-photo"]',
+          {
+            scale: 0.95,
+            y: 24,
+            opacity: 0,
+            duration: 0.75,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.55'
+        )
+        .from(
+          '[data-gsap="hero-float"]',
+          {
+            y: 18,
+            scale: 0.92,
+            opacity: 0,
+            duration: 0.5,
+            stagger: 0.14,
+            clearProps: 'transform,opacity',
+          },
+          '-=0.35'
+        );
+
+      gsap.from('[data-gsap="services-header"]', {
+        y: 22,
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#layanan',
+          scroller: scrollerTarget,
+          start: 'top 88%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="service-card"]', {
+        y: 28,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#layanan',
+          scroller: scrollerTarget,
+          start: 'top 80%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="about-photos"]', {
+        x: -26,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#panduan',
+          scroller: scrollerTarget,
+          start: 'top 84%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="about-content"]', {
+        x: 26,
+        opacity: 0,
+        duration: 0.7,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '#panduan',
+          scroller: scrollerTarget,
+          start: 'top 84%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="news-header"]', {
+        y: 20,
+        opacity: 0,
+        duration: 0.55,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '[data-gsap="news-section"]',
+          scroller: scrollerTarget,
+          start: 'top 88%',
+          once: true,
+        },
+      });
+
+      gsap.from('[data-gsap="news-card"]', {
+        y: 26,
+        opacity: 0,
+        duration: 0.55,
+        stagger: 0.12,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+        scrollTrigger: {
+          trigger: '[data-gsap="news-section"]',
+          scroller: scrollerTarget,
+          start: 'top 82%',
+          once: true,
+        },
+      });
+    }, root);
+
+    const refreshId = window.setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 150);
+
+    return () => {
+      window.clearTimeout(refreshId);
+      ctx.revert();
+    };
+  }, [publishedNews.length]);
+
   return (
-    <div className="min-h-screen bg-white text-[#696984] font-sans antialiased overflow-x-hidden selection:bg-[#F48C06] selection:text-white">
+    <div
+      ref={rootRef}
+      className="min-h-screen bg-white text-[#696984] font-sans antialiased overflow-x-hidden selection:bg-[#F48C06] selection:text-white"
+    >
       {/* 1. TOP HEADER NAVIGATION */}
       <header className="absolute top-0 left-0 w-full z-50 py-5 sm:py-6 px-4 sm:px-8 md:px-16 lg:px-24 flex items-center justify-between">
         {/* Brand Logo */}
         <div
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={handleScrollTop}
           className="flex items-center gap-3 cursor-pointer select-none group"
         >
           <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="lg" />
@@ -158,7 +362,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
         <nav className="hidden lg:flex items-center gap-8 xl:gap-10">
           <button
             type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={handleScrollTop}
             className="text-[#F48C06] font-semibold text-sm transition-colors cursor-pointer"
           >
             Beranda
@@ -182,12 +386,14 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </button>
           <a
             href="#layanan"
+            onClick={(e) => handleScrollToSection(e, '#layanan')}
             className="text-[#2F327D] font-normal hover:text-[#F48C06] text-sm transition-colors cursor-pointer"
           >
             Layanan
           </a>
           <a
             href="#panduan"
+            onClick={(e) => handleScrollToSection(e, '#panduan')}
             className="text-[#2F327D] font-normal hover:text-[#F48C06] text-sm transition-colors cursor-pointer"
           >
             Panduan
@@ -225,90 +431,116 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       </header>
 
       {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden flex flex-col bg-white pt-24 px-6 pb-8 shadow-2xl animate-in fade-in duration-200">
-          <nav className="flex flex-col gap-4 text-base">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="text-left py-2 font-semibold text-[#F48C06] border-b border-slate-100"
-            >
-              Beranda
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onNavigateToCareer();
-              }}
-              className="text-left py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100 flex items-center justify-between"
-            >
-              <span>Lowongan Karir</span>
-              <span className="px-2 py-0.5 rounded-full text-xs bg-[#F48C06]/15 text-[#F48C06]">
-                Rekrutmen
-              </span>
-            </button>
-            <a
-              href="#layanan"
-              onClick={() => setMobileMenuOpen(false)}
-              className="py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100"
-            >
-              Layanan Terintegrasi
-            </a>
-            <a
-              href="#panduan"
-              onClick={() => setMobileMenuOpen(false)}
-              className="py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100"
-            >
-              Tentang & Panduan
-            </a>
-          </nav>
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-40 lg:hidden flex flex-col bg-white pt-24 px-6 pb-8 shadow-2xl"
+          >
+            <nav className="flex flex-col gap-4 text-base">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleScrollTop();
+                }}
+                className="text-left py-2 font-semibold text-[#F48C06] border-b border-slate-100"
+              >
+                Beranda
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onNavigateToCareer();
+                }}
+                className="text-left py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100 flex items-center justify-between"
+              >
+                <span>Lowongan Karir</span>
+                <span className="px-2 py-0.5 rounded-full text-xs bg-[#F48C06]/15 text-[#F48C06]">
+                  Rekrutmen
+                </span>
+              </button>
+              <a
+                href="#layanan"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollToSection(e, '#layanan');
+                }}
+                className="py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100"
+              >
+                Layanan Terintegrasi
+              </a>
+              <a
+                href="#panduan"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleScrollToSection(e, '#panduan');
+                }}
+                className="py-2 font-normal text-[#2F327D] hover:text-[#F48C06] border-b border-slate-100"
+              >
+                Tentang & Panduan
+              </a>
+            </nav>
 
-          <div className="mt-auto pt-6 flex flex-col gap-3">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onNavigateToCareer();
-              }}
-              className="w-full py-3 rounded-full text-center border border-slate-200 text-[#2F327D] font-normal text-sm"
-            >
-              Peluang Karir Hotel
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onNavigateToLogin();
-              }}
-              className="w-full py-3 bg-[#F48C06] text-white rounded-full text-center font-normal text-sm shadow-md"
-            >
-              Login Karyawan
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="mt-auto pt-6 flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onNavigateToCareer();
+                }}
+                className="w-full py-3 rounded-full text-center border border-slate-200 text-[#2F327D] font-normal text-sm"
+              >
+                Peluang Karir Hotel
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onNavigateToLogin();
+                }}
+                className="w-full py-3 bg-[#F48C06] text-white rounded-full text-center font-normal text-sm shadow-md"
+              >
+                Login Karyawan
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 2. HERO SECTION WITH CURVED BOTTOM & FLOATING UI CARDS */}
       <section className="relative bg-[#FFF3E4] pt-32 sm:pt-40 pb-36 sm:pb-44 px-4 sm:px-8 md:px-16 lg:px-24 flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-16 min-h-[92vh] overflow-hidden">
         {/* Left Content (Main Typography & CTA) */}
         <div className="w-full lg:w-1/2 z-20 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal mb-5 shadow-2xs mx-auto lg:mx-0">
+          <div
+            data-gsap="hero-badge"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-[#F48C06]/30 text-[#F48C06] text-xs font-normal mb-5 shadow-2xs mx-auto lg:mx-0"
+          >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Sistem Informasi Terpadu Hotel Ciputra Jakarta</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-[52px] font-normal text-[#2F327D] leading-[1.2] mb-5 sm:mb-6 tracking-tight break-words">
+          <h1
+            data-gsap="hero-title"
+            className="text-2xl sm:text-4xl md:text-5xl lg:text-[52px] font-normal text-[#2F327D] leading-[1.2] mb-5 sm:mb-6 tracking-tight break-words"
+          >
             <span className="text-[#F48C06] font-normal">
               {content.heroTitleHighlight || 'Portal Internal'}
             </span>{' '}
             {content.heroTitleSuffix || '& Informasi Karir Hotel Ciputra Jakarta'}
           </h1>
 
-          <p className="text-sm sm:text-lg text-[#696984] mb-8 sm:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal">
+          <p
+            data-gsap="hero-subtitle"
+            className="text-sm sm:text-lg text-[#696984] mb-8 sm:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal"
+          >
             {content.heroSubtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6">
+          <div
+            data-gsap="hero-cta"
+            className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6"
+          >
             <button
               type="button"
               onClick={onNavigateToLogin}
@@ -346,13 +578,17 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
 
             {/* Main Hero Photo */}
             <img
+              data-gsap="hero-photo"
               src={sanitizeSafeUrl(content.heroImageUrl, { allowDataImage: true }) || defaultHotelLounge}
               alt="Profesional Hotel Ciputra Jakarta"
               className="relative z-10 rounded-[32px] sm:rounded-[44px] rounded-br-[60px] sm:rounded-br-[110px] shadow-2xl object-cover object-top w-full h-[320px] sm:h-[480px] lg:h-[520px] border-4 border-white"
             />
 
             {/* Floating Card 1: Apresiasi / Shift / Operasional (positioned cleanly at bottom-left edge away from face) */}
-            <div className="hidden sm:flex absolute -bottom-7 left-0 sm:-left-6 md:-left-10 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 transition-transform hover:scale-105 duration-300">
+            <div
+              data-gsap="hero-float"
+              className="hidden sm:flex absolute -bottom-7 left-0 sm:-left-6 md:-left-10 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 transition-transform hover:scale-105 duration-300"
+            >
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-xl flex items-center justify-center text-[#F48C06] shrink-0 shadow-2xs">
                 {renderFloatingIcon(content.floatingCard1.icon)}
               </div>
@@ -377,7 +613,10 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             </div>
 
             {/* Floating Card 2: HR / Manajemen / Pengumuman (hidden on extra small screens to prevent overlap) */}
-            <div className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-60 sm:w-72 transition-transform hover:scale-105 duration-300">
+            <div
+              data-gsap="hero-float"
+              className="hidden sm:flex absolute bottom-16 -right-2 sm:-right-6 md:-right-8 bg-white/95 backdrop-blur-md p-3 sm:p-4 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.1)] border border-white items-center gap-3 z-30 w-60 sm:w-72 transition-transform hover:scale-105 duration-300"
+            >
               {(() => {
                 const safeAvatarUrl = sanitizeSafeUrl(content.floatingCard2.avatarUrl, {
                   allowDataImage: true,
@@ -431,12 +670,14 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       {/* 3. LAYANAN TERINTEGRASI */}
       <section id="layanan" className="py-20 sm:py-24 bg-white relative">
         <div className="container mx-auto px-4 sm:px-8 md:px-16 text-center z-10 relative">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-4 tracking-tight">
-            Layanan <span className="text-[#F48C06] font-normal">Terintegrasi</span>
-          </h2>
-          <p className="text-[#696984] max-w-2xl mx-auto mb-12 sm:mb-16 text-base sm:text-lg font-normal leading-relaxed">
-            {content.servicesSubtitle}
-          </p>
+          <div data-gsap="services-header">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-4 tracking-tight">
+              Layanan <span className="text-[#F48C06] font-normal">Terintegrasi</span>
+            </h2>
+            <p className="text-[#696984] max-w-2xl mx-auto mb-12 sm:mb-16 text-base sm:text-lg font-normal leading-relaxed">
+              {content.servicesSubtitle}
+            </p>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
             {content.services.map((item, idx) => {
@@ -449,6 +690,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               return (
                 <div
                   key={item.id}
+                  data-gsap="service-card"
                   onClick={onNavigateToLogin}
                   className="bg-white p-8 sm:p-10 rounded-[32px] shadow-[0_20px_50px_rgba(47,50,125,0.06)] border border-gray-100 flex flex-col items-center group hover:-translate-y-2 hover:shadow-xl transition-all duration-300 cursor-pointer"
                 >
@@ -479,7 +721,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       <section id="panduan" className="py-16 sm:py-24 bg-slate-50/70 overflow-hidden relative border-t border-slate-100">
         <div className="container mx-auto px-4 sm:px-8 md:px-16 flex flex-col lg:flex-row items-center gap-10 lg:gap-20">
           {/* Left Asymmetric Photo Grid */}
-          <div className="w-full lg:w-1/2 relative max-w-lg mx-auto">
+          <div data-gsap="about-photos" className="w-full lg:w-1/2 relative max-w-lg mx-auto">
             <div className="absolute top-0 left-0 w-full h-full bg-[#F48C06]/10 rounded-[40px] transform rotate-3 scale-105 -z-10" />
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {(() => {
@@ -514,7 +756,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </div>
 
           {/* Right Text Content */}
-          <div className="w-full lg:w-1/2 text-center lg:text-left">
+          <div data-gsap="about-content" className="w-full lg:w-1/2 text-center lg:text-left">
             <div className="inline-block bg-orange-100 text-[#F48C06] font-normal px-4 py-1.5 rounded-full text-xs sm:text-sm mb-4 mx-auto lg:mx-0">
               {content.aboutTag}
             </div>
@@ -605,52 +847,61 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
               <div className="w-full md:w-7/12 relative">
                 <div className="absolute -inset-2 sm:-inset-3 bg-[#FFF3E4] rounded-[32px] sm:rounded-[36px] -z-10 transform -rotate-1" />
 
-                <div className="bg-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row gap-5 sm:gap-8 items-center border border-gray-100 relative overflow-hidden text-center sm:text-left">
-                  <Quote className="absolute top-2 right-4 w-16 sm:w-20 h-16 sm:h-20 text-[#F48C06]/10 pointer-events-none" />
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTestimonial.id || activeTestimonialIdx}
+                    initial={{ opacity: 0, x: 18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -18 }}
+                    transition={{ duration: 0.28, ease: 'easeOut' }}
+                    className="bg-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row gap-5 sm:gap-8 items-center border border-gray-100 relative overflow-hidden text-center sm:text-left"
+                  >
+                    <Quote className="absolute top-2 right-4 w-16 sm:w-20 h-16 sm:h-20 text-[#F48C06]/10 pointer-events-none" />
 
-                  {/* Photo */}
-                  <div className="shrink-0 relative">
-                    {(() => {
-                      const safeTestimonialPhoto = sanitizeSafeUrl(activeTestimonial.photoUrl, {
-                        allowDataImage: true,
-                      });
-                      return safeTestimonialPhoto ? (
-                        <img
-                          src={safeTestimonialPhoto}
-                          alt={activeTestimonial.name}
-                          className="w-20 h-20 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md mx-auto"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-2xl sm:text-3xl border-4 border-white shadow-md mx-auto">
-                          {(activeTestimonial.name || 'S').charAt(0).toUpperCase()}
-                        </div>
-                      );
-                    })()}
-                    <div className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 bg-[#F48C06] rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-2xs">
-                      <Quote className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-white" />
+                    {/* Photo */}
+                    <div className="shrink-0 relative">
+                      {(() => {
+                        const safeTestimonialPhoto = sanitizeSafeUrl(activeTestimonial.photoUrl, {
+                          allowDataImage: true,
+                        });
+                        return safeTestimonialPhoto ? (
+                          <img
+                            src={safeTestimonialPhoto}
+                            alt={activeTestimonial.name}
+                            className="w-20 h-20 sm:w-32 sm:h-32 object-cover rounded-full border-4 border-white shadow-md mx-auto"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#2F327D] to-[#1E2050] text-white flex items-center justify-center font-bold text-2xl sm:text-3xl border-4 border-white shadow-md mx-auto">
+                            {(activeTestimonial.name || 'S').charAt(0).toUpperCase()}
+                          </div>
+                        );
+                      })()}
+                      <div className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 bg-[#F48C06] rounded-full flex items-center justify-center text-white text-xs border-2 border-white shadow-2xs">
+                        <Quote className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-white" />
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Quote & Author */}
-                  <div>
-                    <div className="flex text-amber-400 gap-1 text-sm mb-2.5 justify-center sm:justify-start">
-                      {[...Array(activeTestimonial.rating || 5)].map((_, i) => (
-                        <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                      ))}
-                    </div>
-                    <p className="text-[#2F327D] font-normal italic leading-relaxed mb-3 sm:mb-4 text-xs sm:text-sm break-words">
-                      "{activeTestimonial.quote}"
-                    </p>
+                    {/* Quote & Author */}
                     <div>
-                      <h4 className="font-normal text-[#2F327D] text-sm sm:text-base">
-                        {activeTestimonial.name}
-                      </h4>
-                      <p className="text-[#696984] text-[11px] sm:text-xs font-normal">
-                        {activeTestimonial.role}
+                      <div className="flex text-amber-400 gap-1 text-sm mb-2.5 justify-center sm:justify-start">
+                        {[...Array(activeTestimonial.rating || 5)].map((_, i) => (
+                          <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                        ))}
+                      </div>
+                      <p className="text-[#2F327D] font-normal italic leading-relaxed mb-3 sm:mb-4 text-xs sm:text-sm break-words">
+                        "{activeTestimonial.quote}"
                       </p>
+                      <div>
+                        <h4 className="font-normal text-[#2F327D] text-sm sm:text-base">
+                          {activeTestimonial.name}
+                        </h4>
+                        <p className="text-[#696984] text-[11px] sm:text-xs font-normal">
+                          {activeTestimonial.role}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </div>
           </div>
@@ -658,9 +909,9 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       )}
 
       {/* 6. BERITA & PENGUMUMAN */}
-      <section className="py-16 sm:py-24 bg-slate-50 border-t border-gray-100">
+      <section data-gsap="news-section" className="py-16 sm:py-24 bg-slate-50 border-t border-gray-100">
         <div className="container mx-auto px-4 sm:px-8 md:px-16">
-          <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mb-8 sm:mb-12 text-center sm:text-left">
+          <div data-gsap="news-header" className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 mb-8 sm:mb-12 text-center sm:text-left">
             <div className="max-w-xl">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-normal text-[#2F327D] mb-2 sm:mb-3 tracking-tight">
                 Berita & <span className="text-[#F48C06] font-normal">Pengumuman</span>
@@ -698,6 +949,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 return (
                   <article
                     key={item.id}
+                    data-gsap="news-card"
                     onClick={() => {
                       setZoomedNewsItem({
                         id: item.id,
@@ -796,6 +1048,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 return (
                   <article
                     key={idx}
+                    data-gsap="news-card"
                     onClick={() => {
                       setZoomedNewsItem({
                         id: `def-${idx}`,
@@ -880,7 +1133,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
             <ul className="space-y-3 text-xs sm:text-sm font-normal">
               <li>
                 <button
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  onClick={handleScrollTop}
                   className="hover:text-[#F48C06] transition text-left cursor-pointer"
                 >
                   Beranda Utama
@@ -903,7 +1156,11 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 </button>
               </li>
               <li>
-                <a href="#panduan" className="hover:text-[#F48C06] transition">
+                <a
+                  href="#panduan"
+                  onClick={(e) => handleScrollToSection(e, '#panduan')}
+                  className="hover:text-[#F48C06] transition"
+                >
                   SOP & Panduan IT
                 </a>
               </li>
@@ -974,43 +1231,53 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       </footer>
 
       {/* POPUP ZOOM BESAR DENGAN KETERANGAN LENGKAP & REDIRECT KE LOGIN KARYAWAN */}
-      {zoomedNewsItem && (
-        <div
-          {...getBackdropProps(() => {
-            setZoomedNewsItem(null);
-            setIsPhotoMaximized(false);
-          })}
-          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-[24px] sm:rounded-[32px] shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[94vh] cursor-default animate-in zoom-in-95 duration-200"
+      <AnimatePresence>
+        {zoomedNewsItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            data-lenis-prevent
+            {...getBackdropProps(() => {
+              setZoomedNewsItem(null);
+              setIsPhotoMaximized(false);
+            })}
+            className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md cursor-pointer"
           >
-            {/* Modal Header */}
-            <div className="px-4 sm:px-7 py-3 sm:py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 truncate max-w-[65%] sm:max-w-none min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#F48C06] shrink-0" />
-                <span className="text-xs sm:text-sm font-bold text-[#2F327D] uppercase tracking-wider truncate">
-                  Detail Berita & Pengumuman
-                </span>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[24px] sm:rounded-[32px] shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[94vh] cursor-default"
+            >
+              {/* Modal Header */}
+              <div className="px-4 sm:px-7 py-3 sm:py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 truncate max-w-[65%] sm:max-w-none min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#F48C06] shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold text-[#2F327D] uppercase tracking-wider truncate">
+                    Detail Berita & Pengumuman
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomedNewsItem(null);
+                      setIsPhotoMaximized(false);
+                    }}
+                    className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                    title="Tutup Popup"
+                  >
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setZoomedNewsItem(null);
-                    setIsPhotoMaximized(false);
-                  }}
-                  className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
-                  title="Tutup Popup"
-                >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-            </div>
 
-            {/* Modal Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-6">
+              {/* Modal Scrollable Body */}
+              <div data-lenis-prevent className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-4 sm:space-y-6">
               {/* Fit Image Hero Banner: Tampil pas & utuh jika memiliki foto */}
               {(() => {
                 const safeZoomedImg = sanitizeSafeUrl(zoomedNewsItem.imgUrl, { allowDataImage: true });
@@ -1108,9 +1375,10 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

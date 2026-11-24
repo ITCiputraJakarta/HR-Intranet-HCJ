@@ -44,6 +44,8 @@ import {
 } from '../lib/branding';
 import { UnifiedLogo } from './common/UnifiedLogo';
 import { SocialMediaBar } from './common/SocialMediaBar';
+import { PortalLegalModal, PortalLegalTab } from './common/PortalLegalModal';
+import { APP_DEV_LABEL } from '../lib/appVersion';
 import {
   subscribeToDepartments,
   subscribeToHotelUnits,
@@ -137,8 +139,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
 
-  // Google SSO state
+  // Google SSO & Legal Modal states
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<PortalLegalTab | null>(null);
 
   // Register form state (role strictly locked to 'staff' & 'Pending' on public self-registration)
   const [hotelUnits, setHotelUnits] = useState(() => getHotelUnits());
@@ -1260,20 +1263,38 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       {/* 3. SIMPLE UNIFIED FOOTER IN BERANDA THEME */}
       <footer className="w-full bg-[#1a1c4b] text-white/70 py-4 px-4 sm:px-6 lg:px-8 shrink-0 z-20 border-t-4 border-[#F48C06]">
-        <div className="w-full max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs font-normal">
-          <p className="text-center md:text-left text-white/80">
+        <div className="w-full max-w-[1920px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-3 text-xs font-normal">
+          <p className="text-center lg:text-left text-white/80">
             &copy; 2026 Hotel Ciputra Jakarta. All Rights Reserved. • Internal System Only
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <SocialMediaBar variant="footer" socialLinks={branding.socialLinks} />
-            <div className="hidden sm:flex items-center gap-2 text-white/50 text-xs pl-2 border-l border-white/10">
-              <span>it@hotelciputra.com</span>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 text-white/60 text-xs sm:pl-3 sm:border-l sm:border-white/10">
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('privacy')}
+                className="hover:text-white transition cursor-pointer"
+              >
+                Kebijakan Privasi Portal
+              </button>
               <span>•</span>
-              <span>+62 21 566 0640</span>
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('release')}
+                className="text-white/80 hover:text-[#F48C06] font-mono transition cursor-pointer"
+              >
+                {APP_DEV_LABEL}
+              </button>
             </div>
           </div>
         </div>
       </footer>
+
+      <PortalLegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
     </div>
   );
 };

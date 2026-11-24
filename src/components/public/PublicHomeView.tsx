@@ -44,7 +44,9 @@ import { getAppBranding, subscribeToAppBranding, AppBranding } from '../../lib/b
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { PortalLegalModal, PortalLegalTab } from '../common/PortalLegalModal';
 import { useLenis } from '../common/MotionLenisProvider';
+import { APP_DEV_LABEL } from '../../lib/appVersion';
 import { sanitizeSafeUrl } from '../../lib/security';
 import defaultHotelLounge from '../../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
 import defaultHotelSuite from '../../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
@@ -119,6 +121,7 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
     attachmentName?: string;
   } | null>(null);
   const [isPhotoMaximized, setIsPhotoMaximized] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<PortalLegalTab | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { lenis, scrollToTop } = useLenis();
 
@@ -1158,19 +1161,22 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           <p className="font-normal text-white/60">
             &copy; 2026 Hotel Ciputra Jakarta. All Rights Reserved.
           </p>
-          <div className="flex gap-5 text-white/50 text-xs font-normal">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5 text-white/50 text-xs font-normal">
             <button
-              onClick={onNavigateToLogin}
+              type="button"
+              onClick={() => setLegalModalTab('privacy')}
               className="hover:text-white transition cursor-pointer"
             >
               Kebijakan Privasi Portal
             </button>
             <span>•</span>
             <button
-              onClick={onNavigateToLogin}
-              className="hover:text-white transition cursor-pointer"
+              type="button"
+              onClick={() => setLegalModalTab('release')}
+              className="hover:text-[#F48C06] text-white/70 font-mono transition cursor-pointer"
+              title="Lihat detail versi & ketentuan sistem IT"
             >
-              Syarat & Ketentuan IT
+              {APP_DEV_LABEL}
             </button>
           </div>
         </div>
@@ -1325,6 +1331,12 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PortalLegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
     </div>
   );
 };

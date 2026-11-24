@@ -46,7 +46,9 @@ import { sanitizeSafeUrl, sha256Pure } from '../../lib/security';
 import { getBackdropProps } from '../../lib/modalHelper';
 import { UnifiedLogo } from '../common/UnifiedLogo';
 import { SocialMediaBar } from '../common/SocialMediaBar';
+import { PortalLegalModal, PortalLegalTab } from '../common/PortalLegalModal';
 import { useLenis } from '../common/MotionLenisProvider';
+import { APP_DEV_LABEL } from '../../lib/appVersion';
 import { CaptchaWidget, CaptchaWidgetRef } from '../CaptchaWidget';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -160,6 +162,7 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
   const [challengeState, setChallengeState] = useState<CareerChallengeState | null>(null);
   const [trapWebsite, setTrapWebsite] = useState('');
   const [trapCompanyPhone, setTrapCompanyPhone] = useState('');
+  const [legalModalTab, setLegalModalTab] = useState<PortalLegalTab | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { lenis } = useLenis();
@@ -1006,8 +1009,27 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-[#F48C06] py-3 text-center text-white text-xs font-normal">
-          <p>&copy; 2026 Hotel Ciputra Jakarta. All Rights Reserved.</p>
+        <div className="bg-[#F48C06] py-3 px-4 sm:px-8 text-white text-xs font-normal">
+          <div className="max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>&copy; 2026 Hotel Ciputra Jakarta. All Rights Reserved.</p>
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-white/95">
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('privacy')}
+                className="hover:underline transition cursor-pointer"
+              >
+                Kebijakan Privasi Portal
+              </button>
+              <span className="opacity-70">•</span>
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('release')}
+                className="font-mono font-semibold hover:underline transition cursor-pointer"
+              >
+                {APP_DEV_LABEL}
+              </button>
+            </div>
+          </div>
         </div>
       </footer>
 
@@ -1351,6 +1373,12 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
         </motion.div>
       )}
       </AnimatePresence>
+
+      <PortalLegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
     </div>
   );
 };

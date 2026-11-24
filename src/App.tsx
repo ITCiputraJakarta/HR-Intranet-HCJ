@@ -66,6 +66,8 @@ import { CareerCmsAdminView } from './components/CareerCmsAdminView';
 import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { UnifiedLogo } from './components/common/UnifiedLogo';
 import { SocialMediaBar } from './components/common/SocialMediaBar';
+import { PortalLegalModal, PortalLegalTab } from './components/common/PortalLegalModal';
+import { APP_DEV_LABEL } from './lib/appVersion';
 import { MotionLenisProvider, useLenis } from './components/common/MotionLenisProvider';
 import {
   PublicHomeSkeleton,
@@ -149,6 +151,7 @@ function AppContent() {
   const [previewDoc, setPreviewDoc] = useState<IntranetDocument | null>(null);
   const [showFirestoreModal, setShowFirestoreModal] = useState<boolean>(false);
   const [showBrandingModal, setShowBrandingModal] = useState<boolean>(false);
+  const [legalModalTab, setLegalModalTab] = useState<PortalLegalTab | null>(null);
   const [idleTimeoutMessage, setIdleTimeoutMessage] = useState<string>('');
   const [branding, setBranding] = useState<AppBranding>(getAppBranding());
 
@@ -1188,8 +1191,27 @@ function AppContent() {
             )}
           </div>
 
-          {/* Right: Session Info & Super Admin Shortcut */}
+          {/* Right: Legal Policy, Synced Version, & Session Info */}
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 mr-1">
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('privacy')}
+                className="hover:text-[#004872] transition cursor-pointer"
+              >
+                Kebijakan Privasi Portal
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setLegalModalTab('release')}
+                className="font-mono text-[#2F327D] hover:text-[#F48C06] transition cursor-pointer font-semibold"
+                title="Lihat detail versi & ketentuan sistem IT"
+              >
+                {APP_DEV_LABEL}
+              </button>
+            </div>
+
             {isSuperAdmin && (
               <button
                 onClick={() => switchTabWithSkeleton('home-cms')}
@@ -1207,6 +1229,13 @@ function AppContent() {
           </div>
         </div>
       </footer>
+
+      {/* Legal & Version Modal */}
+      <PortalLegalModal
+        isOpen={legalModalTab !== null}
+        initialTab={legalModalTab || 'privacy'}
+        onClose={() => setLegalModalTab(null)}
+      />
 
       {/* Modern Floating Bottom-Right Scroll-To-Top Button across all views */}
       <ScrollToTopButton />

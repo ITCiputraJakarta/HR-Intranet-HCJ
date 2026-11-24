@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ShieldAlert,
   Search,
@@ -28,6 +28,7 @@ import { SortableHeader } from './SortableHeader';
 import { Language, t } from '../lib/i18n';
 import { getBackdropProps } from '../lib/modalHelper';
 import { escapeCsvCell } from '../lib/security';
+import { TabContentSkeleton } from './common/SkeletonLoaders';
 
 interface AccessLogsViewProps {
   logs: AccessLog[];
@@ -52,7 +53,24 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  const reloadTimerRef = useRef<number | null>(null);
   const departments = getDepartments();
+
+  useEffect(() => {
+    return () => {
+      if (reloadTimerRef.current) window.clearTimeout(reloadTimerRef.current);
+    };
+  }, []);
+
+  const handleManualReload = () => {
+    setIsReloading(true);
+    onRefresh();
+    if (reloadTimerRef.current) window.clearTimeout(reloadTimerRef.current);
+    reloadTimerRef.current = window.setTimeout(() => {
+      setIsReloading(false);
+    }, 240);
+  };
 
   const safeLogs = logs || [];
 
@@ -224,6 +242,10 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
     }
   };
 
+  if (isReloading) {
+    return <TabContentSkeleton activeTab="logs" />;
+  }
+
   return (
     <div className="space-y-6">
       
@@ -246,8 +268,8 @@ export const AccessLogsView: React.FC<AccessLogsViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             id="btn-refresh-logs"
-            onClick={onRefresh}
-            className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 transition-colors"
+            onClick={handleManualReload}
+            className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             title="Muat Ulang Log"
           >
             <RefreshCw className="w-4 h-4" />

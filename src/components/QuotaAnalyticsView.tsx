@@ -44,6 +44,7 @@ import {
   saveKPIMaster,
 } from '../lib/storage';
 import { escapeCsvCell } from '../lib/security';
+import { QuotaCardsSkeleton } from './common/SkeletonLoaders';
 import {
   seedInitialFirestoreData,
   testFirestoreConnection,
@@ -807,8 +808,12 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
           </div>
         )}
 
-        {/* SECTION 1: 4 CORE QUOTA SUMMARY CARDS WITH CLEAR PERCENTAGES (%) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {isSyncingAll ? (
+          <QuotaCardsSkeleton />
+        ) : (
+          <>
+            {/* SECTION 1: 4 CORE QUOTA SUMMARY CARDS WITH CLEAR PERCENTAGES (%) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Card 1: Firebase Storage (1 GiB) */}
           <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/90 flex flex-col justify-between space-y-3">
             <div>
@@ -1120,6 +1125,8 @@ export const QuotaAnalyticsView: React.FC<QuotaAnalyticsViewProps> = ({
             </div>
           </div>
         </div>
+          </>
+        )}
 
         {/* SECTION 3: RINCIAN PERSENTASE PER KOLEKSI DATABASE NOSQL FIRESTORE */}
         <div className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-6 space-y-4">

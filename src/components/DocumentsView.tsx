@@ -25,8 +25,7 @@ import {
   CheckCircle2,
   FolderTree,
   Folder,
-  Check,
-  RefreshCw
+  Check
 } from 'lucide-react';
 import { IntranetDocument, User, CategoryMaster, DocumentCategory } from '../types';
 import {

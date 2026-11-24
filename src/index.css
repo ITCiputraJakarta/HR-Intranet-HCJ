@@ -79,6 +79,62 @@ b:not(.brand-top-left-bold) {
   background: #0284c7;
 }
 
+/* Unified Skeleton Shimmer System */
+@keyframes hcjSkeletonSweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 45%,
+    #ffffff 50%,
+    #f1f5f9 55%,
+    #e2e8f0 100%
+  );
+  background-size: 220% 100%;
+  animation: hcjSkeletonSweep 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.skeleton-shimmer-warm {
+  background: linear-gradient(
+    90deg,
+    #fde6c4 0%,
+    #fff3e4 45%,
+    #ffffff 50%,
+    #fff3e4 55%,
+    #fde6c4 100%
+  );
+  background-size: 220% 100%;
+  animation: hcjSkeletonSweep 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.skeleton-shimmer-dark {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 220% 100%;
+  animation: hcjSkeletonSweep 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .skeleton-shimmer-warm,
+  .skeleton-shimmer-dark {
+    animation: none;
+    background-position: 0 0;
+  }
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -101,6 +157,10 @@ b:not(.brand-top-left-bold) {
   .no-print,
   #btn-notification-bell,
   #btn-user-profile-menu,
+  #portal-full-screen-loader,
+  .skeleton-shimmer,
+  .skeleton-shimmer-warm,
+  .skeleton-shimmer-dark,
   .print-hide {
     display: none !important;
   }

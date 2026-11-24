@@ -30,6 +30,7 @@ import {
   FirebaseDiagnosticReport,
 } from '../lib/firestoreService';
 import { getBackdropProps } from '../lib/modalHelper';
+import { FirestoreSyncSkeleton } from './common/SkeletonLoaders';
 
 interface FirestoreSyncModalProps {
   isOpen: boolean;
@@ -144,119 +145,125 @@ export const FirestoreSyncModal: React.FC<FirestoreSyncModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-5 text-slate-700 text-sm">
-          {/* Status Banner */}
-          <div
-            className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-              report?.success
-                ? 'bg-emerald-50/70 border-emerald-200'
-                : 'bg-amber-50/80 border-amber-200'
-            }`}
-          >
-            <div className="flex items-start gap-3">
+          {isChecking || isSeeding ? (
+            <FirestoreSyncSkeleton />
+          ) : (
+            <>
+              {/* Status Banner */}
               <div
-                className={`w-4 h-4 mt-1 rounded-full shrink-0 ${
+                className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                   report?.success
-                    ? 'bg-emerald-500 ring-4 ring-emerald-100 animate-pulse'
-                    : 'bg-amber-500 ring-4 ring-amber-100'
+                    ? 'bg-emerald-50/70 border-emerald-200'
+                    : 'bg-amber-50/80 border-amber-200'
                 }`}
-              />
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-4 h-4 mt-1 rounded-full shrink-0 ${
+                      report?.success
+                        ? 'bg-emerald-500 ring-4 ring-emerald-100 animate-pulse'
+                        : 'bg-amber-500 ring-4 ring-amber-100'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>{report?.title || 'Menguji Koneksi ke Cloud Firestore...'}</span>
+                      {report?.success && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
+                          Online & Real-time
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {report?.message || 'Memverifikasi akses baca/tulis ke database...'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleTestConnection}
+                    disabled={isChecking}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin text-amber-600' : ''}`}
+                    />
+                    <span>{isChecking ? 'Menguji...' : 'Uji Koneksi'}</span>
+                  </button>
+                  <button
+                    onClick={handleForceSeed}
+                    disabled={isSeeding}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    title="Sinkronkan data master ke Cloud Firestore"
+                  >
+                    <span>{isSeeding ? 'Menyinkronkan...' : 'Sinkronkan Master'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Troubleshooting Steps if Permission Denied or Not Found */}
+              {report && !report.success && report.troubleshootingSteps.length > 0 && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-rose-800">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Panduan Perbaikan Koneksi ({report.status})</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-rose-800">
+                    {report.troubleshootingSteps.map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Real-time Synced Collections Stats */}
               <div>
-                <div className="font-bold text-slate-900 flex items-center gap-2">
-                  <span>{report?.title || 'Menguji Koneksi ke Cloud Firestore...'}</span>
-                  {report?.success && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
-                      Online & Real-time
-                    </span>
-                  )}
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Statistik Koleksi Data Terintegrasi</span>
+                </h4>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-medium">Akun User</span>
+                      <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    </div>
+                    <div className="text-xl font-black text-slate-900 tabular-nums">{users.length}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Pengguna aktif</div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-medium">Dokumen Total</span>
+                      <Database className="w-3.5 h-3.5 text-amber-600" />
+                    </div>
+                    <div className="text-xl font-black text-slate-900 tabular-nums">{docs.length}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">SOP & Formulir</div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-medium">Pengumuman</span>
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <div className="text-xl font-black text-slate-900 tabular-nums">{annCount}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Internal broadcast</div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-medium">Riwayat Log</span>
+                      <FileCheck2 className="w-3.5 h-3.5 text-rose-600" />
+                    </div>
+                    <div className="text-xl font-black text-slate-900 tabular-nums">{logs.length}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Retensi 3 bulan</div>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {report?.message || 'Memverifikasi akses baca/tulis ke database...'}
-                </p>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleTestConnection}
-                disabled={isChecking}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin text-amber-600' : ''}`}
-                />
-                <span>{isChecking ? 'Menguji...' : 'Uji Koneksi'}</span>
-              </button>
-              <button
-                onClick={handleForceSeed}
-                disabled={isSeeding}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                title="Sinkronkan data master ke Cloud Firestore"
-              >
-                <span>{isSeeding ? 'Menyinkronkan...' : 'Sinkronkan Master'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Troubleshooting Steps if Permission Denied or Not Found */}
-          {report && !report.success && report.troubleshootingSteps.length > 0 && (
-            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-rose-800">
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>Panduan Perbaikan Koneksi ({report.status})</span>
-              </div>
-              <ol className="list-decimal list-inside space-y-1 text-rose-800">
-                {report.troubleshootingSteps.map((step, i) => (
-                  <li key={i}>{step}</li>
-                ))}
-              </ol>
-            </div>
+            </>
           )}
-
-          {/* Real-time Synced Collections Stats */}
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-slate-600" />
-              <span>Statistik Koleksi Data Terintegrasi</span>
-            </h4>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-xs font-medium">Akun User</span>
-                  <Users className="w-3.5 h-3.5 text-indigo-600" />
-                </div>
-                <div className="text-xl font-black text-slate-900 tabular-nums">{users.length}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Pengguna aktif</div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-xs font-medium">Dokumen Total</span>
-                  <Database className="w-3.5 h-3.5 text-amber-600" />
-                </div>
-                <div className="text-xl font-black text-slate-900 tabular-nums">{docs.length}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">SOP & Formulir</div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-xs font-medium">Pengumuman</span>
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                </div>
-                <div className="text-xl font-black text-slate-900 tabular-nums">{annCount}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Internal broadcast</div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between text-slate-500 mb-1">
-                  <span className="text-xs font-medium">Riwayat Log</span>
-                  <FileCheck2 className="w-3.5 h-3.5 text-rose-600" />
-                </div>
-                <div className="text-xl font-black text-slate-900 tabular-nums">{logs.length}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Retensi 3 bulan</div>
-              </div>
-            </div>
-          </div>
 
           {/* Retention & Auto-Pruning Settings */}
           <div className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">

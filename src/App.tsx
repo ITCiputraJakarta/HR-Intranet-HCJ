@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   User,
@@ -65,6 +65,13 @@ import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { UnifiedLogo } from './components/common/UnifiedLogo';
 import { SocialMediaBar } from './components/common/SocialMediaBar';
 import { MotionLenisProvider, useLenis } from './components/common/MotionLenisProvider';
+import {
+  PublicHomeSkeleton,
+  PublicCareerSkeleton,
+  LoginSkeleton,
+  DashboardShellSkeleton,
+  TabContentSkeleton,
+} from './components/common/SkeletonLoaders';
 import {
   getCareerApplications,
   subscribeToCareerApplications,
@@ -146,6 +153,39 @@ function AppContent() {
   const [careerApplications, setCareerApplications] = useState(() => getCareerApplications());
   const [previewHomeModal, setPreviewHomeModal] = useState<boolean>(false);
   const [previewCareerModal, setPreviewCareerModal] = useState<boolean>(false);
+
+  // Unified Skeleton Reload states for tab switches and public page transitions
+  const [isTabReloading, setIsTabReloading] = useState<boolean>(false);
+  const [isPublicReloading, setIsPublicReloading] = useState<boolean>(false);
+  const tabReloadTimerRef = useRef<number | null>(null);
+  const publicReloadTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (tabReloadTimerRef.current) window.clearTimeout(tabReloadTimerRef.current);
+      if (publicReloadTimerRef.current) window.clearTimeout(publicReloadTimerRef.current);
+    };
+  }, []);
+
+  const switchTabWithSkeleton = (nextTab: string) => {
+    if (nextTab === activeTab) {
+      setIsTabReloading(true);
+      if (tabReloadTimerRef.current) window.clearTimeout(tabReloadTimerRef.current);
+      tabReloadTimerRef.current = window.setTimeout(() => setIsTabReloading(false), 200);
+      return;
+    }
+    setActiveTab(nextTab);
+    setIsTabReloading(true);
+    if (tabReloadTimerRef.current) window.clearTimeout(tabReloadTimerRef.current);
+    tabReloadTimerRef.current = window.setTimeout(() => setIsTabReloading(false), 200);
+  };
+
+  const navigatePublicWithSkeleton = (nextPage: 'home' | 'career' | 'login') => {
+    setPublicPage(nextPage);
+    setIsPublicReloading(true);
+    if (publicReloadTimerRef.current) window.clearTimeout(publicReloadTimerRef.current);
+    publicReloadTimerRef.current = window.setTimeout(() => setIsPublicReloading(false), 180);
+  };
 
   useEffect(() => {
     scrollToTop(true);
@@ -555,6 +595,10 @@ function AppContent() {
   });
 
   const handleLoginSuccess = (user: User, apiToken?: string | null) => {
+    if (tabReloadTimerRef.current) window.clearTimeout(tabReloadTimerRef.current);
+    if (publicReloadTimerRef.current) window.clearTimeout(publicReloadTimerRef.current);
+    setIsTabReloading(false);
+    setIsPublicReloading(false);
     if (apiToken) {
       setInMemoryApiToken(apiToken);
     }
@@ -587,6 +631,10 @@ function AppContent() {
     auth.signOut().catch(() => {});
 
     // Clear user and timer while keeping system data intact
+    if (tabReloadTimerRef.current) window.clearTimeout(tabReloadTimerRef.current);
+    if (publicReloadTimerRef.current) window.clearTimeout(publicReloadTimerRef.current);
+    setIsTabReloading(false);
+    setIsPublicReloading(false);
     clearActivityTimer();
     clearAllSessionCache();
     setIsSessionVerified(false);
@@ -625,61 +673,58 @@ function AppContent() {
     }
     if (tab === 'documents') {
       if (category === 'SOP') {
-        setActiveTab('sop');
+        switchTabWithSkeleton('sop');
       } else if (category === 'Form') {
-        setActiveTab('forms');
+        switchTabWithSkeleton('forms');
       } else {
-        setActiveTab('sop');
+        switchTabWithSkeleton('sop');
       }
       return;
     }
     if (tab === 'kpi') {
-      setActiveTab('kpi-master');
+      switchTabWithSkeleton('kpi-master');
       return;
     }
     if (tab === 'profile') {
       if (isSuperAdmin) {
-        setActiveTab('users');
+        switchTabWithSkeleton('users');
       } else if (isHod || currentUser?.role === 'manager') {
-        setActiveTab('performance');
+        switchTabWithSkeleton('performance');
       } else {
-        setActiveTab('announcements');
+        switchTabWithSkeleton('announcements');
       }
       return;
     }
-    setActiveTab(tab);
+    switchTabWithSkeleton(tab);
   };
 
-  // Full-screen Loading Blocker to prevent clicking or flashing before all data is fully synchronized
-  const FullScreenLoadingBlocker = isInitialSyncing ? (
-    <div
-      id="portal-full-screen-loader"
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md transition-all duration-300 select-none cursor-wait"
-      style={{ pointerEvents: 'all' }}
-    >
-      <div className="flex flex-col items-center max-w-sm px-6 text-center animate-in fade-in zoom-in-95 duration-200">
-        <UnifiedLogo customLogoUrl={branding.customLogoUrl} size="2xl" className="mb-4 animate-pulse shadow-xl shadow-orange-500/20" />
-
-        <h3 className="font-bold text-slate-800 text-base tracking-tight mb-1">
-          {branding.appName || 'Hotel Ciputra Jakarta'}
-        </h3>
-        <p className="text-xs text-slate-500 font-medium mb-5">
-          {branding.subTitle || 'Portal Intranet & Manajemen Operasional'}
-        </p>
-
-        <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-50/90 border border-orange-200/80 shadow-xs mb-3">
-          <div className="w-4 h-4 border-2 border-[#F48C06] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-semibold text-[#F48C06]">
-            Menyelaraskan Data Sistem...
-          </span>
-        </div>
-
-        <p className="text-[11px] text-slate-400">
-          Menyiapkan Portal Resmi Hotel Ciputra Jakarta...
-        </p>
-      </div>
-    </div>
-  ) : null;
+  // Full-screen Skeleton Reload overlay (initial sync & public route reload)
+  const showFullSkeleton = isInitialSyncing || (!currentUser && isPublicReloading);
+  const FullScreenLoadingBlocker = (
+    <AnimatePresence>
+      {showFullSkeleton && (
+        <motion.div
+          id="portal-full-screen-loader"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22, ease: 'easeOut' }}
+          className="fixed inset-0 z-[9999] bg-slate-50 overflow-hidden select-none cursor-wait"
+          style={{ pointerEvents: 'all' }}
+        >
+          {currentUser ? (
+            <DashboardShellSkeleton activeTab={activeTab} />
+          ) : publicPage === 'career' ? (
+            <PublicCareerSkeleton />
+          ) : publicPage === 'login' ? (
+            <LoginSkeleton />
+          ) : (
+            <PublicHomeSkeleton />
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   // If user is not logged in, render public pages (Home, Career, or Login)
   if (!currentUser) {
@@ -688,8 +733,8 @@ function AppContent() {
         <>
           {FullScreenLoadingBlocker}
           <PublicCareerView
-            onNavigateToHome={() => setPublicPage('home')}
-            onNavigateToLogin={() => setPublicPage('login')}
+            onNavigateToHome={() => navigatePublicWithSkeleton('home')}
+            onNavigateToLogin={() => navigatePublicWithSkeleton('login')}
           />
           <ScrollToTopButton />
         </>
@@ -705,8 +750,8 @@ function AppContent() {
             currentLang={currentLang}
             onLanguageChange={handleLanguageChange}
             sessionMessage={idleTimeoutMessage}
-            onNavigateToHome={() => setPublicPage('home')}
-            onNavigateToCareer={() => setPublicPage('career')}
+            onNavigateToHome={() => navigatePublicWithSkeleton('home')}
+            onNavigateToCareer={() => navigatePublicWithSkeleton('career')}
           />
           <ScrollToTopButton />
         </>
@@ -717,8 +762,8 @@ function AppContent() {
       <>
         {FullScreenLoadingBlocker}
         <PublicHomeView
-          onNavigateToLogin={() => setPublicPage('login')}
-          onNavigateToCareer={() => setPublicPage('career')}
+          onNavigateToLogin={() => navigatePublicWithSkeleton('login')}
+          onNavigateToCareer={() => navigatePublicWithSkeleton('career')}
           announcements={documents}
           onOpenAnnouncementPreview={(doc) => setPreviewDoc(doc)}
         />
@@ -728,7 +773,7 @@ function AppContent() {
           onClose={() => setPreviewDoc(null)}
           onNavigateToLogin={() => {
             setPreviewDoc(null);
-            setPublicPage('login');
+            navigatePublicWithSkeleton('login');
           }}
         />
         <ScrollToTopButton />
@@ -790,7 +835,7 @@ function AppContent() {
           currentTab={activeTab}
           currentLang={currentLang}
           onNavigate={handleNavigate}
-          onSelectTab={setActiveTab}
+          onSelectTab={switchTabWithSkeleton}
           currentUser={currentUser}
           onLogout={handleLogout}
           pendingUsersCount={(users || []).filter((u) => u.status === 'Pending').length}
@@ -818,13 +863,24 @@ function AppContent() {
         {/* Dynamic Main Content Area */}
         <main className="flex-1 min-w-0 w-full pb-8">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.16, ease: 'easeOut' }}
-            >
+            {isTabReloading ? (
+              <motion.div
+                key={`skeleton-${activeTab}`}
+                initial={{ opacity: 0.4 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.14 }}
+              >
+                <TabContentSkeleton activeTab={activeTab} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+              >
               {activeTab === 'announcements' && (
                 <AnnouncementsView
                   documents={documents}
@@ -947,7 +1003,8 @@ function AppContent() {
                   onPreviewPublicCareer={() => setPreviewCareerModal(true)}
                 />
               )}
-            </motion.div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </main>
       </div>
@@ -1084,7 +1141,7 @@ function AppContent() {
             {isSuperAdmin && (
               <button
                 type="button"
-                onClick={() => setActiveTab('home-cms')}
+                onClick={() => switchTabWithSkeleton('home-cms')}
                 className="hidden lg:inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-[#F48C06] transition font-normal ml-1 cursor-pointer"
                 title="Atur link media sosial di Home CMS"
               >
@@ -1097,7 +1154,7 @@ function AppContent() {
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
             {isSuperAdmin && (
               <button
-                onClick={() => setActiveTab('home-cms')}
+                onClick={() => switchTabWithSkeleton('home-cms')}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white hover:bg-orange-50 text-[#2F327D] hover:text-[#F48C06] border border-orange-200 shadow-2xs font-normal text-[11px] transition-all cursor-pointer"
                 title="Kelola Konten Beranda (Home CMS)"
               >

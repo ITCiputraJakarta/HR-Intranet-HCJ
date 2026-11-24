@@ -41,6 +41,8 @@ import {
   savePerformances,
   saveNotifications,
   saveHotelUnits,
+  fetchBackendRegisteredUsers,
+  syncAdminUsersToBackend,
 } from './lib/storage';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -98,6 +100,8 @@ import {
   firestorePullAllCollections,
   firestoreSyncQuotaTelemetry,
   firestoreGetUserById,
+  firestoreSaveUser,
+  backfillUserAccessFromUsers,
   FirebaseConnectionState
 } from './lib/firestoreService';
 import { auth } from './lib/firebase';
@@ -359,8 +363,8 @@ function AppContent() {
       setBranding(b);
     });
 
-    // Unauthenticated visitors only listen to public announcements (isPublic == true) and public master lists
-    const isAuthed = Boolean(currentUser?.id);
+    // Unauthenticated or unverified visitors only listen to public announcements (isPublic == true) and public master lists
+    const isAuthed = Boolean(currentUser?.id && isSessionVerified);
     const unsubDocs = subscribeToDocuments((newDocs) => {
       saveDocuments(newDocs);
       const syncedDocs = getDocuments();
@@ -497,15 +501,49 @@ function AppContent() {
         await testFirestoreConnection();
         const res = await firestorePullAllCollections();
         if (res.success) {
-          if (res.documents.length > 0) saveDocuments(res.documents);
-          if (res.users.length > 0) saveUsers(res.users);
-          if (res.performances.length > 0) savePerformances(res.performances);
-          if (res.accessLogs.length > 0) saveAccessLogs(res.accessLogs);
-          if (res.categories && res.categories.length > 0) saveCategories(res.categories);
-          if (res.departments && res.departments.length > 0) saveDepartmentMasters(res.departments);
-          if (res.hotelUnits && res.hotelUnits.length > 0) saveHotelUnits(res.hotelUnits);
-          if (res.kpiMaster && res.kpiMaster.length > 0) saveKPIMaster(res.kpiMaster);
-          refreshAllData();
+          saveDocuments(res.documents);
+          savePerformances(res.performances);
+          saveAccessLogs(res.accessLogs);
+          saveCategories(res.categories);
+          saveDepartmentMasters(res.departments);
+          saveKPIMaster(res.kpiMaster);
+          if (res.hotelUnits && res.hotelUnits.length > 0) {
+            saveHotelUnits(res.hotelUnits);
+          }
+
+          // Bi-directional user reconciliation:
+          // 1. Pull self-registered Pending users from Express server into Firestore
+          // 2. Backfill /userAccess/{accessId} for Firestore Security Rules
+          // 3. Push Firestore authoritative user registry to Express server
+          const backendUsers = await fetchBackendRegisteredUsers();
+          const mergedByEmail = new Map<string, User>();
+          for (const fsU of res.users) {
+            if (fsU?.email) {
+              mergedByEmail.set(fsU.email.toLowerCase().trim(), fsU);
+            }
+          }
+          for (const bU of backendUsers) {
+            if (!bU?.email) continue;
+            const key = bU.email.toLowerCase().trim();
+            if (!mergedByEmail.has(key)) {
+              const newFsUser: User = {
+                ...bU,
+                email: key,
+                role: key === 'it@hotelciputra.com' ? 'admin' : bU.role || 'staff',
+                status: key === 'it@hotelciputra.com' ? 'Approved' : bU.status || 'Pending',
+              };
+              mergedByEmail.set(key, newFsUser);
+              await firestoreSaveUser(newFsUser).catch(() => {});
+            }
+          }
+          const reconciledUsers = Array.from(mergedByEmail.values());
+          saveUsers(reconciledUsers);
+          await Promise.all([
+            backfillUserAccessFromUsers(reconciledUsers),
+            syncAdminUsersToBackend(reconciledUsers),
+          ]);
+
+          refreshAllData(true);
 
           const rawBytes =
             new Blob([JSON.stringify(res.documents)]).size +

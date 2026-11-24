@@ -28,7 +28,11 @@ service cloud.firestore {
     }
 
     function isBootstrapAdmin() {
-      return isSignedIn() && request.auth.token.email == 'it@hotelciputra.com';
+      return isSignedIn() && request.auth.token.email.lower() == 'it@hotelciputra.com';
+    }
+
+    function emailAccessId() {
+      return request.auth.token.email.lower().replace('[^a-z0-9]', '_');
     }
 
     // Only used in single-document get / create / update / delete blocks (NEVER inside allow list)
@@ -40,12 +44,23 @@ service cloud.firestore {
       );
     }
 
+    // Only used in single-document get / create / update / delete blocks (NEVER inside allow list)
+    function isApprovedMember() {
+      return isAdmin() || (
+        isSignedIn()
+        && request.auth.token.email.size() <= 128
+        && exists(/databases/$(database)/documents/userAccess/$(emailAccessId()))
+        && get(/databases/$(database)/documents/userAccess/$(emailAccessId())).data.status == 'Approved'
+        && get(/databases/$(database)/documents/userAccess/$(emailAccessId())).data.email.lower() == request.auth.token.email.lower()
+      );
+    }
+
     function isEmailOwner(recordEmail) {
       return isSignedIn()
         && recordEmail is string
         && recordEmail.size() > 0
         && recordEmail.size() <= 150
-        && recordEmail == request.auth.token.email;
+        && recordEmail.lower() == request.auth.token.email.lower();
     }
 
     function isOptionalString(data, key, maxLen) {
@@ -98,6 +113,32 @@ service cloud.firestore {
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
         && data.role == 'admin'
         && isOptionalString(data, 'createdAt', 64);
+    }
+
+    function isValidUserAccess(data) {
+      return data.keys().hasAll(['id', 'email', 'role', 'status'])
+        && data.keys().hasOnly(['id', 'userId', 'email', 'role', 'status', 'updatedAt'])
+        && isValidId(data.id)
+        && isOptionalString(data, 'userId', 128)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.role is string && data.role in ['admin', 'manager', 'spv', 'hod', 'staff']
+        && data.status is string && data.status in ['Approved', 'Pending', 'Rejected']
+        && isOptionalString(data, 'updatedAt', 64);
+    }
+
+    function isValidPublicAnnouncement(data) {
+      return data.category == 'Pengumuman'
+        && !('attachmentUrl' in data)
+        && !('attachmentName' in data)
+        && !('attachmentType' in data)
+        && !('attachmentSize' in data)
+        && (!('isChunkedAttachment' in data) || data.isChunkedAttachment == false)
+        && ('fileType' in data) && data.fileType is string
+        && data.fileType.matches('^(?i)image/(png|jpeg|jpg|webp|gif)$')
+        && (
+          (('fileUrl' in data) && data.fileUrl is string && data.fileUrl.size() > 0)
+          || (('isChunkedFile' in data) && data.isChunkedFile == true)
+        );
     }
 
     function isValidDocument(data) {
@@ -356,14 +397,24 @@ service cloud.firestore {
       allow delete: if isValidId(adminId) && isBootstrapAdmin();
     }
 
+    // Approved Member Access Registry (Keyed by normalized email accessId)
+    match /userAccess/{accessId} {
+      allow get: if isValidId(accessId) && (
+        isAdmin() || (isSignedIn() && request.auth.token.email.size() <= 128 && accessId == emailAccessId())
+      );
+      allow list: if isBootstrapAdmin();
+      allow create, update: if isValidId(accessId) && isAdmin() && isValidUserAccess(incoming()) && incoming().id == accessId;
+      allow delete: if isValidId(accessId) && isAdmin();
+    }
+
     // Users (PII Isolated: strict owner-or-admin read, no self-escalation on create/update)
     match /users/{userId} {
       allow get: if isValidId(userId) && (isAdmin() || isEmailOwner(existing().email));
-      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email.lower() == request.auth.token.email.lower());
       allow create: if isValidId(userId) && isValidUser(incoming()) && (
         isAdmin() || (
           isSignedIn()
-          && incoming().email == request.auth.token.email
+          && isEmailOwner(incoming().email)
           && incoming().role == 'staff'
           && incoming().status == 'Pending'
         )
@@ -371,7 +422,8 @@ service cloud.firestore {
       allow update: if isValidId(userId) && isValidUser(incoming()) && (
         isAdmin() || (
           isEmailOwner(existing().email)
-          && incoming().email == existing().email
+          && isEmailOwner(incoming().email)
+          && incoming().email.lower() == existing().email.lower()
           && incoming().role == existing().role
           && incoming().status == existing().status
           && incoming().diff(existing()).affectedKeys().hasOnly(['nama', 'avatar', 'departemen', 'unit', 'updatedAt'])
@@ -382,17 +434,26 @@ service cloud.firestore {
 
     // Official Intranet Documents & Master-Gated File Chunks
     match /documents/{docId} {
-      allow get: if isValidId(docId) && (existing().isPublic == true || isSignedIn());
+      allow get: if isValidId(docId) && (existing().isPublic == true || isApprovedMember());
       allow list: if (resource.data.isPublic == true) || isBootstrapAdmin() || isSignedIn();
-      allow create: if isValidId(docId) && isSignedIn() && isValidDocument(incoming()) && (
-        isAdmin() || (
+      allow create: if isValidId(docId) && isApprovedMember() && isValidDocument(incoming()) && (
+        (
+          isAdmin()
+          && (!('isPublic' in incoming()) || incoming().isPublic == false || isValidPublicAnnouncement(incoming()))
+        ) || (
           (!('isPublic' in incoming()) || incoming().isPublic == false)
-          && (!('uploadedByEmail' in incoming()) || incoming().uploadedByEmail == request.auth.token.email)
+          && ('uploadedByEmail' in incoming())
+          && isEmailOwner(incoming().uploadedByEmail)
         )
       );
-      allow update: if isValidId(docId) && isSignedIn() && isValidDocument(incoming()) && (
-        isAdmin() || (
-          existing().uploadedByEmail == request.auth.token.email
+      allow update: if isValidId(docId) && isApprovedMember() && isValidDocument(incoming()) && (
+        (
+          isAdmin()
+          && (!('isPublic' in incoming()) || incoming().isPublic == false || isValidPublicAnnouncement(incoming()))
+        ) || (
+          isEmailOwner(existing().uploadedByEmail)
+          && (!('isPublic' in incoming()) || incoming().isPublic == false)
+          && (!('uploadedByEmail' in incoming()) || isEmailOwner(incoming().uploadedByEmail))
           && incoming().diff(existing()).affectedKeys().hasOnly([
             'title', 'sub_kategori', 'akses_dept', 'keterangan',
             'fileUrl', 'previewUrl', 'downloadUrl', 'thumbUrl',
@@ -404,47 +465,50 @@ service cloud.firestore {
         )
       );
       allow delete: if isValidId(docId) && (
-        isAdmin() || (isSignedIn() && existing().uploadedByEmail == request.auth.token.email)
+        isAdmin() || (isApprovedMember() && isEmailOwner(existing().uploadedByEmail))
       );
 
       match /chunks/{chunkId} {
         allow get: if isValidId(docId) && isValidId(chunkId) && (
-          get(/databases/$(database)/documents/documents/$(docId)).data.isPublic == true || isSignedIn()
+          (
+            exists(/databases/$(database)/documents/documents/$(docId))
+            && get(/databases/$(database)/documents/documents/$(docId)).data.isPublic == true
+          ) || isApprovedMember()
         );
         allow list: if isSignedIn();
         allow create, update: if isValidId(docId)
           && isValidId(chunkId)
-          && isSignedIn()
+          && isApprovedMember()
           && isValidDocumentChunk(incoming())
           && exists(/databases/$(database)/documents/documents/$(docId))
           && (
             isAdmin()
-            || get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail == request.auth.token.email
+            || isEmailOwner(get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail)
           );
         allow delete: if isValidId(docId) && isValidId(chunkId) && (
           isAdmin()
           || (
-            isSignedIn()
+            isApprovedMember()
             && exists(/databases/$(database)/documents/documents/$(docId))
-            && get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail == request.auth.token.email
+            && isEmailOwner(get(/databases/$(database)/documents/documents/$(docId)).data.uploadedByEmail)
           )
         );
       }
     }
 
-    // Access Audit Logs (Owner or Admin Read, Authenticated Create, Admin-only Mutation/Deletion)
+    // Access Audit Logs (Owner or Admin Read, Approved Member Create with Verified Email, Admin-only Mutation/Deletion)
     match /accessLogs/{logId} {
-      allow get: if isValidId(logId) && (isAdmin() || isEmailOwner(existing().userEmail));
-      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userEmail == request.auth.token.email);
-      allow create: if isValidId(logId) && isSignedIn() && isValidAccessLog(incoming()) && (
-        isAdmin() || (!('userEmail' in incoming()) || incoming().userEmail == request.auth.token.email)
+      allow get: if isValidId(logId) && (isAdmin() || (isApprovedMember() && isEmailOwner(existing().userEmail)));
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userEmail.lower() == request.auth.token.email.lower());
+      allow create: if isValidId(logId) && isApprovedMember() && isValidAccessLog(incoming()) && (
+        isAdmin() || (('userEmail' in incoming()) && isEmailOwner(incoming().userEmail))
       );
       allow update, delete: if isValidId(logId) && isAdmin();
     }
 
     // Categories Master
     match /categories/{catId} {
-      allow get: if isValidId(catId) && isSignedIn();
+      allow get: if isValidId(catId) && isApprovedMember();
       allow list: if isSignedIn();
       allow create: if isValidId(catId) && isAdmin() && isValidCategory(incoming());
       allow update: if isValidId(catId) && isAdmin() && isValidCategory(incoming()) && (
@@ -480,7 +544,7 @@ service cloud.firestore {
 
     // KPI Indicators Master
     match /kpiMaster/{kpiId} {
-      allow get: if isValidId(kpiId) && isSignedIn();
+      allow get: if isValidId(kpiId) && isApprovedMember();
       allow list: if isSignedIn();
       allow create: if isValidId(kpiId) && isAdmin() && isValidKpiMaster(incoming());
       allow update: if isValidId(kpiId) && isAdmin() && isValidKpiMaster(incoming()) && (
@@ -494,15 +558,16 @@ service cloud.firestore {
 
     // Performance Appraisals (PII & Rating Protected, Terminal 'Approved' State Locked)
     match /performances/{perfId} {
-      allow get: if isValidId(perfId) && (isAdmin() || isEmailOwner(existing().email));
-      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
-      allow create: if isValidId(perfId) && isSignedIn() && isValidPerformance(incoming()) && (
-        isAdmin() || (incoming().email == request.auth.token.email && incoming().status in ['Draft', 'Submitted'])
+      allow get: if isValidId(perfId) && (isAdmin() || (isApprovedMember() && isEmailOwner(existing().email)));
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.email.lower() == request.auth.token.email.lower());
+      allow create: if isValidId(perfId) && isApprovedMember() && isValidPerformance(incoming()) && (
+        isAdmin() || (isEmailOwner(incoming().email) && incoming().status in ['Draft', 'Submitted'])
       );
-      allow update: if isValidId(perfId) && isSignedIn() && isValidPerformance(incoming()) && (
+      allow update: if isValidId(perfId) && isApprovedMember() && isValidPerformance(incoming()) && (
         isAdmin() || (
           isEmailOwner(existing().email)
-          && incoming().email == existing().email
+          && isEmailOwner(incoming().email)
+          && incoming().email.lower() == existing().email.lower()
           && existing().status != 'Approved'
           && incoming().status in ['Draft', 'Submitted']
           && incoming().diff(existing()).affectedKeys().hasOnly([
@@ -517,21 +582,25 @@ service cloud.firestore {
 
     // Notifications
     match /notifications/{notifId} {
-      allow get: if isValidId(notifId) && isSignedIn();
+      allow get: if isValidId(notifId) && isApprovedMember();
       allow list: if isSignedIn();
-      allow create: if isValidId(notifId) && isSignedIn() && isValidNotification(incoming());
-      allow update: if isValidId(notifId) && isSignedIn() && isValidNotification(incoming()) && (
-        isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+      allow create: if isValidId(notifId) && isApprovedMember() && isValidNotification(incoming());
+      allow update: if isValidId(notifId) && isApprovedMember() && isValidNotification(incoming()) && (
+        isAdmin() || (
+          incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+          && ('read' in incoming())
+          && incoming().read is bool
+        )
       );
       allow delete: if isValidId(notifId) && isAdmin();
     }
 
-    // System Configuration (Curated Public UI/CMS Configs vs Admin Telemetry vs Internal Configs)
+    // System Configuration (Curated Public UI/CMS Configs vs Admin Telemetry vs Approved Internal Configs)
     match /systemConfig/{configId} {
       allow get: if isValidId(configId) && (
         configId in ['app_branding', 'app_branding_gallery', 'home_cms', 'career_cms', 'hotel_units_master']
         || (configId == 'cloud_quota_telemetry' && isAdmin())
-        || (configId != 'cloud_quota_telemetry' && isSignedIn())
+        || (configId != 'cloud_quota_telemetry' && isApprovedMember())
       );
       allow list: if isBootstrapAdmin();
       allow create, update: if isValidId(configId) && isAdmin() && isValidSystemConfig(incoming());

@@ -411,6 +411,7 @@ export async function saveHomeCmsContent(content: HomeCmsContent): Promise<void>
       await setDoc(ref, sanitizeForFirestore(updated), { merge: true });
     } catch (e) {
       console.warn('Firestore save Home CMS error:', e);
+      throw e;
     }
   }
 }
@@ -477,6 +478,7 @@ export async function saveCareerCmsContent(content: CareerCmsContent): Promise<v
       await setDoc(ref, sanitizeForFirestore(updated), { merge: true });
     } catch (e) {
       console.warn('Firestore save Career CMS error:', e);
+      throw e;
     }
   }
 }
@@ -526,7 +528,7 @@ export function getCareerJobs(): CareerJobPosting[] {
   } catch (e) {
     console.warn('Error reading local career jobs:', e);
   }
-  return INITIAL_CAREER_JOBS.filter((j) => !isFirestoreIdDeleted(j.id));
+  return [];
 }
 
 export async function saveCareerJobs(jobs: CareerJobPosting[]): Promise<void> {
@@ -545,6 +547,7 @@ export async function saveCareerJobs(jobs: CareerJobPosting[]): Promise<void> {
       }
     } catch (e) {
       console.warn('Firestore save career jobs error:', e);
+      throw e;
     }
   }
 }
@@ -579,6 +582,7 @@ export async function deleteCareerJob(jobId: string): Promise<void> {
       await deleteDoc(ref);
     } catch (e) {
       console.warn('Firestore delete career job error:', e);
+      throw e;
     }
   }
 }
@@ -597,9 +601,14 @@ export function subscribeToCareerJobs(
     return onSnapshot(
       colRef,
       (snapshot) => {
-        if (!snapshot.empty) {
+        if (!snapshot.empty || !snapshot.metadata.fromCache) {
           const list: CareerJobPosting[] = [];
-          snapshot.forEach((d) => list.push(d.data() as CareerJobPosting));
+          snapshot.forEach((d) => {
+            const job = d.data() as CareerJobPosting;
+            if (!isFirestoreIdDeleted(job.id)) {
+              list.push(job);
+            }
+          });
           try {
             localStorage.setItem(CAREER_JOBS_STORAGE_KEY, JSON.stringify(list));
           } catch {}
@@ -638,6 +647,7 @@ export async function saveCareerApplications(
       }
     } catch (e) {
       console.warn('Firestore save career applications error:', e);
+      throw e;
     }
   }
 }
@@ -699,6 +709,7 @@ export async function deleteCareerApplication(appId: string): Promise<void> {
       await deleteDoc(ref);
     } catch (e) {
       console.warn('Firestore delete application error:', e);
+      throw e;
     }
   }
 }
@@ -717,9 +728,14 @@ export function subscribeToCareerApplications(
     return onSnapshot(
       colRef,
       (snapshot) => {
-        if (!snapshot.empty) {
+        if (!snapshot.empty || !snapshot.metadata.fromCache) {
           const list: CareerApplication[] = [];
-          snapshot.forEach((d) => list.push(d.data() as CareerApplication));
+          snapshot.forEach((d) => {
+            const app = d.data() as CareerApplication;
+            if (!isFirestoreIdDeleted(app.id)) {
+              list.push(app);
+            }
+          });
           memoryCareerApplications = list;
           callback(list);
         }

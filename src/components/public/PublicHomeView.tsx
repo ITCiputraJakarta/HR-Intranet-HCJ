@@ -48,7 +48,6 @@ import { useLenis } from '../common/MotionLenisProvider';
 import { sanitizeSafeUrl } from '../../lib/security';
 import defaultHotelLounge from '../../assets/images/hero_bright_hotel_lounge_1790666713075.jpg';
 import defaultHotelSuite from '../../assets/images/gallery_hotel_suite_bed_1790666738422.jpg';
-import defaultHotelDining from '../../assets/images/gallery_hotel_artisan_wall_1790666750842.jpg';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -137,9 +136,16 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
       ? content.testimonials[activeTestimonialIdx % content.testimonials.length]
       : null;
 
-  // Filter latest published announcements for the public news section (prevent leaking internal-only announcements)
+  // Filter latest active published announcements for the public news section (prevent leaking internal-only or expired announcements)
   const publishedNews = announcements
-    .filter((a) => a.category === 'Pengumuman' && Boolean(a.isPublic))
+    .filter((a) => {
+      if (a.category !== 'Pengumuman' || !a.isPublic) return false;
+      if (a.expiryDate) {
+        const expTs = new Date(`${a.expiryDate}T23:59:59.999`).getTime();
+        if (!isNaN(expTs) && expTs < Date.now()) return false;
+      }
+      return true;
+    })
     .slice(0, 3);
 
   const handleScrollTop = () => {
@@ -1020,87 +1026,27 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
                 );
               })
             ) : (
-              // Default preview articles using local hotel assets
-              [
-                {
-                  tag: 'Manajemen',
-                  date: '12 Oktober 2026',
-                  title: 'Hasil Evaluasi Kinerja Kuartal 3 & Target Operasional Q4',
-                  desc: 'Rangkuman pencapaian tim Front Office, F&B, dan Housekeeping serta persiapan menyambut musim liburan.',
-                  img: defaultHotelLounge,
-                },
-                {
-                  tag: 'Event Karyawan',
-                  date: '05 Oktober 2026',
-                  title: 'Pendaftaran Employee Gathering 2026 Dibuka',
-                  desc: 'Segera daftarkan diri dan keluarga untuk acara silaturahmi tahunan kita dengan ragam doorprize menarik.',
-                  img: defaultHotelSuite,
-                },
-                {
-                  tag: 'Sistem Internal',
-                  date: '01 Oktober 2026',
-                  title: 'Digitalisasi Pengajuan & Arsip SOP Departemen',
-                  desc: 'Modul digitalisasi formulir dan arsip dokumen kini lebih cepat serta terintegrasi cloud database.',
-                  img: defaultHotelDining,
-                },
-              ].map((defItem, idx) => {
-                const defBadge = cleanPublicBadge(defItem.tag);
-                return (
-                  <article
-                    key={idx}
-                    data-gsap="news-card"
-                    onClick={() => {
-                      setZoomedNewsItem({
-                        id: `def-${idx}`,
-                        title: defItem.title,
-                        date: defItem.date,
-                        tag: defBadge,
-                        desc: defItem.desc,
-                        imgUrl: defItem.img,
-                      });
-                      setIsPhotoMaximized(false);
-                    }}
-                    className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group cursor-pointer flex flex-col"
+              <div className="md:col-span-3 bg-white rounded-[24px] p-10 sm:p-12 border border-dashed border-slate-200 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#F48C06] flex items-center justify-center mx-auto border border-orange-100">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-[#2F327D]">
+                  Belum Ada Pengumuman Publik
+                </h3>
+                <p className="text-xs sm:text-sm text-[#696984] max-w-md mx-auto leading-relaxed font-normal">
+                  Saat ini belum ada pengumuman yang dipublikasikan oleh Super Admin ke halaman beranda. Karyawan internal dapat masuk ke portal untuk melihat pengumuman departemen.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={onNavigateToLogin}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#FFF3E4] hover:bg-[#ffe5c4] text-[#F48C06] text-xs font-semibold transition cursor-pointer"
                   >
-                    <div className="relative h-48 sm:h-52 overflow-hidden bg-slate-100">
-                      <img
-                        src={defItem.img}
-                        alt={defItem.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      />
-                      {defBadge ? (
-                        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md text-[#2F327D] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs border border-orange-200">
-                          {defBadge}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="p-5 sm:p-6 flex-1 flex flex-col text-center sm:text-left">
-                      <p className="text-[11px] text-[#696984] mb-2 flex items-center justify-center sm:justify-start gap-1.5 font-normal">
-                        <Calendar className="w-3 h-3 text-[#F48C06]" />
-                        <span>{defItem.date}</span>
-                      </p>
-                      <h3 className="text-base sm:text-lg font-bold text-[#2F327D] mb-2 group-hover:text-[#F48C06] transition line-clamp-2 leading-snug">
-                        {defItem.title}
-                      </h3>
-                      <p className="text-[#696984] text-xs mb-5 line-clamp-3 leading-relaxed flex-1 font-normal">
-                        {defItem.desc}
-                      </p>
-                      <div className="flex justify-center sm:justify-start">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onNavigateToLogin();
-                          }}
-                          className="text-[#F48C06] font-semibold text-xs inline-flex items-center gap-1 hover:text-[#d97706] hover:gap-2 transition-all cursor-pointer"
-                        >
-                          Baca Selengkapnya (Login) <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
+                    <span>Masuk Portal Karyawan</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

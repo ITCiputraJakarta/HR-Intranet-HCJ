@@ -30,6 +30,9 @@ export async function fetchWithApiAuth(
   init: RequestInit = {}
 ): Promise<Response> {
   const mergedHeaders = new Headers(init.headers || {});
+  if (!mergedHeaders.has('X-Requested-With')) {
+    mergedHeaders.set('X-Requested-With', 'XMLHttpRequest');
+  }
   if (inMemoryApiToken && !mergedHeaders.has('Authorization')) {
     mergedHeaders.set('Authorization', `Bearer ${inMemoryApiToken}`);
   }

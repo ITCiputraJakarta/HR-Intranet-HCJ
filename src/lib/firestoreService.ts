@@ -49,6 +49,15 @@ const KPIS_COL = 'kpiMaster';
 const PERFS_COL = 'performances';
 const NOTIFS_COL = 'notifications';
 const CONFIG_COL = 'systemConfig';
+const USER_ACCESS_COL = 'userAccess';
+
+export function getUserAccessDocId(email: string): string {
+  return email
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, '_')
+    .slice(0, 128);
+}
 
 // =========================================================================
 // CONNECTION STATE & DIAGNOSTICS
@@ -497,9 +506,7 @@ export function subscribeToUsers(
         });
         if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
-          if (items.length > 0) {
-            onUpdate(items);
-          }
+          onUpdate(items);
         }
       },
       (err) => handleSubscriptionError('Users', err)
@@ -706,9 +713,7 @@ export function subscribeToDepartments(onUpdate: (depts: DepartmentMaster[]) => 
         items.sort((a, b) => a.name.localeCompare(b.name));
         if (items.length > 0 || !snapshot.metadata.fromCache) {
           notifyFirebaseState('connected');
-          if (items.length > 0) {
-            onUpdate(items);
-          }
+          onUpdate(items);
         }
       },
       (err) => handleSubscriptionError('Depts', err)
@@ -881,6 +886,88 @@ export function subscribeToHotelUnits(onUpdate: (units: HotelUnitMaster[]) => vo
 // FIRESTORE CRUD OPERATIONS
 // =========================================================================
 
+// User Access Registry (Used by Firestore Rules for approved member verification)
+export async function syncUserAccessToFirestore(user: Pick<User, 'id' | 'email' | 'role' | 'status'>): Promise<void> {
+  if (!isFirebaseConfigured() || !user?.email) return;
+  const cleanEmail = String(user.email).trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) return;
+  const accessId = getUserAccessDocId(cleanEmail);
+  if (!accessId) return;
+
+  const s = String(user.status || 'Pending').trim().toLowerCase();
+  const normalizedStatus: UserStatus =
+    s === 'approved' ? 'Approved' : s === 'rejected' ? 'Rejected' : 'Pending';
+  const normalizedRole = String(user.role || 'staff').trim().toLowerCase();
+
+  try {
+    await setDoc(
+      doc(db, USER_ACCESS_COL, accessId),
+      {
+        id: accessId,
+        userId: user.id || accessId,
+        email: cleanEmail,
+        role: normalizedRole,
+        status: cleanEmail === 'it@hotelciputra.com' ? 'Approved' : normalizedStatus,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('syncUserAccessToFirestore notice:', err);
+  }
+}
+
+export async function deleteUserAccessFromFirestore(email: string): Promise<void> {
+  if (!isFirebaseConfigured() || !email) return;
+  const accessId = getUserAccessDocId(email);
+  if (!accessId) return;
+  try {
+    await deleteDoc(doc(db, USER_ACCESS_COL, accessId));
+  } catch (err) {
+    console.warn('deleteUserAccessFromFirestore notice:', err);
+  }
+}
+
+export async function backfillUserAccessFromUsers(users: User[]): Promise<void> {
+  if (!isFirebaseConfigured() || !Array.isArray(users) || users.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    let count = 0;
+    for (const u of users) {
+      if (!u?.email) continue;
+      const cleanEmail = String(u.email).trim().toLowerCase();
+      const accessId = getUserAccessDocId(cleanEmail);
+      if (!accessId) continue;
+      const s = String(u.status || 'Pending').trim().toLowerCase();
+      const normalizedStatus: UserStatus =
+        cleanEmail === 'it@hotelciputra.com' || s === 'approved'
+          ? 'Approved'
+          : s === 'rejected'
+          ? 'Rejected'
+          : 'Pending';
+      batch.set(
+        doc(db, USER_ACCESS_COL, accessId),
+        {
+          id: accessId,
+          userId: u.id || accessId,
+          email: cleanEmail,
+          role: String(u.role || 'staff').trim().toLowerCase(),
+          status: normalizedStatus,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      count++;
+      if (count >= 400) break;
+    }
+    if (count > 0) {
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn('backfillUserAccessFromUsers notice:', err);
+  }
+}
+
 // Users
 export async function firestoreSaveUser(user: User): Promise<void> {
   if (!isFirebaseConfigured() || !user || !user.id) return;
@@ -902,13 +989,10 @@ export async function firestoreSaveUser(user: User): Promise<void> {
       delete cleanUser.password;
     }
 
-    const writePromise = setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true });
-    const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 3000);
-    });
-    await Promise.race([writePromise, timeoutPromise]);
+    await setDoc(doc(db, USERS_COL, user.id), cleanUser, { merge: true });
   } catch (err) {
     console.warn('firestoreSaveUser error:', err);
+    throw err;
   }
 }
 
@@ -965,6 +1049,7 @@ export async function firestoreDeleteUser(userId: string): Promise<void> {
     await deleteDoc(doc(db, USERS_COL, userId));
   } catch (err) {
     console.warn('firestoreDeleteUser error:', err);
+    throw err;
   }
 }
 
@@ -1152,7 +1237,10 @@ async function saveDocumentWithChunksToFirestore(docItem: IntranetDocument): Pro
     });
   }
 
-  // Write chunks first if needed
+  // Ensure parent document exists first so master-gate security rules on /chunks pass reliably
+  await setDoc(doc(db, DOCS_COL, docItem.id), firestorePayload);
+
+  // Write chunks if needed
   if (isChunkedFile || isChunkedAttachment) {
     const existingChunks = await getDocs(collection(db, DOCS_COL, docItem.id, 'chunks')).catch(() => null);
     if (existingChunks && !existingChunks.empty) {
@@ -1190,8 +1278,6 @@ async function saveDocumentWithChunksToFirestore(docItem: IntranetDocument): Pro
 
     await Promise.all(chunkWrites);
   }
-
-  await setDoc(doc(db, DOCS_COL, docItem.id), firestorePayload, { merge: true });
 }
 
 // Documents (Firestore Native Storage with Auto-Chunking & Deduplication)
@@ -1216,13 +1302,15 @@ export async function firestoreDeleteDocument(docId: string): Promise<void> {
   markFirestoreIdDeleted(docId);
   if (!isFirebaseConfigured()) return;
   try {
-    await deleteDoc(doc(db, DOCS_COL, docId));
+    // Delete chunk subcollection while parent document still exists for master-gate ownership check
     const chunksSnap = await getDocs(collection(db, DOCS_COL, docId, 'chunks')).catch(() => null);
     if (chunksSnap && !chunksSnap.empty) {
       await Promise.all(chunksSnap.docs.map((c) => deleteDoc(c.ref).catch(() => {})));
     }
+    await deleteDoc(doc(db, DOCS_COL, docId));
   } catch (err: any) {
     console.warn('[Firestore] firestoreDeleteDocument error:', err);
+    throw err;
   }
 }
 
@@ -1243,6 +1331,7 @@ export async function firestoreDeleteLog(logId: string): Promise<void> {
     await deleteDoc(doc(db, LOGS_COL, logId));
   } catch (err) {
     console.warn('firestoreDeleteLog error:', err);
+    throw err;
   }
 }
 
@@ -1258,6 +1347,7 @@ export async function firestoreClearLogs(): Promise<void> {
     await batch.commit();
   } catch (err) {
     console.warn('firestoreClearLogs error:', err);
+    throw err;
   }
 }
 
@@ -1269,6 +1359,7 @@ export async function firestoreSaveDepartment(dept: DepartmentMaster): Promise<v
     await setDoc(doc(db, DEPTS_COL, dept.id), sanitizeForFirestore(dept), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveDepartment error:', err);
+    throw err;
   }
 }
 
@@ -1279,6 +1370,7 @@ export async function firestoreDeleteDepartment(deptId: string): Promise<void> {
     await deleteDoc(doc(db, DEPTS_COL, deptId));
   } catch (err) {
     console.warn('firestoreDeleteDepartment error:', err);
+    throw err;
   }
 }
 
@@ -1290,6 +1382,7 @@ export async function firestoreSaveCategory(cat: CategoryMaster): Promise<void> 
     await setDoc(doc(db, CATS_COL, cat.id), sanitizeForFirestore(cat), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveCategory error:', err);
+    throw err;
   }
 }
 
@@ -1300,6 +1393,7 @@ export async function firestoreDeleteCategory(catId: string): Promise<void> {
     await deleteDoc(doc(db, CATS_COL, catId));
   } catch (err) {
     console.warn('firestoreDeleteCategory error:', err);
+    throw err;
   }
 }
 
@@ -1311,6 +1405,7 @@ export async function firestoreSaveKPI(kpi: KPIMasterItem): Promise<void> {
     await setDoc(doc(db, KPIS_COL, kpi.id), sanitizeForFirestore(kpi), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveKPI error:', err);
+    throw err;
   }
 }
 
@@ -1321,6 +1416,7 @@ export async function firestoreDeleteKPI(kpiId: string): Promise<void> {
     await deleteDoc(doc(db, KPIS_COL, kpiId));
   } catch (err) {
     console.warn('firestoreDeleteKPI error:', err);
+    throw err;
   }
 }
 
@@ -1332,6 +1428,7 @@ export async function firestoreSavePerformance(perf: PerformanceAppraisal): Prom
     await setDoc(doc(db, PERFS_COL, perf.id), sanitizeForFirestore(perf), { merge: true });
   } catch (err) {
     console.warn('firestoreSavePerformance error:', err);
+    throw err;
   }
 }
 
@@ -1342,6 +1439,7 @@ export async function firestoreDeletePerformance(perfId: string): Promise<void> 
     await deleteDoc(doc(db, PERFS_COL, perfId));
   } catch (err) {
     console.warn('firestoreDeletePerformance error:', err);
+    throw err;
   }
 }
 
@@ -1353,6 +1451,7 @@ export async function firestoreSaveNotification(notif: PushNotification): Promis
     await setDoc(doc(db, NOTIFS_COL, notif.id), sanitizeForFirestore(notif), { merge: true });
   } catch (err) {
     console.warn('firestoreSaveNotification error:', err);
+    throw err;
   }
 }
 
@@ -1375,6 +1474,7 @@ export async function firestoreSaveConfig(cfg: any): Promise<void> {
     }, { merge: true });
   } catch (err) {
     console.warn('firestoreSaveConfig error:', err);
+    throw err;
   }
 }
 
@@ -1394,6 +1494,7 @@ export async function firestoreSaveHotelUnits(units: HotelUnitMaster[]): Promise
     );
   } catch (err) {
     console.warn('firestoreSaveHotelUnits error:', err);
+    throw err;
   }
 }
 

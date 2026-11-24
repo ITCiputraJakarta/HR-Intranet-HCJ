@@ -136,8 +136,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   };
 
   const handleRoleChange = async (user: User, newRole: UserRole) => {
-    await updateUserRole(user.id, newRole, currentUser);
-    onRefresh();
+    try {
+      await updateUserRole(user.id, newRole, currentUser);
+      setEditSuccessMsg(`Peran akun "${user.nama}" berhasil diperbarui menjadi ${newRole.toUpperCase()}.`);
+      onRefresh();
+      setTimeout(() => setEditSuccessMsg(null), 4000);
+    } catch (e: any) {
+      setDeleteErrorMsg('Gagal memperbarui peran: ' + (e?.message || 'Terjadi kesalahan sistem.'));
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -146,7 +152,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     setDeleteErrorMsg(null);
 
     try {
-      const result = deleteUser(userToDelete.id, currentUser);
+      const result = await deleteUser(userToDelete.id, currentUser);
       if (result.success) {
         setDeleteSuccessMsg(`Akun "${userToDelete.nama}" (${userToDelete.email}) berhasil dihapus permanen.`);
         setUserToDelete(null);
@@ -182,7 +188,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       return;
     }
 
-    const hashedPassword = await hashPassword(newPassword.trim());
+    const plainPw = newPassword.trim();
+    const hashedPassword = await hashPassword(plainPw);
 
     const newUser: User = {
       id: generateSecureClientId('usr'),
@@ -196,16 +203,21 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    await createUserByAdmin(newUser, currentUser);
-
-    setShowAddModal(false);
-    setNewName('');
-    setNewEmail('');
-    setNewUnit(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
-    setNewPassword('');
-    setShowNewPassword(false);
-    setFormError('');
-    onRefresh();
+    try {
+      await createUserByAdmin(newUser, currentUser, plainPw);
+      setShowAddModal(false);
+      setNewName('');
+      setNewEmail('');
+      setNewUnit(hotelUnits[0]?.name || 'Hotel Ciputra Jakarta');
+      setNewPassword('');
+      setShowNewPassword(false);
+      setFormError('');
+      setEditSuccessMsg(`Akun "${newUser.nama}" (${newUser.email}) berhasil dibuat & disinkronkan!`);
+      setTimeout(() => setEditSuccessMsg(null), 5000);
+      onRefresh();
+    } catch (err: any) {
+      setFormError('Gagal menyimpan pengguna baru ke Firestore: ' + (err?.message || 'Permission denied'));
+    }
   };
 
   const handleOpenEditModal = (user: User) => {
@@ -237,8 +249,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       }
     }
 
-    const hashedPassword = editPassword.trim()
-      ? await hashPassword(editPassword.trim())
+    const plainPw = editPassword.trim();
+    const hashedPassword = plainPw
+      ? await hashPassword(plainPw)
       : userToEdit.password;
 
     const res = await updateUserByAdmin(
@@ -251,6 +264,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         role: editRole,
         status: editStatus,
         password: hashedPassword,
+        plainPassword: plainPw || undefined,
       },
       currentUser
     );

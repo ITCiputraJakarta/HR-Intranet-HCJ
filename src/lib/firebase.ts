@@ -59,14 +59,20 @@ if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
   }
 }
 
-// Initialize Cloud Firestore on (default) database of hr-intranet-31ff4
+// Initialize Cloud Firestore on configured database of hr-intranet-31ff4
+const TARGET_FIRESTORE_DB_ID = firebaseConfig.firestoreDatabaseId || '(default)';
+
 function createFirestoreInstance(): Firestore {
   try {
-    return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-    });
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+      },
+      TARGET_FIRESTORE_DB_ID
+    );
   } catch {
-    return getFirestore(app);
+    return getFirestore(app, TARGET_FIRESTORE_DB_ID);
   }
 }
 

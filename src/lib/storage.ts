@@ -50,10 +50,17 @@ import {
   firestoreMarkNotificationRead,
   firestoreSaveConfig,
   firestoreSaveHotelUnits,
+  syncUserAccessToFirestore,
+  deleteUserAccessFromFirestore,
   isFirestoreIdDeleted,
   markFirestoreIdDeleted,
 } from './firestoreService';
-import { clearInMemoryApiToken } from './authSession';
+import { auth } from './firebase';
+import { clearInMemoryApiToken, fetchWithApiAuth, safeReadJson } from './authSession';
+
+const swallowBgSyncError = (label: string) => (err: unknown) => {
+  console.warn(`[Storage] Background sync notice (${label}):`, err);
+};
 
 function stripUserPassword(user: User): User {
   if (!user || typeof user !== 'object') return user;
@@ -323,7 +330,7 @@ export function addHotelUnit(
 
   const updated = [...list, newUnit];
   saveHotelUnits(updated);
-  firestoreSaveHotelUnits(updated);
+  firestoreSaveHotelUnits(updated).catch(swallowBgSyncError('addHotelUnit'));
 
   addAccessLog({
     user: actor,
@@ -401,15 +408,15 @@ export function updateHotelUnit(
 
   const updatedList = list.map((u) => (u.id === id ? updatedUnit : u));
   saveHotelUnits(updatedList);
-  firestoreSaveHotelUnits(updatedList);
+  firestoreSaveHotelUnits(updatedList).catch(swallowBgSyncError('updateHotelUnit'));
 
-  // Cascade update if unit name changed
+  // Cascade updates if unit name changed
   if (isNameChanged) {
     const users = getUsers();
     const updatedUsers = users.map((u) => {
       if ((u.unit || 'Hotel Ciputra Jakarta') === oldName) {
         const nextUser = { ...u, unit: trimmedName };
-        firestoreSaveUser(nextUser);
+        firestoreSaveUser(nextUser).catch(swallowBgSyncError('unitCascadeUser'));
         return nextUser;
       }
       return u;
@@ -420,7 +427,7 @@ export function updateHotelUnit(
     const updatedDocs = docs.map((d) => {
       if (d.unit === oldName) {
         const nextDoc = { ...d, unit: trimmedName };
-        firestoreSaveDocument(nextDoc);
+        firestoreSaveDocument(nextDoc).catch(swallowBgSyncError('unitCascadeDoc'));
         return nextDoc;
       }
       return d;
@@ -431,7 +438,7 @@ export function updateHotelUnit(
     const updatedDepts = depts.map((dept) => {
       if (dept.unit === oldName) {
         const nextDept = { ...dept, unit: trimmedName };
-        firestoreSaveDepartment(nextDept);
+        firestoreSaveDepartment(nextDept).catch(swallowBgSyncError('unitCascadeDept'));
         return nextDept;
       }
       return dept;
@@ -482,7 +489,7 @@ export function deleteHotelUnit(
 
   const updatedList = list.filter((u) => u.id !== id);
   saveHotelUnits(updatedList);
-  firestoreSaveHotelUnits(updatedList);
+  firestoreSaveHotelUnits(updatedList).catch(swallowBgSyncError('deleteHotelUnit'));
 
   addAccessLog({
     user: actor,
@@ -563,6 +570,63 @@ export function clearAllSessionCache(): void {
   }
 }
 
+export async function syncAdminUsersToBackend(
+  users: Array<User & { plainPassword?: string }>
+): Promise<void> {
+  if (!Array.isArray(users) || users.length === 0) return;
+  try {
+    const payload = users
+      .filter((u) => u && u.email)
+      .map((u) => ({
+        id: u.id,
+        nama: u.nama,
+        email: String(u.email).trim().toLowerCase(),
+        unit: u.unit || 'Hotel Ciputra Jakarta',
+        departemen: u.departemen || 'Front Office',
+        role: u.role || 'staff',
+        status: u.status || 'Pending',
+        passwordHash:
+          typeof u.password === 'string' &&
+          (u.password.startsWith('SCRYPT:') || u.password.startsWith('PBKDF2:'))
+            ? u.password
+            : undefined,
+        plainPassword: u.plainPassword,
+        createdAt: u.createdAt,
+      }));
+    if (payload.length === 0) return;
+    await fetchWithApiAuth('/api/admin/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: payload }),
+    });
+  } catch (err) {
+    console.warn('[Storage] syncAdminUsersToBackend notice:', err);
+  }
+}
+
+export async function deleteBackendUserByEmail(email: string): Promise<void> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  try {
+    await fetchWithApiAuth(`/api/admin/users/${encodeURIComponent(cleanEmail)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.warn('[Storage] deleteBackendUserByEmail notice:', err);
+  }
+}
+
+export async function fetchBackendRegisteredUsers(): Promise<User[]> {
+  try {
+    const resp = await fetchWithApiAuth('/api/admin/users', { method: 'GET' });
+    if (!resp.ok) return [];
+    const { data } = await safeReadJson<{ users?: User[] }>(resp);
+    return Array.isArray(data?.users) ? data.users : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function updateUserStatus(
   userId: string,
   status: UserStatus,
@@ -617,13 +681,19 @@ export async function updateUserStatus(
   // 2. Full document save ensuring all valid fields are stored
   await firestoreSaveUser(updatedTarget);
 
+  // 3. Sync access lookup + Express backend registry
+  await Promise.all([
+    syncUserAccessToFirestore(updatedTarget),
+    syncAdminUsersToBackend([updatedTarget]),
+  ]);
+
   addAccessLog({
     user: actor,
     actionCategory: 'USER_MGMT',
     action: 'Pembaruan Status Persetujuan Akun',
     target: `${updatedTarget.nama} (${updatedTarget.email}) -> ${normalizedStatus}`,
     status: 'SUCCESS',
-    details: `Status persetujuan akun karyawan diubah menjadi ${normalizedStatus} di Firestore.`,
+    details: `Status persetujuan akun karyawan diubah menjadi ${normalizedStatus} di Firestore & Server.`,
   });
 
   return updated;
@@ -638,6 +708,10 @@ export async function updateUserRole(userId: string, role: User['role'], actor: 
   if (target) {
     const updatedTarget: User = { ...target, role };
     await firestoreSaveUser(updatedTarget);
+    await Promise.all([
+      syncUserAccessToFirestore(updatedTarget),
+      syncAdminUsersToBackend([updatedTarget]),
+    ]);
 
     addAccessLog({
       user: actor,
@@ -645,13 +719,16 @@ export async function updateUserRole(userId: string, role: User['role'], actor: 
       action: 'Pembaruan Peran Akses Karyawan',
       target: `${target.nama} (${target.email}) -> ${role.toUpperCase()}`,
       status: 'SUCCESS',
-      details: `Hak akses pengguna diperbarui ke tingkat ${role} di Firestore.`,
+      details: `Hak akses pengguna diperbarui ke tingkat ${role} di Firestore & Server.`,
     });
   }
   return updated;
 }
 
-export function deleteUser(userId: string, actor: User): { success: boolean; message?: string } {
+export async function deleteUser(
+  userId: string,
+  actor: User
+): Promise<{ success: boolean; message?: string }> {
   if (userId === actor.id) {
     return { success: false, message: 'Anda tidak dapat menghapus akun Anda sendiri yang sedang aktif.' };
   }
@@ -660,13 +737,26 @@ export function deleteUser(userId: string, actor: User): { success: boolean; mes
   if (!target) {
     return { success: false, message: 'Akun pengguna tidak ditemukan dalam database.' };
   }
+  if (target.email?.toLowerCase() === 'it@hotelciputra.com') {
+    return { success: false, message: 'Akun Super Admin utama tidak dapat dihapus.' };
+  }
+
+  try {
+    await firestoreDeleteUser(userId);
+    await Promise.all([
+      deleteUserAccessFromFirestore(target.email),
+      deleteBackendUserByEmail(target.email),
+    ]);
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Gagal menghapus pengguna dari server Firebase.',
+    };
+  }
 
   markFirestoreIdDeleted(userId);
   const updated = users.filter((u) => u.id !== userId);
   saveUsers(updated);
-
-  // Delete from Firestore
-  firestoreDeleteUser(userId);
 
   addAccessLog({
     user: actor,
@@ -674,7 +764,7 @@ export function deleteUser(userId: string, actor: User): { success: boolean; mes
     action: 'Hapus Akun Pengguna',
     target: `${target.nama} (${target.email})`,
     status: 'WARNING',
-    details: `Akun karyawan dihapus secara permanen dari Firebase Firestore oleh Super Admin ${actor.nama}.`,
+    details: `Akun karyawan dihapus secara permanen dari Firebase Firestore & Server oleh Super Admin ${actor.nama}.`,
   });
 
   return { success: true };
@@ -733,16 +823,26 @@ export async function registerUser(newUser: User): Promise<void> {
   );
   const updated = [...filtered, newUser];
   saveUsers(updated);
-  await firestoreSaveUser(newUser);
+  if (auth.currentUser) {
+    await firestoreSaveUser(newUser);
+  }
 }
 
-export async function createUserByAdmin(newUser: User, actor: User): Promise<void> {
+export async function createUserByAdmin(
+  newUser: User,
+  actor: User,
+  plainPassword?: string
+): Promise<void> {
   const users = getUsers();
   const exists = users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase());
   if (!exists) {
     const updated = [...users, newUser];
     saveUsers(updated);
     await firestoreSaveUser(newUser);
+    await Promise.all([
+      syncUserAccessToFirestore(newUser),
+      syncAdminUsersToBackend([{ ...newUser, plainPassword }]),
+    ]);
 
     addAccessLog({
       user: actor,
@@ -765,6 +865,7 @@ export async function updateUserByAdmin(
     role: UserRole;
     status: UserStatus;
     password?: string;
+    plainPassword?: string;
   },
   actor: User
 ): Promise<{ success: boolean; message: string; user?: User }> {
@@ -798,10 +899,22 @@ export async function updateUserByAdmin(
     password: data.password && data.password.trim() ? data.password.trim() : existing.password,
   };
 
+  try {
+    await firestoreSaveUser(updatedUser);
+    await Promise.all([
+      syncUserAccessToFirestore(updatedUser),
+      syncAdminUsersToBackend([{ ...updatedUser, plainPassword: data.plainPassword }]),
+    ]);
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Gagal menyimpan pembaruan ke Firebase Firestore: ' + (err?.message || 'Permission denied'),
+    };
+  }
+
   const updatedUsers = [...users];
   updatedUsers[index] = updatedUser;
   saveUsers(updatedUsers);
-  await firestoreSaveUser(updatedUser);
 
   addAccessLog({
     user: actor,
@@ -990,7 +1103,7 @@ export function pruneExpiredAnnouncements(
   if (expiredDocs.length > 0) {
     expiredDocs.forEach((d) => {
       markFirestoreIdDeleted(d.id);
-      firestoreDeleteDocument(d.id);
+      firestoreDeleteDocument(d.id).catch(swallowBgSyncError('pruneExpiredDoc'));
     });
     saveDocuments(validDocs);
 
@@ -1036,7 +1149,7 @@ export function pruneExpiredAccessLogs(): AccessLog[] {
 
   if (expired.length > 0) {
     expired.forEach((l) => {
-      firestoreDeleteLog(l.id);
+      firestoreDeleteLog(l.id).catch(swallowBgSyncError('pruneExpiredLog'));
     });
   }
 
@@ -1093,7 +1206,7 @@ export function addAccessLog(params: {
   saveAccessLogs(updated);
 
   // Persist log to Firestore
-  firestoreAddLog(newLog);
+  firestoreAddLog(newLog).catch(swallowBgSyncError('addAccessLog'));
 
   return newLog;
 }
@@ -1102,7 +1215,7 @@ export function deleteAccessLog(logId: string): void {
   const logs = getAccessLogs();
   markFirestoreIdDeleted(logId);
   saveAccessLogs(logs.filter((l) => l.id !== logId));
-  firestoreDeleteLog(logId);
+  firestoreDeleteLog(logId).catch(swallowBgSyncError('deleteAccessLog'));
 }
 
 export function clearAccessLogs(actor: User): void {
@@ -1122,8 +1235,9 @@ export function clearAccessLogs(actor: User): void {
     },
   ];
   saveAccessLogs(resetLogs);
-  firestoreClearLogs();
-  firestoreAddLog(resetLogs[0]);
+  firestoreClearLogs()
+    .then(() => firestoreAddLog(resetLogs[0]))
+    .catch(swallowBgSyncError('clearAccessLogs'));
 }
 
 // ----------------- CATEGORIES -----------------
@@ -1147,7 +1261,7 @@ export function saveCategories(cats: CategoryMaster[]): void {
 export function addCategory(cat: CategoryMaster, actor: User): void {
   const cats = getCategories();
   saveCategories([...cats, cat]);
-  firestoreSaveCategory(cat);
+  firestoreSaveCategory(cat).catch(swallowBgSyncError('addCategory'));
 
   addAccessLog({
     user: actor,
@@ -1163,7 +1277,7 @@ export function deleteCategory(id: string, actor: User): void {
   const target = cats.find((c) => c.id === id);
   markFirestoreIdDeleted(id);
   saveCategories(cats.filter((c) => c.id !== id));
-  firestoreDeleteCategory(id);
+  firestoreDeleteCategory(id).catch(swallowBgSyncError('deleteCategory'));
 
   if (target) {
     addAccessLog({
@@ -1234,7 +1348,7 @@ export function addDepartment(
   };
 
   saveDepartmentMasters([...list, newDept]);
-  firestoreSaveDepartment(newDept);
+  firestoreSaveDepartment(newDept).catch(swallowBgSyncError('addDepartment'));
 
   addAccessLog({
     user: actor,
@@ -1291,7 +1405,7 @@ export function updateDepartment(
   };
 
   saveDepartmentMasters(list.map((d) => (d.id === id ? updatedDept : d)));
-  firestoreSaveDepartment(updatedDept);
+  firestoreSaveDepartment(updatedDept).catch(swallowBgSyncError('updateDepartment'));
 
   // Cascade updates if name changed
   let cascadeCount = 0;
@@ -1301,7 +1415,7 @@ export function updateDepartment(
       if (u.departemen === oldName) {
         cascadeCount++;
         const updatedU = { ...u, departemen: trimmedName };
-        firestoreSaveUser(updatedU);
+        firestoreSaveUser(updatedU).catch(swallowBgSyncError('deptCascadeUser'));
         return updatedU;
       }
       return u;
@@ -1313,7 +1427,7 @@ export function updateDepartment(
       if (doc.akses_dept === oldName) {
         cascadeCount++;
         const updatedD = { ...doc, akses_dept: trimmedName };
-        firestoreSaveDocument(updatedD);
+        firestoreSaveDocument(updatedD).catch(swallowBgSyncError('deptCascadeDoc'));
         return updatedD;
       }
       return doc;
@@ -1325,7 +1439,7 @@ export function updateDepartment(
       if (c.departemen === oldName) {
         cascadeCount++;
         const updatedC = { ...c, departemen: trimmedName };
-        firestoreSaveCategory(updatedC);
+        firestoreSaveCategory(updatedC).catch(swallowBgSyncError('deptCascadeCat'));
         return updatedC;
       }
       return c;
@@ -1337,7 +1451,7 @@ export function updateDepartment(
       if (k.departemen === oldName) {
         cascadeCount++;
         const updatedK = { ...k, departemen: trimmedName };
-        firestoreSaveKPI(updatedK);
+        firestoreSaveKPI(updatedK).catch(swallowBgSyncError('deptCascadeKPI'));
         return updatedK;
       }
       return k;
@@ -1382,7 +1496,7 @@ export function deleteDepartment(
 
   markFirestoreIdDeleted(id);
   saveDepartmentMasters(list.filter((d) => d.id !== id));
-  firestoreDeleteDepartment(id);
+  firestoreDeleteDepartment(id).catch(swallowBgSyncError('deleteDepartment'));
 
   addAccessLog({
     user: actor,
@@ -1420,7 +1534,7 @@ export function saveKPIMaster(kpis: KPIMasterItem[]): void {
 export function addKPIMasterItem(item: KPIMasterItem, actor: User): void {
   const kpis = getKPIMaster();
   saveKPIMaster([...kpis, item]);
-  firestoreSaveKPI(item);
+  firestoreSaveKPI(item).catch(swallowBgSyncError('addKPI'));
 
   addAccessLog({
     user: actor,
@@ -1444,7 +1558,7 @@ export function addKPIMasterItem(item: KPIMasterItem, actor: User): void {
 export function updateKPIMasterItem(item: KPIMasterItem, actor: User): void {
   const kpis = getKPIMaster();
   saveKPIMaster(kpis.map((k) => (k.id === item.id ? item : k)));
-  firestoreSaveKPI(item);
+  firestoreSaveKPI(item).catch(swallowBgSyncError('updateKPI'));
 
   addAccessLog({
     user: actor,
@@ -1468,7 +1582,7 @@ export function deleteKPIMasterItem(id: string, actor: User): void {
   const target = kpis.find((k) => k.id === id);
   markFirestoreIdDeleted(id);
   saveKPIMaster(kpis.filter((k) => k.id !== id));
-  firestoreDeleteKPI(id);
+  firestoreDeleteKPI(id).catch(swallowBgSyncError('deleteKPI'));
 
   if (target) {
     addAccessLog({
@@ -1486,7 +1600,7 @@ export function deployKPI(dept: string, year: number | string, tipe: string, rol
   const updated = kpis.map((k) => {
     if (k.departemen === dept && String(k.tahun) === String(year) && k.tipe === tipe && k.target_role === role) {
       const activeItem = { ...k, status: 'Active' as const };
-      firestoreSaveKPI(activeItem);
+      firestoreSaveKPI(activeItem).catch(swallowBgSyncError('deployKPI'));
       return activeItem;
     }
     return k;
@@ -1544,7 +1658,7 @@ export function savePerformanceItem(perf: PerformanceAppraisal, actor: User): vo
   }
 
   savePerformances(updatedList);
-  firestoreSavePerformance(updatedItem);
+  firestoreSavePerformance(updatedItem).catch(swallowBgSyncError('savePerformance'));
 
   addAccessLog({
     user: actor,
@@ -1703,7 +1817,7 @@ export function unlockPerformanceItem(
 
   const updatedList = list.map((p) => (p.id === perfId ? updatedPerf : p));
   savePerformances(updatedList);
-  firestoreSavePerformance(updatedPerf);
+  firestoreSavePerformance(updatedPerf).catch(swallowBgSyncError('unlockPerf'));
 
   sendPushNotification({
     title: `Kunci KPI Dibuka: ${target.nama}`,
@@ -1742,7 +1856,7 @@ export function deletePerformanceItem(perfId: string, actor: User): { success: b
   markFirestoreIdDeleted(perfId);
   const updatedList = list.filter((p) => p.id !== perfId);
   savePerformances(updatedList);
-  firestoreDeletePerformance(perfId);
+  firestoreDeletePerformance(perfId).catch(swallowBgSyncError('deletePerf'));
 
   addAccessLog({
     user: actor,
@@ -1813,7 +1927,7 @@ export function sendPushNotification(params: {
   };
 
   saveNotifications([newNotif, ...notifs]);
-  firestoreSaveNotification(newNotif);
+  firestoreSaveNotification(newNotif).catch(swallowBgSyncError('sendPushNotif'));
 
   if (typeof window !== 'undefined' && 'Notification' in window) {
     if (Notification.permission === 'granted') {
@@ -1909,7 +2023,7 @@ export function saveSystemStorageConfig(
 
   memoryConfig = updated;
   setStored(STORAGE_KEYS.CONFIG, updated);
-  firestoreSaveConfig(updated);
+  firestoreSaveConfig(updated).catch(swallowBgSyncError('saveSystemConfig'));
 
   if (actor) {
     addAccessLog({

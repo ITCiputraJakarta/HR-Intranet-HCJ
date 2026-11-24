@@ -84,6 +84,15 @@ function evaluateDirtyDozen(payload: {
       return 'PERMISSION_DENIED';
     }
 
+    case 'userAccess': {
+      if (payload.operation === 'get') {
+        return isAdmin(payload.auth) || (isSignedIn(payload.auth) && payload.docId === payload.auth?.email.toLowerCase().replace(/[^a-z0-9]/g, '_'))
+          ? 'ALLOWED'
+          : 'PERMISSION_DENIED';
+      }
+      return isAdmin(payload.auth) ? 'ALLOWED' : 'PERMISSION_DENIED';
+    }
+
     case 'documents': {
       const data = payload.data || {};
       if (payload.subCollection === 'chunks') {
@@ -94,6 +103,13 @@ function evaluateDirtyDozen(payload: {
         const fileUrl = typeof data.fileUrl === 'string' ? data.fileUrl : '';
         if (/^\s*(javascript:|vbscript:|data:text\/html|data:image\/svg)/i.test(fileUrl)) {
           return 'PERMISSION_DENIED';
+        }
+        if (data.isPublic === true) {
+          if (!isAdmin(payload.auth)) return 'PERMISSION_DENIED';
+          if (data.category !== 'Pengumuman') return 'PERMISSION_DENIED';
+          if ('attachmentUrl' in data || 'attachmentName' in data) return 'PERMISSION_DENIED';
+          const fileType = typeof data.fileType === 'string' ? data.fileType : '';
+          if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(fileType)) return 'PERMISSION_DENIED';
         }
         return isSignedIn(payload.auth) ? 'ALLOWED' : 'PERMISSION_DENIED';
       }
@@ -159,6 +175,10 @@ export function runFirestoreRulesSpecTests(): void {
     'Verified email token guard must be enforced'
   );
   assert.ok(
+    rulesText.includes('isApprovedMember()') && rulesText.includes('isValidPublicAnnouncement('),
+    'Approved membership and public photo-only announcement rules must be enforced'
+  );
+  assert.ok(
     !rulesText.includes('allow read: if true;'),
     'Blanket public reads on internal collections are forbidden'
   );
@@ -168,6 +188,12 @@ export function runFirestoreRulesSpecTests(): void {
     uid: 'uid-attacker',
     email: 'attacker@hotelciputra.com',
     emailVerified: true,
+  };
+  const adminAuth: AuthContext = {
+    uid: 'uid-admin',
+    email: 'it@hotelciputra.com',
+    emailVerified: true,
+    isAdminDoc: true,
   };
   const unverifiedAdminAuth: AuthContext = {
     uid: 'uid-spoof',
@@ -293,6 +319,27 @@ export function runFirestoreRulesSpecTests(): void {
       docId: 'cloud_quota_telemetry',
       operation: 'get',
       auth: attackerAuth,
+    }),
+    evaluateDirtyDozen({
+      collection: 'userAccess',
+      docId: 'attacker_hotelciputra_com',
+      operation: 'create',
+      auth: attackerAuth,
+      data: { id: 'attacker_hotelciputra_com', email: 'attacker@hotelciputra.com', role: 'admin', status: 'Approved' },
+    }),
+    evaluateDirtyDozen({
+      collection: 'documents',
+      docId: 'doc-nonadmin-public',
+      operation: 'create',
+      auth: attackerAuth,
+      data: { id: 'doc-nonadmin-public', title: 'Staff Public', category: 'Pengumuman', isPublic: true, fileType: 'image/jpeg', fileUrl: 'data:image/jpeg;base64,abc' },
+    }),
+    evaluateDirtyDozen({
+      collection: 'documents',
+      docId: 'doc-admin-public-pdf',
+      operation: 'create',
+      auth: adminAuth,
+      data: { id: 'doc-admin-public-pdf', title: 'Public PDF', category: 'Pengumuman', isPublic: true, fileType: 'application/pdf', attachmentUrl: 'data:application/pdf;base64,abc' },
     }),
   ];
 

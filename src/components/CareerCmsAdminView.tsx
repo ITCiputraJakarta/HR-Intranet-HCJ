@@ -133,19 +133,29 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
 
   const handleSaveContent = async () => {
     setIsSaving(true);
-    await saveCareerCmsContent(cmsContent);
-    setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    setFeedbackNotice(null);
+    try {
+      await saveCareerCmsContent(cmsContent);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setFeedbackNotice('Gagal menyimpan konten karir ke Firestore: ' + (err?.message || 'Permission denied'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleResetContent = () => {
     setPendingConfirm({
       title: 'Kembalikan Konten Karir?',
       message: 'Kembalikan teks halaman karir ke pengaturan standar?',
-      onConfirm: () => {
+      onConfirm: async () => {
         setCmsContent(DEFAULT_CAREER_CMS);
-        saveCareerCmsContent(DEFAULT_CAREER_CMS);
+        try {
+          await saveCareerCmsContent(DEFAULT_CAREER_CMS);
+        } catch (err: any) {
+          setFeedbackNotice('Gagal reset konten karir ke Firestore: ' + (err?.message || 'Permission denied'));
+        }
       },
     });
   };
@@ -198,8 +208,12 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    await addOrUpdateCareerJob(jobToSave);
-    setIsJobModalOpen(false);
+    try {
+      await addOrUpdateCareerJob(jobToSave);
+      setIsJobModalOpen(false);
+    } catch (err: any) {
+      setFeedbackNotice('Gagal menyimpan lowongan ke Firestore: ' + (err?.message || 'Permission denied'));
+    }
   };
 
   const handleDeleteJob = (jobId: string) => {
@@ -207,7 +221,11 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
       title: 'Hapus Lowongan Kerja?',
       message: 'Hapus posisi lowongan kerja ini secara permanen?',
       onConfirm: async () => {
-        await deleteCareerJob(jobId);
+        try {
+          await deleteCareerJob(jobId);
+        } catch (err: any) {
+          setFeedbackNotice('Gagal menghapus lowongan dari Firestore: ' + (err?.message || 'Permission denied'));
+        }
       },
     });
   };
@@ -218,14 +236,22 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
       status: job.status === 'Open' ? 'Closed' : 'Open',
       updatedAt: new Date().toISOString(),
     };
-    await addOrUpdateCareerJob(updated);
+    try {
+      await addOrUpdateCareerJob(updated);
+    } catch (err: any) {
+      setFeedbackNotice('Gagal memperbarui status lowongan di Firestore: ' + (err?.message || 'Permission denied'));
+    }
   };
 
   const handleUpdateAppStatus = async (
     appId: string,
     status: 'Pending' | 'Reviewed' | 'Interview' | 'Rejected'
   ) => {
-    await updateApplicationStatus(appId, status);
+    try {
+      await updateApplicationStatus(appId, status);
+    } catch (err: any) {
+      setFeedbackNotice('Gagal memperbarui status pelamar di Firestore: ' + (err?.message || 'Permission denied'));
+    }
   };
 
   const handleDeleteApp = (appId: string) => {
@@ -233,9 +259,13 @@ export const CareerCmsAdminView: React.FC<CareerCmsAdminViewProps> = ({
       title: 'Hapus Data Lamaran?',
       message: 'Hapus data lamaran pelamar ini beserta berkas CV PDF?',
       onConfirm: async () => {
-        await deleteCareerApplication(appId);
-        if (selectedApplicant?.id === appId) setSelectedApplicant(null);
-        if (previewPdfModal?.id === appId) setPreviewPdfModal(null);
+        try {
+          await deleteCareerApplication(appId);
+          if (selectedApplicant?.id === appId) setSelectedApplicant(null);
+          if (previewPdfModal?.id === appId) setPreviewPdfModal(null);
+        } catch (err: any) {
+          setFeedbackNotice('Gagal menghapus lamaran dari Firestore: ' + (err?.message || 'Permission denied'));
+        }
       },
     });
   };

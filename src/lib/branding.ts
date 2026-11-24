@@ -568,9 +568,7 @@ export async function saveAppBranding(
       Array.isArray(updated.galleryImages) && updated.galleryImages.some((img) => Boolean(img));
 
     const writeOps: Promise<any>[] = [
-      setDoc(docRef, cleanPayload, { merge: true }).catch((err: any) => {
-        console.error('Firestore branding save error:', err);
-      }),
+      setDoc(docRef, cleanPayload, { merge: true }),
     ];
 
     if (hasCustomGalleryImages) {
@@ -584,17 +582,11 @@ export async function saveAppBranding(
             updatedBy: updated.updatedBy || '',
           },
           { merge: true }
-        ).catch((err: any) => {
-          console.error('Firestore branding gallery save error:', err);
-        })
+        )
       );
     }
 
-    const timeoutPromise = new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), 3000);
-    });
-
-    await Promise.race([Promise.all(writeOps), timeoutPromise]);
+    await Promise.all(writeOps);
   }
 
   return updated;

@@ -226,6 +226,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   const [activeSection, setActiveSection] = useState<SectionKey>('hero');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [branding, setBranding] = useState<AppBranding>(() => getAppBranding());
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingBg, setIsUploadingBg] = useState(false);
@@ -321,13 +322,14 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploadingLogo(true);
+    setSaveError(null);
     try {
       const url = await uploadCustomLogo(file, currentUser.email);
       setBranding((prev) => ({ ...prev, customLogoUrl: url }));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setSaveError('Gagal menyimpan logo ke Cloud Firestore: ' + (err?.message || 'Permission denied'));
     } finally {
       setIsUploadingLogo(false);
     }
@@ -335,13 +337,14 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
 
   const handleResetLogo = async () => {
     setIsUploadingLogo(true);
+    setSaveError(null);
     try {
       await resetCustomLogo(currentUser.email);
       setBranding((prev) => ({ ...prev, customLogoUrl: null }));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setSaveError('Gagal mereset logo di Cloud Firestore: ' + (err?.message || 'Permission denied'));
     } finally {
       setIsUploadingLogo(false);
     }
@@ -352,18 +355,19 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
     e.target.value = '';
     if (!file) return;
     setIsUploadingBg(true);
+    setSaveError(null);
     try {
       const scan = await validateAndScanFileUpload(file, 2 * 1024 * 1024);
       if (!scan.valid) {
-        console.error(scan.error || 'Berkas hero ditolak oleh sistem keamanan.');
+        setSaveError(scan.error || 'Berkas hero ditolak oleh sistem keamanan.');
         return;
       }
       const compressed = await compressImageFile(file, 1600, 0.85);
       setFormData((prev) => ({ ...prev, heroImageUrl: compressed.dataUrl }));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Gagal memproses foto hero.');
     } finally {
       setIsUploadingBg(false);
     }
@@ -372,13 +376,14 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSaving(true);
+    setSaveError(null);
     try {
       await saveHomeCmsContent(formData);
       await saveAppBranding({ socialLinks }, currentUser.email);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Failed to save CMS settings:', err);
+    } catch (err: any) {
+      setSaveError('Gagal menyimpan konten ke Cloud Firestore: ' + (err?.message || 'Pastikan Anda login dengan akun Super Admin terverifikasi.'));
     } finally {
       setIsSaving(false);
     }
@@ -483,6 +488,13 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
           </button>
         </div>
       </div>
+
+      {saveError && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs flex items-center justify-between gap-2 animate-in fade-in">
+          <span>{saveError}</span>
+          <button type="button" onClick={() => setSaveError(null)} className="font-bold text-rose-600 cursor-pointer">✕</button>
+        </div>
+      )}
 
       {saveSuccess && (
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center gap-2 animate-in fade-in">
@@ -1611,7 +1623,7 @@ export const HomeCmsAdminView: React.FC<HomeCmsAdminViewProps> = ({
                   <span>Sinkronisasi Otomatis Aktif</span>
                 </div>
                 <p className="text-slate-600 font-normal leading-relaxed">
-                  Setiap dokumen yang diunggah ke menu <strong>Pengumuman & Berita</strong> di dalam portal internal dengan kategori <em>Pengumuman</em> akan langsung tampil pada kartu berita beranda publik.
+                  Hanya pengumuman berkategori <em>Pengumuman</em> yang dipublikasikan oleh <strong>Super Admin</strong> dengan cakupan <strong>Publik (Beranda)</strong> dan dilengkapi foto/gambar (tanpa lampiran berkas lain) yang tampil pada kartu berita beranda publik.
                 </p>
               </div>
             </div>

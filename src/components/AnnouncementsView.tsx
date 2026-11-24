@@ -415,11 +415,16 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         keterangan: sanitizeInput(editKet.trim()),
         effectiveDate: editEffectiveDate,
         expiryDate: editExpiryDate,
-        isPublic: editIsPublic,
+        isPublic: isSuperAdmin ? editIsPublic : false,
         updatedAt: new Date().toISOString(),
       };
 
-      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA POSTING FOTO/GAMBAR, TIDAK BISA BERKAS LAIN DARI SUPER ADMIN
+      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA oleh Super Admin dan HANYA BISA POSTING FOTO/GAMBAR
+      if (editIsPublic && !isSuperAdmin) {
+        setEditError('Hanya Super Admin yang berwenang mempublikasikan pengumuman ke Beranda Publik.');
+        setIsSavingEdit(false);
+        return;
+      }
       if (editIsPublic) {
         const hasPhoto = (editDoc.fileUrl && !removePhoto) || editPhotoInput;
         if (!hasPhoto) {
@@ -518,7 +523,12 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
     setUploadError('');
 
     try {
-      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA POSTING FOTO/GAMBAR, TIDAK BISA BERKAS LAIN DARI SUPER ADMIN
+      // ENFORCEMENT: Pengumuman Publik (Beranda) HANYA BISA oleh Super Admin dan HANYA BISA POSTING FOTO/GAMBAR
+      if (upIsPublic && !isSuperAdmin) {
+        setUploadError('Hanya Super Admin yang berwenang mempublikasikan pengumuman ke Beranda Publik.');
+        setIsUploading(false);
+        return;
+      }
       if (upIsPublic) {
         if (!photoInput) {
           setUploadError('Pengumuman publik wajib menyertakan berkas foto/gambar (JPG, PNG, WebP).');
@@ -593,7 +603,7 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
         unit: 'Hotel Ciputra Jakarta',
         akses_dept: targetDept,
         keterangan: sanitizeInput(upKet.trim()),
-        isPublic: upIsPublic,
+        isPublic: isSuperAdmin ? upIsPublic : false,
         fileUrl: fileUrl || '',
         previewUrl: fileUrl || '',
         downloadUrl: fileUrl || '',
@@ -986,28 +996,30 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUpIsPublic(true);
-                      setDocAttachmentInput(null);
-                    }}
-                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
-                      upIsPublic
-                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${upIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      <Globe className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
-                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
-                        Dapat diakses di Beranda Publik website dan portal karyawan internal.
-                      </span>
-                    </div>
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpIsPublic(true);
+                        setDocAttachmentInput(null);
+                      }}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        upIsPublic
+                          ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${upIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
+                        <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          Khusus Super Admin (hanya foto). Tampil di Beranda Publik & portal internal.
+                        </span>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1617,29 +1629,31 @@ export const AnnouncementsView: React.FC<AnnouncementsViewProps> = ({
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditIsPublic(true);
-                      setEditDocAttachmentInput(null);
-                      setRemoveAttachment(true);
-                    }}
-                    className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
-                      editIsPublic
-                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${editIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      <Globe className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
-                      <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
-                        Tampil di Beranda Publik website dan portal karyawan internal.
-                      </span>
-                    </div>
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditIsPublic(true);
+                        setEditDocAttachmentInput(null);
+                        setRemoveAttachment(true);
+                      }}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        editIsPublic
+                          ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${editIsPublic ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold text-slate-900">Publikasikan ke Publik</span>
+                        <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          Khusus Super Admin (hanya foto). Tampil di Beranda Publik & portal internal.
+                        </span>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 

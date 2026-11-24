@@ -31,6 +31,20 @@
       },
       "required": ["uid", "email", "role"]
     },
+    "userAccess": {
+      "title": "User Access Registry",
+      "description": "Approved membership and role index keyed by normalized email identifier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin", "manager", "spv", "hod", "staff"] },
+        "status": { "type": "string", "enum": ["Approved", "Pending", "Rejected"] },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["id", "email", "role", "status"]
+    },
     "document": {
       "title": "Intranet Document",
       "description": "Official SOP, Form, and Announcement records",
@@ -290,6 +304,10 @@
     "/admins/{adminId}": {
       "schema": "admin",
       "description": "Trusted admin role mapping keyed by Firebase Auth UID"
+    },
+    "/userAccess/{accessId}": {
+      "schema": "userAccess",
+      "description": "Approved user membership and role index enforced by Firestore security rules"
     },
     "/documents/{documentId}": {
       "schema": "document",

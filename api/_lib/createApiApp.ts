@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 
 export type ApiUserRole = "staff" | "spv" | "manager" | "hod" | "admin";
-export type ApiUserStatus = "Pending" | "Approved";
+export type ApiUserStatus = "Pending" | "Approved" | "Rejected";
 
 export interface SessionClaims {
   sub: string;
@@ -121,6 +121,53 @@ export function verifyPasswordScrypt(password: string, storedHash: string): bool
   } catch {
     return false;
   }
+}
+
+export function verifyStoredPassword(password: string, storedHash: string): boolean {
+  if (!password || !storedHash) return false;
+  const trimmedHash = storedHash.trim();
+
+  if (trimmedHash.startsWith("SCRYPT:")) {
+    return (
+      verifyPasswordScrypt(password, trimmedHash) ||
+      verifyPasswordScrypt(password.trim(), trimmedHash)
+    );
+  }
+
+  if (trimmedHash.startsWith("PBKDF2:")) {
+    const parts = trimmedHash.split(":");
+    if (parts.length !== 4) return false;
+    const iterations = Number(parts[1]);
+    const saltHex = parts[2];
+    const expectedHex = parts[3];
+    if (
+      !Number.isFinite(iterations) ||
+      iterations < 10000 ||
+      iterations > 1000000 ||
+      !saltHex ||
+      !expectedHex
+    ) {
+      return false;
+    }
+    try {
+      const expectedBuf = Buffer.from(expectedHex, "hex");
+      if (expectedBuf.length === 0) return false;
+      // Match browser WebCrypto derivePbkdf2Hex which encodes saltHex as UTF-8 bytes
+      const derivedBuf = crypto.pbkdf2Sync(
+        password.trim(),
+        Buffer.from(saltHex, "utf8"),
+        iterations,
+        expectedBuf.length,
+        "sha256"
+      );
+      if (derivedBuf.length !== expectedBuf.length) return false;
+      return crypto.timingSafeEqual(derivedBuf, expectedBuf);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 export function isStrongPassword(password: string): boolean {
@@ -401,28 +448,53 @@ export function createApiApp() {
       return next();
     }
     const originHeader = typeof req.headers.origin === "string" ? req.headers.origin.trim() : "";
-    if (!originHeader) {
-      return next();
-    }
+    const refererHeader = typeof req.headers.referer === "string" ? req.headers.referer.trim() : "";
     const authHeader = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
     const hasCookieSession = Boolean(parseCookies(req.headers.cookie)[SESSION_COOKIE_NAME]);
+    const hasRequestedWith =
+      typeof req.headers["x-requested-with"] === "string" &&
+      req.headers["x-requested-with"].trim().length > 0;
+
     if (!hasCookieSession && authHeader.startsWith("Bearer ")) {
       return next();
     }
-    try {
-      const originHost = new URL(originHeader).host.toLowerCase();
-      const forwardedHost = String(req.headers["x-forwarded-host"] || "")
-        .split(",")[0]
-        ?.trim()
-        .toLowerCase();
-      const hostHeader = String(req.headers.host || "").trim().toLowerCase();
-      const expectedHost = forwardedHost || hostHeader;
-      if (expectedHost && originHost !== expectedHost) {
-        return res.status(403).json({ error: "Permintaan lintas asal ditolak demi keamanan sesi." });
+
+    const forwardedHost = String(req.headers["x-forwarded-host"] || "")
+      .split(",")[0]
+      ?.trim()
+      .toLowerCase();
+    const hostHeader = String(req.headers.host || "").trim().toLowerCase();
+    const expectedHost = forwardedHost || hostHeader;
+
+    if (originHeader) {
+      try {
+        const originHost = new URL(originHeader).host.toLowerCase();
+        if (expectedHost && originHost !== expectedHost) {
+          return res.status(403).json({ error: "Permintaan lintas asal ditolak demi keamanan sesi." });
+        }
+        return next();
+      } catch {
+        return res.status(403).json({ error: "Header Origin tidak valid." });
       }
-    } catch {
-      return res.status(403).json({ error: "Header Origin tidak valid." });
     }
+
+    if (hasCookieSession && !authHeader.startsWith("Bearer ")) {
+      if (refererHeader) {
+        try {
+          const refererHost = new URL(refererHeader).host.toLowerCase();
+          if (expectedHost && refererHost === expectedHost) {
+            return next();
+          }
+          return res.status(403).json({ error: "Permintaan lintas asal (Referer) ditolak." });
+        } catch {
+          return res.status(403).json({ error: "Header Referer tidak valid." });
+        }
+      }
+      if (!hasRequestedWith) {
+        return res.status(403).json({ error: "Permintaan state-changing memerlukan header verifikasi asal." });
+      }
+    }
+
     return next();
   });
 
@@ -516,7 +588,7 @@ export function createApiApp() {
     return genAIClient;
   }
 
-  // Middleware: Require valid HMAC Session Token via Authorization Bearer header or HttpOnly session cookie
+  // Middleware: Require valid HMAC Session Token + check active approval status in registry
   function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization || "";
     const bearerToken = authHeader.startsWith("Bearer ")
@@ -532,7 +604,29 @@ export function createApiApp() {
     if (!claims) {
       return res.status(401).json({ error: "Sesi token tidak valid atau sudah kedaluwarsa." });
     }
+
+    const emailKey = claims.email.toLowerCase().trim();
+    const regUser = usersByEmail.get(emailKey);
+    if (regUser && emailKey !== PRIMARY_ADMIN_EMAIL) {
+      if (regUser.status !== "Approved") {
+        clearSessionCookie(req, res);
+        return res.status(403).json({ error: "Akses akun tidak lagi berstatus Approved." });
+      }
+      claims.role = regUser.role;
+      claims.unit = regUser.unit;
+      claims.departemen = regUser.departemen;
+      claims.nama = regUser.nama;
+    }
+
     (req as express.Request & { userClaims?: SessionClaims }).userClaims = claims;
+    next();
+  }
+
+  function requireAdminRole(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const claims = (req as express.Request & { userClaims?: SessionClaims }).userClaims;
+    if (!claims || (claims.role !== "admin" && claims.email.toLowerCase().trim() !== PRIMARY_ADMIN_EMAIL)) {
+      return res.status(403).json({ error: "Hanya Super Admin yang memiliki otorisasi ini." });
+    }
     next();
   }
 
@@ -549,6 +643,70 @@ export function createApiApp() {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // First-run primary admin claim status (used only when ADMIN_BOOTSTRAP_PASSWORD env var is unset)
+  apiRouter.get("/auth/bootstrap-status", softAuthRateLimiter, (_req, res) => {
+    const adminRec = usersByEmail.get(PRIMARY_ADMIN_EMAIL);
+    const configured = Boolean(adminRec?.passwordHash);
+    res.json({
+      adminPasswordConfigured: configured,
+      canClaimBootstrapAdmin: !envAdminPass && !configured,
+    });
+  });
+
+  // First-run primary admin password claim (strictly disabled once password or env secret exists)
+  apiRouter.post("/auth/claim-admin", strictAuthRateLimiter, (req, res) => {
+    const existingAdmin = usersByEmail.get(PRIMARY_ADMIN_EMAIL);
+    if (envAdminPass || existingAdmin?.passwordHash) {
+      return res.status(403).json({ error: "Akun Super Admin utama sudah terkonfigurasi." });
+    }
+
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const nama =
+      typeof req.body?.nama === "string" && req.body.nama.trim()
+        ? req.body.nama.trim().slice(0, 100).replace(/[<>{}\\]/g, "")
+        : "Super Admin IT";
+
+    if (email !== PRIMARY_ADMIN_EMAIL) {
+      return res.status(403).json({ error: "Hanya email Super Admin utama yang dapat diklaim." });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: "Kata sandi wajib minimal 8 karakter dengan kombinasi huruf dan angka.",
+      });
+    }
+
+    const adminUser: ServerUserRecord = {
+      id: "usr-it-01",
+      nama,
+      email: PRIMARY_ADMIN_EMAIL,
+      unit: "Hotel Ciputra Jakarta",
+      departemen: "Engineering",
+      role: "admin",
+      status: "Approved",
+      passwordHash: hashPasswordScrypt(password),
+      createdAt: new Date().toISOString(),
+    };
+    usersByEmail.set(PRIMARY_ADMIN_EMAIL, adminUser);
+
+    const token = signSessionToken({
+      sub: adminUser.id,
+      email: adminUser.email,
+      nama: adminUser.nama,
+      role: "admin",
+      departemen: adminUser.departemen,
+      unit: adminUser.unit,
+      authProvider: "password",
+    });
+
+    setSessionCookie(req, res, token);
+    return res.status(201).json({
+      token,
+      user: sanitizeUser(adminUser),
+    });
+  });
+
   // Standard email/password login
   apiRouter.post("/auth/login", strictAuthRateLimiter, (req, res) => {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
@@ -559,7 +717,7 @@ export function createApiApp() {
     }
 
     const user = usersByEmail.get(email);
-    if (!user || !verifyPasswordScrypt(password, user.passwordHash)) {
+    if (!user || !verifyStoredPassword(password, user.passwordHash)) {
       return res.status(401).json({ error: "Email atau kata sandi tidak sesuai." });
     }
 
@@ -747,6 +905,128 @@ export function createApiApp() {
     clearSessionCookie(req, res);
     return res.json({ success: true });
   });
+
+  // =========================================================================
+  // ADMIN USER SYNCHRONIZATION ROUTES (Bi-directional Frontend/Firestore <-> Express)
+  // =========================================================================
+
+  apiRouter.get(
+    "/admin/users",
+    softAuthRateLimiter,
+    requireAuth,
+    requireAdminRole,
+    (_req, res) => {
+      const list = Array.from(usersByEmail.values()).map(sanitizeUser);
+      return res.json({ users: list });
+    }
+  );
+
+  apiRouter.post(
+    "/admin/users/sync",
+    softAuthRateLimiter,
+    requireAuth,
+    requireAdminRole,
+    (req, res) => {
+      const incomingUsers = Array.isArray(req.body?.users) ? req.body.users : null;
+      if (!incomingUsers) {
+        return res.status(400).json({ error: "Payload daftar user tidak valid." });
+      }
+
+      let syncedCount = 0;
+      for (const raw of incomingUsers.slice(0, 500)) {
+        if (!raw || typeof raw !== "object") continue;
+        const email = typeof raw.email === "string" ? raw.email.trim().toLowerCase() : "";
+        if (!email || !email.includes("@") || email.length > 150) continue;
+
+        const existing = usersByEmail.get(email);
+        const rawRole = typeof raw.role === "string" ? raw.role.trim().toLowerCase() : "staff";
+        const safeRole: ApiUserRole = VALID_API_ROLES.has(rawRole as ApiUserRole)
+          ? (rawRole as ApiUserRole)
+          : "staff";
+        const statusRaw = typeof raw.status === "string" ? raw.status.trim().toLowerCase() : "pending";
+        const safeStatus: ApiUserStatus =
+          statusRaw === "approved"
+            ? "Approved"
+            : statusRaw === "rejected"
+            ? "Rejected"
+            : "Pending";
+
+        let nextPasswordHash = existing?.passwordHash || "";
+        const plainPass = typeof raw.plainPassword === "string" ? raw.plainPassword : "";
+        const incomingHash = typeof raw.passwordHash === "string" ? raw.passwordHash.trim() : "";
+
+        if (plainPass && isStrongPassword(plainPass)) {
+          nextPasswordHash = hashPasswordScrypt(plainPass);
+        } else if (
+          incomingHash &&
+          (incomingHash.startsWith("SCRYPT:") || incomingHash.startsWith("PBKDF2:")) &&
+          incomingHash.length <= 256
+        ) {
+          nextPasswordHash = incomingHash;
+        }
+
+        const isPrimary = email === PRIMARY_ADMIN_EMAIL;
+        const record: ServerUserRecord = {
+          id:
+            typeof raw.id === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(raw.id.trim())
+              ? raw.id.trim()
+              : existing?.id || `usr-${crypto.randomUUID()}`,
+          nama:
+            typeof raw.nama === "string" && raw.nama.trim()
+              ? raw.nama.trim().slice(0, 150).replace(/[<>{}\\]/g, "")
+              : existing?.nama || email.split("@")[0],
+          email,
+          unit:
+            typeof raw.unit === "string" && raw.unit.trim()
+              ? raw.unit.trim().slice(0, 120)
+              : existing?.unit || "Hotel Ciputra Jakarta",
+          departemen:
+            typeof raw.departemen === "string" && raw.departemen.trim()
+              ? raw.departemen.trim().slice(0, 100)
+              : existing?.departemen || "Front Office",
+          role: isPrimary ? "admin" : safeRole,
+          status: isPrimary ? "Approved" : safeStatus,
+          passwordHash: nextPasswordHash,
+          createdAt:
+            typeof raw.createdAt === "string" && raw.createdAt.trim()
+              ? raw.createdAt.trim().slice(0, 64)
+              : existing?.createdAt || new Date().toISOString(),
+        };
+
+        usersByEmail.set(email, record);
+        syncedCount += 1;
+      }
+
+      return res.json({
+        ok: true,
+        syncedCount,
+        users: Array.from(usersByEmail.values()).map(sanitizeUser),
+      });
+    }
+  );
+
+  apiRouter.delete(
+    "/admin/users/:email",
+    softAuthRateLimiter,
+    requireAuth,
+    requireAdminRole,
+    (req, res) => {
+      const claims = (req as express.Request & { userClaims: SessionClaims }).userClaims;
+      const targetEmail = decodeURIComponent(String(req.params.email || ""))
+        .trim()
+        .toLowerCase();
+
+      if (!targetEmail || !targetEmail.includes("@")) {
+        return res.status(400).json({ error: "Alamat email tidak valid." });
+      }
+      if (targetEmail === PRIMARY_ADMIN_EMAIL || targetEmail === claims.email.toLowerCase()) {
+        return res.status(403).json({ error: "Tidak diizinkan menghapus akun administrator utama atau akun sendiri." });
+      }
+
+      const deleted = usersByEmail.delete(targetEmail);
+      return res.json({ ok: true, deleted });
+    }
+  );
 
   // =========================================================================
   // PUBLIC CAREER ANTI-BOT & ANTI-SPAM PROTECTION

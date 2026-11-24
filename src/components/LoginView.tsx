@@ -651,7 +651,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
     try {
       const regResp = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({
           nama: sanitizedName,
           email: cleanEmail,
@@ -659,12 +662,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
           password: regPassword,
         }),
       });
-      if (!regResp.ok && regResp.status === 409) {
-        setErrorMessage('Alamat email ini sudah terdaftar di sistem.');
+      if (!regResp.ok) {
+        const { data: regData } = await safeReadJson<{ error?: string }>(regResp);
+        setErrorMessage(
+          regData?.error ||
+            (regResp.status === 409
+              ? 'Alamat email ini sudah terdaftar di sistem.'
+              : 'Pendaftaran akun gagal diproses oleh server. Silakan coba lagi.')
+        );
         return;
       }
     } catch {
-      // Offline/fallback continues to Firestore
+      if (!auth.currentUser) {
+        setErrorMessage('Gagal terhubung ke server pendaftaran. Silakan periksa koneksi internet Anda.');
+        return;
+      }
     }
 
     const hashedPassword = await hashPassword(regPassword);

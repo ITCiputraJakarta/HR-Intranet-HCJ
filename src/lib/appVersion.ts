@@ -19,10 +19,9 @@ export const APP_RELEASE_HISTORY: ReleaseChangelogEntry[] = [
     version: APP_DEV_LABEL,
     date: APP_RELEASE_DATE,
     highlights: [
-      'Penambahan modal resmi Kebijakan Privasi Portal & pembaruan label versi terpusat IT-BG dev.',
-      'Sinkronisasi akurat Frontend ↔ Express API ↔ Cloud Firestore (bebas artikel fiktif / phantom data).',
-      'Pengamanan Google SSO fail-closed, dukungan hash PBKDF2/SCRYPT, serta proteksi CSRF sesi HttpOnly.',
-      'Pengumuman publik Beranda khusus foto oleh Super Admin dengan filter masa berlaku otomatis.',
+      'Pembaruan halaman Kebijakan Privasi Portal yang lebih ringkas dan jelas.',
+      'Penyelarasan penomoran versi terpusat IT-BG dev di seluruh halaman.',
+      'Penyempurnaan tampilan info publik, halaman karir, dan stabilitas akses.',
     ],
   },
 ];

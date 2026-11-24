@@ -201,87 +201,72 @@ export const PublicCareerView: React.FC<PublicCareerViewProps> = ({
     const scrollerTarget = modalScroller || undefined;
 
     const ctx = gsap.context(() => {
+      const getTargets = (selector: string) =>
+        gsap.utils.toArray<HTMLElement>(selector, root);
+
+      const animateFromIfPresent = (
+        selector: string,
+        vars: gsap.TweenVars,
+        triggerSelector?: string,
+        startPos: string = 'top 85%'
+      ) => {
+        const targets = getTargets(selector);
+        if (targets.length === 0) return;
+
+        if (triggerSelector) {
+          const triggerEl = root.querySelector(triggerSelector);
+          if (!triggerEl) return;
+          gsap.from(targets, {
+            ...vars,
+            scrollTrigger: {
+              trigger: triggerEl,
+              scroller: scrollerTarget,
+              start: startPos,
+              once: true,
+            },
+          });
+          return;
+        }
+
+        gsap.from(targets, vars);
+      };
+
       const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      heroTl
-        .from('[data-gsap="career-badge"]', {
-          y: 14,
-          opacity: 0,
-          duration: 0.45,
-          clearProps: 'transform,opacity',
-        })
-        .from(
-          '[data-gsap="career-title"]',
-          {
-            y: 22,
-            opacity: 0,
-            duration: 0.6,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.28'
-        )
-        .from(
-          '[data-gsap="career-subtitle"]',
-          {
-            y: 16,
-            opacity: 0,
-            duration: 0.5,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.35'
-        )
-        .from(
-          '[data-gsap="career-cta"]',
-          {
-            y: 14,
-            opacity: 0,
-            duration: 0.45,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.3'
-        );
+      const careerSteps: Array<{ selector: string; vars: gsap.TweenVars; position?: string }> = [
+        { selector: '[data-gsap="career-badge"]', vars: { y: 14, opacity: 0, duration: 0.45, clearProps: 'transform,opacity' } },
+        { selector: '[data-gsap="career-title"]', vars: { y: 22, opacity: 0, duration: 0.6, clearProps: 'transform,opacity' }, position: '-=0.28' },
+        { selector: '[data-gsap="career-subtitle"]', vars: { y: 16, opacity: 0, duration: 0.5, clearProps: 'transform,opacity' }, position: '-=0.35' },
+        { selector: '[data-gsap="career-cta"]', vars: { y: 14, opacity: 0, duration: 0.45, clearProps: 'transform,opacity' }, position: '-=0.3' },
+      ];
 
-      gsap.from('[data-gsap="career-culture-left"]', {
-        x: -24,
-        opacity: 0,
-        duration: 0.65,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#culture',
-          scroller: scrollerTarget,
-          start: 'top 85%',
-          once: true,
-        },
+      let addedCareerStep = false;
+      careerSteps.forEach(({ selector, vars, position }) => {
+        const targets = getTargets(selector);
+        if (targets.length === 0) return;
+        heroTl.from(targets, vars, addedCareerStep ? position : undefined);
+        addedCareerStep = true;
       });
 
-      gsap.from('[data-gsap="career-benefit-card"]', {
-        y: 24,
-        opacity: 0,
-        duration: 0.55,
-        stagger: 0.1,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#culture',
-          scroller: scrollerTarget,
-          start: 'top 80%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="career-culture-left"]',
+        { x: -24, opacity: 0, duration: 0.65, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#culture',
+        'top 85%'
+      );
 
-      gsap.from('[data-gsap="career-openings-header"]', {
-        y: 20,
-        opacity: 0,
-        duration: 0.55,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#openings',
-          scroller: scrollerTarget,
-          start: 'top 85%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="career-benefit-card"]',
+        { y: 24, opacity: 0, duration: 0.55, stagger: 0.1, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#culture',
+        'top 80%'
+      );
+
+      animateFromIfPresent(
+        '[data-gsap="career-openings-header"]',
+        { y: 20, opacity: 0, duration: 0.55, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#openings',
+        'top 85%'
+      );
     }, root);
 
     const refreshId = window.setTimeout(() => {

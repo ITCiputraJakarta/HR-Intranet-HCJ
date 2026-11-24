@@ -185,153 +185,95 @@ export const PublicHomeView: React.FC<PublicHomeViewProps> = ({
     const scrollerTarget = modalScroller || undefined;
 
     const ctx = gsap.context(() => {
+      const getTargets = (selector: string) =>
+        gsap.utils.toArray<HTMLElement>(selector, root);
+
+      const animateFromIfPresent = (
+        selector: string,
+        vars: gsap.TweenVars,
+        triggerSelector?: string,
+        startPos: string = 'top 84%'
+      ) => {
+        const targets = getTargets(selector);
+        if (targets.length === 0) return;
+
+        if (triggerSelector) {
+          const triggerEl = root.querySelector(triggerSelector);
+          if (!triggerEl) return;
+          gsap.from(targets, {
+            ...vars,
+            scrollTrigger: {
+              trigger: triggerEl,
+              scroller: scrollerTarget,
+              start: startPos,
+              once: true,
+            },
+          });
+          return;
+        }
+
+        gsap.from(targets, vars);
+      };
+
       const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      heroTl
-        .from('[data-gsap="hero-badge"]', {
-          y: 16,
-          opacity: 0,
-          duration: 0.5,
-          clearProps: 'transform,opacity',
-        })
-        .from(
-          '[data-gsap="hero-title"]',
-          {
-            y: 24,
-            opacity: 0,
-            duration: 0.65,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.32'
-        )
-        .from(
-          '[data-gsap="hero-subtitle"]',
-          {
-            y: 18,
-            opacity: 0,
-            duration: 0.55,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.4'
-        )
-        .from(
-          '[data-gsap="hero-cta"]',
-          {
-            y: 16,
-            opacity: 0,
-            duration: 0.5,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.35'
-        )
-        .from(
-          '[data-gsap="hero-photo"]',
-          {
-            scale: 0.95,
-            y: 24,
-            opacity: 0,
-            duration: 0.75,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.55'
-        )
-        .from(
-          '[data-gsap="hero-float"]',
-          {
-            y: 18,
-            scale: 0.92,
-            opacity: 0,
-            duration: 0.5,
-            stagger: 0.14,
-            clearProps: 'transform,opacity',
-          },
-          '-=0.35'
-        );
+      const heroSteps: Array<{ selector: string; vars: gsap.TweenVars; position?: string }> = [
+        { selector: '[data-gsap="hero-badge"]', vars: { y: 16, opacity: 0, duration: 0.5, clearProps: 'transform,opacity' } },
+        { selector: '[data-gsap="hero-title"]', vars: { y: 24, opacity: 0, duration: 0.65, clearProps: 'transform,opacity' }, position: '-=0.32' },
+        { selector: '[data-gsap="hero-subtitle"]', vars: { y: 18, opacity: 0, duration: 0.55, clearProps: 'transform,opacity' }, position: '-=0.4' },
+        { selector: '[data-gsap="hero-cta"]', vars: { y: 16, opacity: 0, duration: 0.5, clearProps: 'transform,opacity' }, position: '-=0.35' },
+        { selector: '[data-gsap="hero-photo"]', vars: { scale: 0.95, y: 24, opacity: 0, duration: 0.75, clearProps: 'transform,opacity' }, position: '-=0.55' },
+        { selector: '[data-gsap="hero-float"]', vars: { y: 18, scale: 0.92, opacity: 0, duration: 0.5, stagger: 0.14, clearProps: 'transform,opacity' }, position: '-=0.35' },
+      ];
 
-      gsap.from('[data-gsap="services-header"]', {
-        y: 22,
-        opacity: 0,
-        duration: 0.6,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#layanan',
-          scroller: scrollerTarget,
-          start: 'top 88%',
-          once: true,
-        },
+      let addedHeroStep = false;
+      heroSteps.forEach(({ selector, vars, position }) => {
+        const targets = getTargets(selector);
+        if (targets.length === 0) return;
+        heroTl.from(targets, vars, addedHeroStep ? position : undefined);
+        addedHeroStep = true;
       });
 
-      gsap.from('[data-gsap="service-card"]', {
-        y: 28,
-        opacity: 0,
-        duration: 0.6,
-        stagger: 0.12,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#layanan',
-          scroller: scrollerTarget,
-          start: 'top 80%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="services-header"]',
+        { y: 22, opacity: 0, duration: 0.6, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#layanan',
+        'top 88%'
+      );
 
-      gsap.from('[data-gsap="about-photos"]', {
-        x: -26,
-        opacity: 0,
-        duration: 0.7,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#panduan',
-          scroller: scrollerTarget,
-          start: 'top 84%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="service-card"]',
+        { y: 28, opacity: 0, duration: 0.6, stagger: 0.12, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#layanan',
+        'top 80%'
+      );
 
-      gsap.from('[data-gsap="about-content"]', {
-        x: 26,
-        opacity: 0,
-        duration: 0.7,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '#panduan',
-          scroller: scrollerTarget,
-          start: 'top 84%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="about-photos"]',
+        { x: -26, opacity: 0, duration: 0.7, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#panduan',
+        'top 84%'
+      );
 
-      gsap.from('[data-gsap="news-header"]', {
-        y: 20,
-        opacity: 0,
-        duration: 0.55,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '[data-gsap="news-section"]',
-          scroller: scrollerTarget,
-          start: 'top 88%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="about-content"]',
+        { x: 26, opacity: 0, duration: 0.7, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '#panduan',
+        'top 84%'
+      );
 
-      gsap.from('[data-gsap="news-card"]', {
-        y: 26,
-        opacity: 0,
-        duration: 0.55,
-        stagger: 0.12,
-        ease: 'power2.out',
-        clearProps: 'transform,opacity',
-        scrollTrigger: {
-          trigger: '[data-gsap="news-section"]',
-          scroller: scrollerTarget,
-          start: 'top 82%',
-          once: true,
-        },
-      });
+      animateFromIfPresent(
+        '[data-gsap="news-header"]',
+        { y: 20, opacity: 0, duration: 0.55, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '[data-gsap="news-section"]',
+        'top 88%'
+      );
+
+      animateFromIfPresent(
+        '[data-gsap="news-card"]',
+        { y: 26, opacity: 0, duration: 0.55, stagger: 0.12, ease: 'power2.out', clearProps: 'transform,opacity' },
+        '[data-gsap="news-section"]',
+        'top 82%'
+      );
     }, root);
 
     const refreshId = window.setTimeout(() => {
